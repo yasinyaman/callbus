@@ -13,6 +13,9 @@ change behaviour.
   training pairs evenly over their tools' documentation shapes; ToolRet-train has four, and
   ToolBench's REST shapes make up 68% of it. `--fn-margin` masks the in-batch negatives a request
   scores above its positive by more than the margin (likely equivalent tools).
+  `scripts/lora_soup.py` averages adapters of one backbone (a run's checkpoints, or runs that
+  differ in their seed) into merged weights vLLM serves like a trained run's; with one adapter it
+  is that run's merge, bit for bit.
 - `toolrank compare --paired` tests ToolRet's category averages too: a row per category and one for
   `cat-macro`, each the paired permutation test on the queries weighted as those averages weigh
   them (1 / (task size × the category's task count)). Runs rows now carry each query's `task` and

@@ -103,3 +103,58 @@ def test_only_the_listed_files_of_a_full_snapshot_are_copied(tmp_path):
     assert sorted(p.relative_to(merged).as_posix() for p in merged.rglob("*") if p.is_file()) == sorted(
         [*copied, "model.safetensors"]
     )
+
+
+def _soup():
+    spec = importlib.util.spec_from_file_location("lora_soup", ROOT / "scripts" / "lora_soup.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_a_soup_takes_adapters_of_one_plain_lora_base():
+    m = _soup()
+    with pytest.raises(SystemExit):
+        m.parse(["--out", "o"])
+    assert m.parse(["--adapter", "a", "--adapter", "b", "--out", "o"]).adapter == ["a", "b"]
+    cfg = {
+        "base_model_name_or_path": "Qwen/Qwen3-Embedding-8B",
+        "peft_type": "LORA",
+        "r": 16,
+        "lora_alpha": 32,
+    }
+    assert m.check_configs([cfg, dict(cfg)]) == "Qwen/Qwen3-Embedding-8B"
+    assert m.scale(cfg) == 2.0 and m.scale({**cfg, "use_rslora": True}) == pytest.approx(8.0)
+    for bad in (
+        {**cfg, "base_model_name_or_path": "other"},
+        {**cfg, "use_dora": True},
+        {**cfg, "modules_to_save": ["lm_head"]},
+        {**cfg, "rank_pattern": {"q_proj": 8}},
+    ):
+        with pytest.raises(ValueError):
+            m.check_configs([cfg, bad])
+
+
+def test_adapter_tensors_map_to_the_causal_lm_modules():
+    m = _soup()
+    stem = "base_model.model.model.layers.0.self_attn.q_proj"
+    pairs = m.module_pairs({f"{stem}.lora_A.weight": "A", f"{stem}.lora_B.weight": "B"})
+    assert pairs == {"model.layers.0.self_attn.q_proj": ("A", "B")}
+    with pytest.raises(ValueError):  # B without its A
+        m.module_pairs({f"{stem}.lora_B.weight": "B"})
+    with pytest.raises(ValueError):  # not a LoRA matrix
+        m.module_pairs({f"{stem}.weight": "W"})
+
+
+def test_the_mean_delta_is_the_mean_of_the_merged_weights():
+    torch = pytest.importorskip("torch")
+    m = _soup()
+    g = torch.Generator().manual_seed(0)
+    w = torch.randn(6, 5, generator=g)
+    adapters = [(torch.randn(2, 5, generator=g), torch.randn(6, 2, generator=g), s) for s in (2.0, 0.5, 1.0)]
+    merged = [w + s * b @ a for a, b, s in adapters]  # what merge_and_unload gives per adapter
+    assert torch.allclose(w + m.mean_delta(adapters), sum(merged) / 3, atol=1e-6)
+    a, b, s = adapters[0]
+    assert torch.allclose(m.mean_delta([adapters[0]]), s * b @ a)  # a soup of one = that adapter merged
+    bf = [(x.bfloat16(), y.bfloat16(), z) for x, y, z in adapters]
+    assert m.mean_delta(bf).dtype == torch.float32  # computed in float32 whatever the adapters hold

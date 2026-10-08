@@ -162,6 +162,8 @@ docker compose -f deploy/spark/compose.yaml --profile rerank up -d qwen3-reranke
 uv run --extra lora python scripts/lora_train.py --pairs data/toolret_train/pairs.jsonl --dev data/mcp_zero_server \
   --eval data/toolret --eval data/livemcpbench_server --n-train 20000 --out data/lora/<name> --check-parity   # GB10, hours
 #   [--balance shape: the pairs evenly over their 4 documentation shapes] [--fn-margin 0.1: mask likely false negatives]
+uv run --extra lora python scripts/lora_soup.py --adapter data/lora/<a>/adapter --adapter data/lora/<b>/adapter \
+  --out data/lora/<soup>   # GB10, CPU, minutes: the mean of merged models; one --adapter = lora_train's merge
 TOOLRANK_LORA=$HOME/toolrank/data/lora/<name>/merged docker compose -f deploy/spark/compose.yaml --profile lora up -d qwen3-emb-lora  # 8097
 toolrank heads export data/heads/<run>.pt dist/heads/<name>.npz --dtype float16 --tool-format documentation ...
 uv run python scripts/adaptive_k_sweep.py --margins 0.1,0.2 -- <eval flags>     # rank once, cut many ways
@@ -638,7 +640,8 @@ scripts/                          run_matrix.sh; toolret_paper_avg.py; truncatio
                                   publish_heads.py (the Hub, pinned to a tag), leaderboard_table.py (ToolRet leaderboard sheets),
                                   launch_metrics.py (the Faz 1 gate's numbers);
                                   jev_compare.sh, clm_rerank.sh, cross_rerank.sh (second-stage rows: Jev, CLM, cross-encoders),
-                                  lora_train.py (LoRA on the embedding backbone, [lora] extra), rerank_report.py (faz2-rerank.md's tables, --write);
+                                  lora_train.py (LoRA on the embedding backbone, [lora] extra), lora_soup.py (adapters averaged into
+                                  merged weights), rerank_report.py (faz2-rerank.md's tables, --write);
                                   learn_sim.py (split a benchmark, play its queries as logged traffic), learn_sim.sh (learn + eval per traffic size);
                                   routing_sweep.py (server -> tool rules and the no-tool gate), couse_sweep.py (co-use partners on a log);
                                   helm_smoke.py (the chart on a cluster without a GPU: fake embeddings, install, upgrade, uninstall);
