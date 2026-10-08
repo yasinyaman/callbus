@@ -135,6 +135,7 @@ toolrank data split data/dev_w3_multi2 --out-a data/dev_w3_multi2_sel --out-b da
 toolrank compare results/toolret_*.json                        # on the Mac: markdown table for the report
 toolrank eval ... --runs-out results/a_runs.jsonl              # one row per query (top-20 ids, P@1, hit@5, NDCG@10)
 toolrank compare --paired results/a_runs.jsonl results/b_runs.jsonl   # sign test (P@1, hit@5), permutation test (NDCG@10)
+toolrank compare --paired --data data/toolret a_runs.jsonl b_runs.jsonl   # + per category and cat-macro (weighted)
 PYTHONUNBUFFERED=1 nohup bash scripts/readme_results.sh > data/logs/readme_results.log 2>&1 &   # GB10: the README's runs
 uv run python scripts/readme_table.py --write                  # Mac, after scp 'gb10:toolrank/results/readme_*.json' docs/results/
 
@@ -604,7 +605,7 @@ src/toolrank/datasets/jsonl.py    the on-disk format (+ pairs.jsonl); toolret.py
                                   livemcpbench.py; mcp_zero.py (download + LLM-written queries); synthetic.py;
                                   genqueries.py (data gen-queries: sample tools over sources, LLM-written requests in styles)
 src/toolrank/eval/metrics.py      trec_eval-compatible metrics; runner.py (run_eval, summarize, format_table, save_report, --runs-out rows);
-                                  paired.py (compare --paired: exact sign test, paired permutation test);
+                                  paired.py (compare --paired: exact sign test, paired permutation test, weighted per category);
                                   table.py (the README's results table: render, splice, the protocol checks)
 src/toolrank/finetune.py          toolrank finetune: Job/run, EvalSet (dev curves), train_heads(select=), load_checkpoint
 src/toolrank/learn.py             toolrank learn: mine (log -> pairs of tool ids), state_vectors (emb_hmac -> cache), split, run;
@@ -794,6 +795,9 @@ examples/                         anthropic_tool_reference.py, openai_client_too
   1,875) against the 20k (`v0.2`), NDCG@10 w/ inst, paired tests: `dev_w3_multi2` 82.95 → 83.12 (p 0.64), MCP-Zero
   93.67 → 92.14 (p 0.0001; the 20k's selection set), ToolRet 58.90 → 58.86 (cat-macro 54.36 → 52.31), the dev sets and
   LiveMCPBench within noise: `v0.2` stays. The Hub's `v0.2` is the local 20k byte for byte.
+  The 20k recipe again with only the training seed changed (same 20k pairs, both runs keep the last step): MCP-Zero
+  −0.74 (p 0.0001), ToolRet cat-macro 54.36 → 52.87 (code −3.05, web −1.81; p ≤ 0.0006), the dev sets within ±0.7:
+  a per-query p does not measure seed variance, so a LoRA lever counts only beyond this floor.
 
 ## Where we are
 

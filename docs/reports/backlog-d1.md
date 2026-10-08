@@ -10,7 +10,9 @@ ve Strands rehberi (D1.11). Bu rapor maddeler bittikçe büyüyor.
 D1.1, D1.3, D1.4, D1.5, D1.7–D1.9, D1.11, D1.12 ve D1.10'un kodu bitti; D1.2'nin dizüstü kısmı bitti, MCP-Zero
 ve dev setleri GB10'u bekliyor. 60k çiftle eğitilen LoRA, önceden yazılan kurala göre v0.3 olmuyor: karar
 setinde 20k'yla berabere (NDCG@10 83,12'ye karşı 82,95, p 0,64), MCP-Zero'da 1,5 puan geride (p 0,0001); 0.3.0
-`v0.2` ile çıkıyor. Hub'daki `v0.2` yerel 20k'yla bayt bayt aynı.
+`v0.2` ile çıkıyor. Hub'daki `v0.2` yerel 20k'yla bayt bayt aynı. 20k tarifinin yalnız eğitim seed'i değişmiş
+tekrarı da `v0.2`'den MCP-Zero'da 0,7, ToolRet cat-macro'da 1,5 puan geride (ikisi de p 0,0001): sorgu düzeyindeki
+p, seed'in getirdiği oynamayı ölçmüyor; bundan sonraki LoRA kararları bu tabana göre veriliyor.
 Varsayılan backbone'un Q4_K_M GGUF'u, 4 GB'lık bir dizüstü GPU'sunda Ollama'yla vLLM'deki bf16 kadar iyi: ToolRet
 NDCG@10 59,50'ye karşı 58,90, LiveMCPBench 55,75'e karşı 55,74. Bu dizüstünde yeni bir arama 0,6–0,7 sn sürüyor;
 Qwen3-Embedding 0.6B ve 4B 2–14 kat hızlı ama 6–11 puan geride. `ToolrankToolSelector`, LangChain 1.x'in
@@ -52,13 +54,35 @@ w/ inst, `--truncate 8192`); 20k aynı önbellekten yeniden puanlandı (kodlanan
 | ToolRet | 7.961 | 58,90 | 58,86 | −0,04 | 0,84 | 51,29 | 52,08 | 0,05 |
 
 p: NDCG@10 için eşli permütasyon testi, P@1 için kesin işaret testi (`toolrank compare --paired`). ToolRet
-cat-macro 54,36 → 52,31 (−2,05; eşli testi yok, kategori ortalaması).
+cat-macro 54,36 → 52,31 (−2,05, p 0,0001; aşağıdaki ekteki ağırlıklı permütasyon testiyle).
 
 **Karar (kural 3 Ekim'de, ilk koşudan önce yazıldı): v0.2 kalıyor.** Kural: 60k karar setinde 20k'yı geçer ve
 hiçbir sette 1 puandan fazla kaybetmezse v0.3 olur. Karar setinde fark gürültü içinde (+0,17, p 0,64), MCP-Zero'da
 −1,53 (p 0,0001). MCP-Zero 20k'nın seçim setiydi, yani orada 20k lehine bir yanlılık var; kural yine de değişmedi
 ve 60k başka hiçbir sette anlamlı kazanmıyor. FP8 ölçümü yalnız kazanana yapılacaktı, yapılmadı. Bu yüzden
 0.3.0'ın backbone'u `v0.2` (`yasinyaman/toolrank-emb-8b@v0.2`), servis adı `toolrank-emb-v0.2`.
+
+**Ek (8 Ekim): seed replikası, gürültü tabanı.** 20k tarifi başka bir eğitim seed'iyle yeniden koşuldu
+(`qwen3-emb-lora-20k-r1`: `--seed 1 --data-seed 0`, seçim `dev_w3_multi2`'nin seçim yarısında). Veri seed'i ve
+düşülen çiftler (ToolRet'in 776'sı) aynı olduğundan 20 bin çift `v0.2`'ninkilerle aynı; iki koşu da son adımı (625)
+seçti. Yani `v0.2` ile replika arasındaki tek fark LoRA'nın başlangıcı ve batch sırası. ToolRet kategorileri için
+eşli test (`toolrank compare --paired --data data/toolret`, bu ekle geldi): sorguların NDCG@10 farkları, her sorgu
+1/(görevinin boyu × kategorisinin görev sayısı) ağırlıkla, işaretler rastgele çevrilerek (10.000 permütasyon, en küçük
+p 0,0001); ağırlıklı ortalamalar raporlardaki kategori sayılarını birebir veriyor.
+
+| fark | MCP-Zero NDCG@10 | p | ToolRet cat-macro | p | code | p | web | p |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| seed: `v0.2` → replika | −0,74 | 0,0001 | −1,49 | 0,0001 | −3,05 | 0,0001 | −1,81 | 0,0006 |
+| veri: replika → 60k | −0,79 | 0,0001 | −0,56 | 0,12 | −1,91 | 0,001 | +0,02 | 0,98 |
+| `v0.2` → 60k (yukarıdaki) | −1,53 | 0,0001 | −2,04 | 0,0001 | −4,97 | 0,0001 | −1,80 | 0,005 |
+
+Dev setlerinde ve LiveMCPBench'te replika `v0.2`'den ±0,7 içinde, hiçbiri anlamlı değil (`dev_w3_multi2` 82,77,
+p 0,63). Sonuç: yalnız seed'i değiştirmek, MCP-Zero'da ve ToolRet'in code/web kategorilerinde 60k'nın kaybı
+kadar fark yaratıyor; sorgu düzeyindeki p bu farkı yakalamıyor, çünkü seed'in getirdiği oynamayı ölçmüyor. Karar
+değişmiyor (60k hiçbir sette kazanmıyor), ama "60k code kategorisini bozdu" bulgusu tek koşuyla kurulamaz:
+replikaya karşı kalan −1,91 de tek seed çiftinin farkı. MCP-Zero'daki "seçim seti yanlılığı" da küçük: iki koşu da
+son adımı seçti. Sonraki LoRA karşılaştırmaları (Dalga 3'ün kolları) aynı seed'li replikaya karşı yapılıyor ve
+bir etki ancak bu tablodaki seed farkını aşarsa sayılıyor.
 
 **Hub'daki `v0.2` = yerel 20k.** Hub'daki `v0.2` revizyonunun (commit `c89f13b`) dosyaları, yerel
 `qwen3-emb-lora-20k/merged`'le karşılaştırıldı: `model.safetensors` SHA-256 `53789cff…7f42`, `tokenizer.json`
@@ -284,6 +308,15 @@ uv run toolrank eval --data data/dev_w3_multi2 $E --ks 5,10,20 --cut-margin 0.2 
 # mcp_zero_server (--ks 1,5,10,20), toolret; then the 20k as qwen3-emb-lora on 8097, the same flags, lora20k_*
 # Mac, after scp 'gb10:toolrank/results/lora{20k,60k}_*' results/:
 uv run toolrank compare --paired results/lora20k_mcp_zero_server_runs.jsonl results/lora60k_mcp_zero_server_runs.jsonl
+# the seed replica (8 Oct), GB10: the 20k recipe with another training seed, picked on dev_w3_multi2's selection half
+uv run toolrank data split data/dev_w3_multi2 --out-a data/dev_w3_multi2_sel --out-b data/dev_w3_multi2_conf
+uv run --extra lora python scripts/lora_train.py --pairs data/toolret_train/pairs.jsonl --dev data/dev_w3_multi2_sel \
+  --eval data/toolret --eval data/livemcpbench_server --eval data/mcp_zero_server --eval data/dev_w3 \
+  --eval data/dev_w3_sit --eval data/dev_w3_multi3 --eval data/dev_w3_multi2_conf \
+  --n-train 20000 --seed 1 --data-seed 0 --check-parity --keep-all --out data/lora/qwen3-emb-lora-20k-r1
+# then served as qwen3-emb-lora-r1 and scored like the 60k above, lorar1_* (data/lora/chain_lora_arms.sh, untracked);
+# Mac, ToolRet's categories from its queries (scp gb10:toolrank/data/toolret/queries.jsonl data/toolret/):
+uv run toolrank compare --paired --data data/toolret results/lora20k_toolret_runs.jsonl results/lorar1_toolret_runs.jsonl
 # the Hub's v0.2 against the local 20k: file list + LFS sha256 (HfApi.model_info(..., files_metadata=True)),
 # sha256sum / git hash-object of data/lora/qwen3-emb-lora-20k/merged/*
 # Mac; tool ve sorgu vektörleri data/w3/cache'ten (GB10 kapalıydı)

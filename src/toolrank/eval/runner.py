@@ -113,13 +113,16 @@ def run_eval(
 
 
 def _runs_row(q: Query, r: RankedList, m: dict[str, float]) -> dict[str, Any]:
-    """One per-query row of a runs file: the top-20 ids and the paired-test metrics."""
+    """One per-query row of a runs file: the top-20 ids, the paired-test metrics, and the query's
+    task and category when it has them (compare --paired's category averages)."""
     rel = {d for d, g in q.qrels.items() if g > 0}
     ndcg10 = m.get("NDCG@10")
     if ndcg10 is None:  # the run reported other cut-offs; the paired test still needs @10
         ndcg10 = evaluate_query(r.tool_ids, q.qrels, (10,))["NDCG@10"]
     return {
         "id": q.id,
+        **({"task": q.task} if q.task else {}),
+        **({"category": q.category} if q.category else {}),
         "top": list(r.tool_ids[:20]),
         "P@1": float(bool(r.tool_ids) and r.tool_ids[0] in rel),
         "hit@5": float(any(t in rel for t in r.tool_ids[:5])),

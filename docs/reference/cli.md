@@ -73,6 +73,7 @@ markdown table across result files
 | --- | --- | --- |
 | `files` | required |  |
 | `--paired` |  | two runs files (eval --runs-out): sign and paired permutation tests per query |
+| `--data DATA` |  | with --paired: the dataset dir whose queries give each query's task and category, for per-category and cat-macro rows (runs rows carry them since 0.3.0; this is for older files) |
 | `--metrics METRICS` | `NDCG@10,Recall@10,Comprehensiveness@10` |  |
 | `--cat-macro CAT_MACRO` |  | metrics to add as category macro-averages (the ToolRet paper's Average); default: the first --metrics entry, '' for none |
 

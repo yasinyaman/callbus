@@ -13,6 +13,10 @@ change behaviour.
   training pairs evenly over their tools' documentation shapes; ToolRet-train has four, and
   ToolBench's REST shapes make up 68% of it. `--fn-margin` masks the in-batch negatives a request
   scores above its positive by more than the margin (likely equivalent tools).
+- `toolrank compare --paired` tests ToolRet's category averages too: a row per category and one for
+  `cat-macro`, each the paired permutation test on the queries weighted as those averages weigh
+  them (1 / (task size × the category's task count)). Runs rows now carry each query's `task` and
+  `category`; for older runs files, `--data DIR` reads them from the set's queries.
 - `toolrank.integrations.anthropic.Toolbox(inline=True)` (the example's `--inline`) sends no
   catalogue. Under the `inline-tools-2026-09-15` beta, `tools` is `search_tools` alone, and the tools
   a search finds are added by value in a `role: "system"` message of `tool_addition` blocks, once

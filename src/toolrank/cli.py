@@ -202,7 +202,7 @@ def _compare_paired(a: argparse.Namespace) -> int:
     permutation test for NDCG@10."""
     from statistics import fmean
 
-    from toolrank.eval.paired import permutation_test, sign_test
+    from toolrank.eval.paired import category_weights, permutation_test, sign_test, weighted_permutation_test
 
     if len(a.files) != 2:
         sys.exit("--paired compares exactly two runs files (toolrank eval --runs-out writes them)")
@@ -244,12 +244,50 @@ def _compare_paired(a: argparse.Namespace) -> int:
             f"| {metric} ({detail}) | {100 * fmean(xs):.2f} | {100 * fmean(ys):.2f} | "
             f"{100 * (fmean(xs) - fmean(ys)):+.2f} | {p:.4f} |"
         )
+    groups = _query_groups(a.data, by_id, ids)
+    if groups:
+        weights = category_weights(groups, ids)
+        xs = [by_id[0][i]["NDCG@10"] for i in ids]
+        ys = [by_id[1][i]["NDCG@10"] for i in ids]
+        for c, w in weights.items():
+            n_tasks = len({groups[i][0] for i, x in zip(ids, w, strict=True) if x > 0})
+            mx = sum(x * v for x, v in zip(w, xs, strict=True))
+            my = sum(x * v for x, v in zip(w, ys, strict=True))
+            label = f"NDCG@10 {c or 'no category'} ({n_tasks} tasks)"
+            lines.append(
+                f"| {label} | {100 * mx:.2f} | {100 * my:.2f} | {100 * (mx - my):+.2f} | "
+                f"{weighted_permutation_test(xs, ys, w):.4f} |"
+            )
     note = f"n = {len(ids)} queries paired by id"
     if len(ids) < len(by_id[0]) or len(ids) < len(by_id[1]):
         note += f" (the runs answer {len(by_id[0])} and {len(by_id[1])}; only the shared ones pair)"
     lines.append(f"\n{note}; p: exact sign test (P@1, hit@5), paired permutation test (NDCG@10)")
+    if groups:
+        lines.append(
+            "per category and cat-macro: the same test on the queries weighted as the category averages "
+            "weigh them, 1 / (task size x the category's tasks)"
+        )
     print("\n".join(lines))
     return 0
+
+
+def _query_groups(
+    data: str | None, by_id: list[dict[str, dict]], ids: list[str]
+) -> dict[str, tuple[str, str]]:
+    """Each paired query's (task, category), from ``--data``'s queries or else the runs' rows; empty
+    when no query has a category (the category rows then stay out)."""
+    if data:
+        from toolrank.datasets.jsonl import load_queries
+
+        known = {q.id: (q.task or "all", q.category) for q in load_queries(Path(data) / "queries.jsonl")}
+        if missing := [i for i in ids if i not in known]:
+            sys.exit(f"{len(missing)} paired queries are not in {data} (e.g. {missing[0]!r}): another set?")
+    else:
+        known = {}
+        for i in ids:
+            row = by_id[0][i] if "category" in by_id[0][i] else by_id[1][i]
+            known[i] = (row.get("task") or "all", row.get("category", ""))
+    return known if any(c for _, c in known.values()) else {}
 
 
 def cmd_data_pull(a: argparse.Namespace) -> int:
@@ -1294,6 +1332,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--paired",
         action="store_true",
         help="two runs files (eval --runs-out): sign and paired permutation tests per query",
+    )
+    c.add_argument(
+        "--data",
+        default=None,
+        help="with --paired: the dataset dir whose queries give each query's task and category, for "
+        "per-category and cat-macro rows (runs rows carry them since 0.3.0; this is for older files)",
     )
     c.add_argument("--metrics", default="NDCG@10,Recall@10,Comprehensiveness@10")
     c.add_argument(
