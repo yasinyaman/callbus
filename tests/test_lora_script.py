@@ -158,3 +158,63 @@ def test_the_mean_delta_is_the_mean_of_the_merged_weights():
     assert torch.allclose(m.mean_delta([adapters[0]]), s * b @ a)  # a soup of one = that adapter merged
     bf = [(x.bfloat16(), y.bfloat16(), z) for x, y, z in adapters]
     assert m.mean_delta(bf).dtype == torch.float32  # computed in float32 whatever the adapters hold
+
+
+def test_grad_cache_gives_the_whole_batch_gradient_with_dropout():
+    torch = pytest.importorskip("torch")
+    m = _script()
+
+    class Tiny(torch.nn.Module):  # two towers sharing a layer, with dropout like the LoRA layers
+        def __init__(self):
+            super().__init__()
+            self.emb = torch.nn.Embedding(50, 8)
+            self.mix = torch.nn.Linear(8, 8)
+            self.drop = torch.nn.Dropout(0.3)
+
+        def forward(self, ids):
+            return torch.nn.functional.normalize(self.mix(self.drop(self.emb(ids))), dim=-1)
+
+    def run(cached):
+        torch.manual_seed(0)
+        net = Tiny().train()
+        q_ids, d_ids = torch.arange(12), torch.arange(12, 24)
+        chunks = [(q_ids[i : i + 4], d_ids[i : i + 4]) for i in range(0, 12, 4)]
+        texts = [str(i) for i in range(12)]
+        texts[5] = texts[1]  # a duplicate positive: masked the same way in both
+
+        def loss_fn(zq, zd):
+            return m.infonce(zq @ zd.T, texts, tau=0.05, fn_margin=0.1)
+
+        def encode(c, grad):
+            with torch.set_grad_enabled(grad):
+                return net(c[0]), net(c[1])
+
+        if cached:
+            loss = m.cached_step(encode, chunks, loss_fn)
+        else:  # one graph over the whole batch, chunks drawn in the same order
+            zs = [encode(c, True) for c in chunks]
+            loss_t = loss_fn(torch.cat([z[0] for z in zs]), torch.cat([z[1] for z in zs]))
+            loss_t.backward()
+            loss = float(loss_t.detach())
+        return loss, {n: p.grad.clone() for n, p in net.named_parameters()}, torch.rand(1)
+
+    plain_loss, plain_grads, plain_next = run(cached=False)
+    cached_loss, cached_grads, cached_next = run(cached=True)
+    assert cached_loss == pytest.approx(plain_loss, rel=1e-6)
+    for name, g in plain_grads.items():
+        assert torch.allclose(cached_grads[name], g, atol=1e-6), name
+    assert torch.equal(cached_next, plain_next)  # the RNG goes on where a plain step would leave it
+
+
+def test_cache_batch_is_the_whole_step():
+    m = _script()
+    base = ["--pairs", "p.jsonl", "--dev", "d", "--out", "o"]
+    assert (m.parse(base).cache_batch, m.parse(base).accumulate) == (0, 2)  # as before
+    a = m.parse([*base, "--cache-batch", "128"])
+    assert (a.cache_batch, a.accumulate, a.micro_batch) == (128, 1, 16)
+    # --cache-batch 32 takes the replica's 625 steps of 32 pairs, with 31 negatives a request instead of 15
+    assert m.plan_steps(20000, 32, 1, 1.0)[1] == m.plan_steps(20000, 16, 2, 1.0)[1] == 625
+    with pytest.raises(SystemExit):  # GradCache accumulates nothing: one batch is one step
+        m.parse([*base, "--cache-batch", "128", "--accumulate", "2"])
+    with pytest.raises(SystemExit):
+        m.parse([*base, "--cache-batch", "16"])  # no bigger than one micro-batch

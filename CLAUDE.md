@@ -162,6 +162,7 @@ docker compose -f deploy/spark/compose.yaml --profile rerank up -d qwen3-reranke
 uv run --extra lora python scripts/lora_train.py --pairs data/toolret_train/pairs.jsonl --dev data/mcp_zero_server \
   --eval data/toolret --eval data/livemcpbench_server --n-train 20000 --out data/lora/<name> --check-parity   # GB10, hours
 #   [--balance shape: the pairs evenly over their 4 documentation shapes] [--fn-margin 0.1: mask likely false negatives]
+#   [--cache-batch 32: GradCache, every pair of a step a negative of the others (31 instead of 15), +1 forward pass]
 uv run --extra lora python scripts/lora_soup.py --adapter data/lora/<a>/adapter --adapter data/lora/<b>/adapter \
   --out data/lora/<soup>   # GB10, CPU, minutes: the mean of merged models; one --adapter = lora_train's merge
 TOOLRANK_LORA=$HOME/toolrank/data/lora/<name>/merged docker compose -f deploy/spark/compose.yaml --profile lora up -d qwen3-emb-lora  # 8097

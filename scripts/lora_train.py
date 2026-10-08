@@ -16,7 +16,10 @@ positives (in-batch negatives; the mined negatives stay out, Faz 0 found they co
 sampled positive per pair, duplicate tool texts masked (``--fn-margin``: also any negative scored
 above the positive by more than the margin, Qwen3-Embedding's false-negative rule). ``--balance
 shape`` draws the pairs evenly over their tools' documentation shapes instead of in proportion: the
-208,826 pairs have four, ToolBench's REST shapes 68% of them. Last-token pooling and L2 normalisation,
+208,826 pairs have four, ToolBench's REST shapes 68% of them. ``--cache-batch N`` (GradCache) makes
+all N pairs of an optimizer step each other's negatives at the memory of one ``--micro-batch``: 32 is
+the default run's 625 steps of 32 pairs with 31 negatives a request instead of 15, for one more
+forward pass (``cached_step``). Last-token pooling and L2 normalisation,
 the way vLLM pools this model; ``--check-parity`` compares the untouched model with the served
 vectors first, so a tokenisation mismatch shows up before training. The dev set is scored
 in-process every ``--eval-every`` steps (``finetune.EvalSet``: exact top-k, the benchmark's
@@ -57,7 +60,20 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--n-train", type=int, default=20000)
     p.add_argument("--epochs", type=float, default=1.0)
     p.add_argument("--micro-batch", type=int, default=16, help="pairs per forward: its in-batch negatives")
-    p.add_argument("--accumulate", type=int, default=2, help="micro-batches per optimizer step")
+    p.add_argument(
+        "--accumulate",
+        type=int,
+        default=None,
+        help="micro-batches per optimizer step (2; 1 with --cache-batch)",
+    )
+    p.add_argument(
+        "--cache-batch",
+        type=int,
+        default=0,
+        help="GradCache: this many pairs per optimizer step, all of them each other's negatives, encoded "
+        "--micro-batch at a time (one more forward pass; --micro-batch x --accumulate pairs is the same "
+        "number of steps with more negatives)",
+    )
     p.add_argument("--lr", type=float, default=1e-4)
     p.add_argument("--warmup", type=int, default=50)
     p.add_argument("--tau", type=float, default=0.05, help="InfoNCE temperature")
@@ -102,6 +118,12 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     a = p.parse_args(argv)
     if a.data_seed is None:
         a.data_seed = a.seed
+    if a.cache_batch and (a.accumulate or 1) != 1:
+        p.error("--cache-batch is the whole step: leave --accumulate out")
+    if a.cache_batch and a.cache_batch <= a.micro_batch:
+        p.error("--cache-batch must hold more pairs than --micro-batch")
+    if a.accumulate is None:
+        a.accumulate = 1 if a.cache_batch else 2
     return a
 
 
@@ -168,6 +190,47 @@ def balanced(pairs: list[Any], n: int, seed: int) -> list[Any]:
     out = [p for k, g in groups.items() for p in g[: take.get(k, 0)]]
     rng.shuffle(out)
     return out
+
+
+def cached_step(encode: Any, chunks: list[Any], loss_fn: Any) -> float:
+    """One GradCache step (Gao et al., 2021): the loss of a batch whose pairs are all each other's
+    negatives, with the memory of one chunk. ``encode(chunk, grad)`` -> (query vectors, tool vectors).
+
+    1. Every chunk is encoded without a graph, its RNG state kept so that dropout repeats.
+    2. The loss on those vectors, backward to the vectors only.
+    3. Every chunk again with a graph and the same RNG state, backward of <vectors, their gradient>:
+       the parameters get the whole batch's gradient, chunk by chunk.
+
+    -> the loss. Costs one more forward pass than plain micro-batches."""
+    import torch
+
+    def rng() -> tuple[Any, Any]:
+        return torch.get_rng_state(), torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None
+
+    states, zqs, zds = [], [], []
+    for c in chunks:
+        states.append(rng())
+        zq, zd = encode(c, False)
+        zqs.append(zq.detach())
+        zds.append(zd.detach())
+    zq = torch.cat(zqs).requires_grad_(True)
+    zd = torch.cat(zds).requires_grad_(True)
+    loss = loss_fn(zq, zd)
+    loss.backward()
+    sizes = [len(z) for z in zqs]
+    after = rng()
+    for (cpu, cuda), c, gq, gd in zip(
+        states, chunks, zq.grad.split(sizes), zd.grad.split(sizes), strict=True
+    ):
+        torch.set_rng_state(cpu)
+        if cuda is not None:
+            torch.cuda.set_rng_state_all(cuda)
+        q, d = encode(c, True)
+        ((q * gq).sum() + (d * gd).sum()).backward()
+    torch.set_rng_state(after[0])  # the next step draws where the first pass left off
+    if after[1] is not None:
+        torch.cuda.set_rng_state_all(after[1])
+    return float(loss.detach())
 
 
 def plan_steps(n_pairs: int, micro: int, accumulate: int, epochs: float) -> tuple[int, int]:
@@ -365,25 +428,45 @@ def main(argv: list[str] | None = None) -> int:
 
     params = [p for p in enc.model.parameters() if p.requires_grad]
     opt = torch.optim.AdamW(params, lr=a.lr, weight_decay=0.0, betas=(0.9, 0.98))
-    micro_batches, steps = plan_steps(len(train), a.micro_batch, a.accumulate, a.epochs)
-    log(f"{micro_batches:,} micro-batches of {a.micro_batch} pairs, {steps:,} optimizer steps, lr {a.lr}")
+    per_batch = a.cache_batch or a.micro_batch  # pairs drawn at a time: each other's negatives
+    micro_batches, steps = plan_steps(len(train), per_batch, a.accumulate, a.epochs)
+    log(
+        f"{micro_batches:,} batches of {per_batch} pairs"
+        + (f" (GradCache, encoded {a.micro_batch} at a time)" if a.cache_batch else "")
+        + f", {steps:,} optimizer steps, lr {a.lr}"
+    )
     order: list[int] = []
     rng = random.Random(a.seed)
     step = 0
     t0 = time.time()
     enc.model.train()
     for done, mb in enumerate(range(micro_batches), 1):
-        if len(order) < a.micro_batch:
+        if len(order) < per_batch:
             fresh = list(range(len(train)))
             rng.shuffle(fresh)
             order += fresh
-        idx, order = order[: a.micro_batch], order[a.micro_batch :]
+        idx, order = order[:per_batch], order[per_batch:]
         q_texts = [states[i] for i in idx]
         d_texts = [rng.choice(positives[i]) for i in idx]
-        zq = enc.encode(q_texts, a.query_tokens, train=True)
-        zd = enc.encode(d_texts, a.doc_tokens, train=True)
-        loss = infonce(zq @ zd.T, d_texts, a.tau, a.fn_margin) / a.accumulate
-        loss.backward()
+        if a.cache_batch:
+            chunks = [
+                (q_texts[s : s + a.micro_batch], d_texts[s : s + a.micro_batch])
+                for s in range(0, len(idx), a.micro_batch)
+            ]
+            loss_value = cached_step(
+                lambda c, grad: (
+                    enc.encode(c[0], a.query_tokens, train=grad),
+                    enc.encode(c[1], a.doc_tokens, train=grad),
+                ),
+                chunks,
+                lambda zq, zd, texts=d_texts: infonce(zq @ zd.T, texts, a.tau, a.fn_margin),
+            )
+        else:
+            zq = enc.encode(q_texts, a.query_tokens, train=True)
+            zd = enc.encode(d_texts, a.doc_tokens, train=True)
+            loss = infonce(zq @ zd.T, d_texts, a.tau, a.fn_margin) / a.accumulate
+            loss.backward()
+            loss_value = loss.item() * a.accumulate
         if done % a.accumulate == 0 or mb == micro_batches - 1:
             for g in opt.param_groups:
                 g["lr"] = lr_at(step, steps, a.warmup, a.lr)
@@ -394,7 +477,7 @@ def main(argv: list[str] | None = None) -> int:
             if step % 10 == 0 or step == 1:
                 el = time.time() - t0
                 log(
-                    f"step {step}/{steps} loss {loss.item() * a.accumulate:.4f} lr {lr_at(step, steps, a.warmup, a.lr):.2e} {el / 60:.1f} min, eta {el / step * (steps - step) / 60:.0f} min"
+                    f"step {step}/{steps} loss {loss_value:.4f} lr {lr_at(step, steps, a.warmup, a.lr):.2e} {el / 60:.1f} min, eta {el / step * (steps - step) / 60:.0f} min"
                 )
             if step % a.eval_every == 0 or step == steps:
                 cur = score_dev()

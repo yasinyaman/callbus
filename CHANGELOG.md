@@ -16,6 +16,8 @@ change behaviour.
   `scripts/lora_soup.py` averages adapters of one backbone (a run's checkpoints, or runs that
   differ in their seed) into merged weights vLLM serves like a trained run's; with one adapter it
   is that run's merge, bit for bit.
+  `scripts/lora_train.py --cache-batch N` (GradCache) makes all N pairs of an optimizer step each
+  other's negatives with the memory of one micro-batch, for one more forward pass.
 - `toolrank compare --paired` tests ToolRet's category averages too: a row per category and one for
   `cat-macro`, each the paired permutation test on the queries weighted as those averages weigh
   them (1 / (task size × the category's task count)). Runs rows now carry each query's `task` and
