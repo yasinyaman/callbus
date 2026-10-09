@@ -227,6 +227,13 @@ def _compare_paired(a: argparse.Namespace) -> int:
     ids = [i for i in by_id[0] if i in by_id[1]]
     if not ids:
         sys.exit("the two runs share no query id")
+    if a.subset:
+        from toolrank.datasets.jsonl import load_queries
+
+        keep = {q.id for q in load_queries(Path(a.subset) / "queries.jsonl")}
+        ids = [i for i in ids if i in keep]
+        if not ids:
+            sys.exit(f"no paired query is in {a.subset}")
     names = [r.get("scorer", f) for r, f in zip(runs, a.files, strict=True)]
     lines = [
         f"| metric | {names[0]} ↑ % | {names[1]} ↑ % | A−B | p |",
@@ -258,8 +265,8 @@ def _compare_paired(a: argparse.Namespace) -> int:
                 f"| {label} | {100 * mx:.2f} | {100 * my:.2f} | {100 * (mx - my):+.2f} | "
                 f"{weighted_permutation_test(xs, ys, w):.4f} |"
             )
-    note = f"n = {len(ids)} queries paired by id"
-    if len(ids) < len(by_id[0]) or len(ids) < len(by_id[1]):
+    note = f"n = {len(ids)} queries paired by id" + (f", those in {a.subset}" if a.subset else "")
+    if not a.subset and (len(ids) < len(by_id[0]) or len(ids) < len(by_id[1])):
         note += f" (the runs answer {len(by_id[0])} and {len(by_id[1])}; only the shared ones pair)"
     lines.append(f"\n{note}; p: exact sign test (P@1, hit@5), paired permutation test (NDCG@10)")
     if groups:
@@ -1338,6 +1345,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="with --paired: the dataset dir whose queries give each query's task and category, for "
         "per-category and cat-macro rows (runs rows carry them since 0.3.0; this is for older files)",
+    )
+    c.add_argument(
+        "--subset",
+        default=None,
+        help="with --paired: pair only the queries of this dataset dir, e.g. one half of toolrank data split",
     )
     c.add_argument("--metrics", default="NDCG@10,Recall@10,Comprehensiveness@10")
     c.add_argument(

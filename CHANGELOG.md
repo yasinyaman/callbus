@@ -21,7 +21,8 @@ change behaviour.
 - `toolrank compare --paired` tests ToolRet's category averages too: a row per category and one for
   `cat-macro`, each the paired permutation test on the queries weighted as those averages weigh
   them (1 / (task size × the category's task count)). Runs rows now carry each query's `task` and
-  `category`; for older runs files, `--data DIR` reads them from the set's queries.
+  `category`; for older runs files, `--data DIR` reads them from the set's queries. `--subset DIR`
+  pairs only the queries of a dataset dir, such as one half of `toolrank data split`.
 - `toolrank.integrations.anthropic.Toolbox(inline=True)` (the example's `--inline`) sends no
   catalogue. Under the `inline-tools-2026-09-15` beta, `tools` is `search_tools` alone, and the tools
   a search finds are added by value in a `role: "system"` message of `tool_addition` blocks, once

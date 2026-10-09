@@ -230,3 +230,23 @@ def test_compare_paired_takes_categories_from_a_dataset_dir(tmp_path, capsys):
     )
     with pytest.raises(SystemExit, match="not in"):
         main(["compare", "--paired", "--data", str(data), str(tmp_path / "a.json"), str(tmp_path / "b.json")])
+
+
+def test_compare_paired_on_a_subset_of_the_queries(tmp_path, capsys):
+    ids = [f"q{i}" for i in range(10)]
+    rows_a = [{"id": i, "top": [], "P@1": 1.0, "hit@5": 1.0, "NDCG@10": 0.8} for i in ids]
+    rows_b = [{**r, "NDCG@10": 0.6} for r in rows_a[:5]] + rows_a[5:]  # b loses on q0..q4 only
+    _write_runs(tmp_path / "a.json", "alpha", rows_a)
+    _write_runs(tmp_path / "b.json", "beta", rows_b)
+    half = tmp_path / "half"
+    half.mkdir()
+    write_queries(half / "queries.jsonl", [Query(id=i, text=i, qrels={"t": 1}) for i in ids[5:]])
+    main(["compare", "--paired", "--subset", str(half), str(tmp_path / "a.json"), str(tmp_path / "b.json")])
+    out = capsys.readouterr().out
+    assert "| NDCG@10 (mean diff) | 80.00 | 80.00 | +0.00 | 1.0000 |" in out  # the other half only
+    assert f"n = 5 queries paired by id, those in {half}" in out
+    write_queries(half / "queries.jsonl", [Query(id="elsewhere", text="x", qrels={"t": 1})])
+    with pytest.raises(SystemExit, match="no paired query"):
+        main(
+            ["compare", "--paired", "--subset", str(half), str(tmp_path / "a.json"), str(tmp_path / "b.json")]
+        )

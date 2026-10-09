@@ -136,6 +136,7 @@ toolrank compare results/toolret_*.json                        # on the Mac: mar
 toolrank eval ... --runs-out results/a_runs.jsonl              # one row per query (top-20 ids, P@1, hit@5, NDCG@10)
 toolrank compare --paired results/a_runs.jsonl results/b_runs.jsonl   # sign test (P@1, hit@5), permutation test (NDCG@10)
 toolrank compare --paired --data data/toolret a_runs.jsonl b_runs.jsonl   # + per category and cat-macro (weighted)
+toolrank compare --paired --subset data/dev_w3_multi2_conf a_runs.jsonl b_runs.jsonl   # only that half's queries
 PYTHONUNBUFFERED=1 nohup bash scripts/readme_results.sh > data/logs/readme_results.log 2>&1 &   # GB10: the README's runs
 uv run python scripts/readme_table.py --write                  # Mac, after scp 'gb10:toolrank/results/readme_*.json' docs/results/
 
@@ -802,6 +803,11 @@ examples/                         anthropic_tool_reference.py, openai_client_too
   The 20k recipe again with only the training seed changed (same 20k pairs, both runs keep the last step): MCP-Zero
   −0.74 (p 0.0001), ToolRet cat-macro 54.36 → 52.87 (code −3.05, web −1.81; p ≤ 0.0006), the dev sets within ±0.7:
   a per-query p does not measure seed variance, so a LoRA lever counts only beyond this floor.
+- Backlog Dalga 3 (`docs/reports/backlog-d3.md`; 20k pairs, seed 1, picked on `dev_w3_multi2_sel`, against the replica):
+  `--balance shape` gains 1.2–1.4 on the w3 dev sets (confirmation half +1.44) and MCP-Zero but loses LiveMCPBench
+  (−2.68) and ToolRet cat-macro (−1.15); `--fn-margin 0.1` gains on one-tool sets only (cat-macro −0.81): neither passes.
+  The mean of `v0.2`'s and the replica's weights (`scripts/lora_soup.py`, no training) beats `v0.2` on ToolRet
+  (58.90 → 59.71, cat-macro 54.36 → 54.98, both significant) and loses ≤ 0.4 anywhere; a tie on `dev_w3_multi2`.
 
 ## Where we are
 
