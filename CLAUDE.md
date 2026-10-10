@@ -817,6 +817,9 @@ examples/                         anthropic_tool_reference.py, openai_client_too
   held-out NDCG@10 59.62 → 63.09 (another split 59.49 → 63.03; a fifth of the calls wrong 61.93; cat-macro +2.86):
   +10 on requests for tools the traffic had called, −1.2 to −1.7 on the others. Sets without repeats (MCP-Zero,
   the w3 dev sets) do not move: the rule picked on their traffic leaves the ranking as it is.
+  Gates (a row counts only above an absolute cosine, above the first stage's best, or within its top N) and a "safe"
+  pick (≤ 0.2 lost on the traffic's requests for uncalled tools; memory off is a candidate): ToolRet +1.77 / +2.18,
+  −0.12 / −0.31 on the new-tool requests — the break-even share of repeat requests falls from ~10% to ~3%.
 
 ## Where we are
 

@@ -11,6 +11,8 @@ ToolRet'te, trafiğin %70'inden kurulan hafıza ayrılmış sorgularda NDCG@10'u
 p<0,001; cat-macro +2,86; başka bir bölmede +3,54; ajan her beş çağrıdan birini yanlış tool'a yapınca +2,31). Kazancın
 tamamı trafiğin daha önce istediği tool'lara gelen sorgularda (+10,3); hiç istenmemiş tool'lara gelen sorgular 1,2–1,7
 puan kaybediyor. İstekleri tekrar etmeyen setlerde (MCP-Zero, w3 dev setleri) seçilen kural hiçbir şeyi değiştirmiyor.
+Kapılı "güvenli" seçim bu kaybı −0,12'ye indiriyor, kazanç +1,77'de kalıyor (ek bölüm): kaybı ve kazancı birlikte
+kısıyor ama başabaş tekrar payını %10'dan %3'e çekiyor.
 
 ## Ölçüler, birimler ve yön
 
@@ -94,10 +96,46 @@ GB10, `v0.2` bf16 (NGC vLLM, 8097); bütün vektörler cache'ten, koşuların he
 - Seçim ızgarası küçük; tekrar etmeyen setlerde seçim "ilk aşama tek başına"yı aday saymadığı için en temkinli kuralı
   alıyor (sonuç aynı).
 
+## Ek: kapılar ve "güvenli" seçim (10 Ekim, aynı gün)
+
+Yeni tool'lara giden isteklerdeki kayıp için üç kapı eklendi (`b6c9486`): bir hafıza satırı ancak kosinüsü mutlak bir
+eşiğin üstündeyse (`row ≥ τ`, τ 0,70–0,85), ilk aşamanın o istekteki en iyi kosinüsünü bir paydan fazla geçiyorsa
+(`row ≥ best tool + δ`, δ −0,05…+0,1) ya da tool ilk aşamanın ilk N'indeyse (10 / 20 / 50) sayılır. β ızgarası 0–0,5,
+λ 1 / 0,5 / 0,25; toplam 216 ayar ve "hafıza kapalı". Tanı: ayrılmış ToolRet sorgularında en yakın hafıza satırının
+kosinüsü istenmiş sorgularda medyan 0,74, yenilerde 0,57; 0,8 eşiğinde istenmişlerin %38'inin altın tool'unda böyle bir
+satır var, yenilerin %6'sında herhangi bir satır.
+
+İki seçim, ikisi de yalnız trafikte (birini-dışarıda-bırak): **en iyi** (NDCG@10'u en yüksek) ve **güvenli** (trafikte
+başka hiçbir isteğin çağırmadığı tool'lara giden isteklerde en çok 0,2 puan kaybeden ayarlar arasında en iyisi; "hafıza
+kapalı" her zaman aday). Ayrılmış sorgular, NDCG@10 farkı (hepsi p<0,001):
+
+| bölme | seçim | kural | hepsi | istenmiş | yeni | cat-macro |
+| --- | --- | --- | ---: | ---: | ---: | ---: |
+| seed 0 | en iyi | λ 0,5 β 0 | +3,48 | +10,26 | −1,22 | +2,86 |
+| seed 0 | güvenli | max β 0,2, satır ≥ en iyi tool | +1,77 | +4,50 | −0,12 | +0,99 |
+| seed 1 | en iyi | λ 0,5 β 0 | +3,54 | +10,79 | −1,71 | +2,72 |
+| seed 1 | güvenli | λ 0,5 β 0,1, satır ≥ 0,75 | +2,18 | +5,62 | −0,31 | +1,08 |
+| seed 0, %20 yanlış çağrı | en iyi | λ 0,5 β 0 | +2,31 | +7,40 | −1,25 | +1,81 |
+| seed 0, %20 yanlış çağrı | güvenli | λ 0,25 β 0,1, satır ≥ en iyi tool + 0,05 | +1,25 | +3,24 | −0,14 | +0,94 |
+
+MCP-Zero'da iki seçim de "hafıza kapalı"; `dev_w3_multi2`'de ikisi de λ 0,25 β 0,3 (+0,11); LiveMCPBench'te (28 sorgu)
+en iyisi ilk 50 kapısıyla +9,49 (istenmiş +22,8, yeni −5,9), güvenlisi ilk 10 kapısıyla +1,44 (yeni −0,1).
+
+Kapılar bedava değil: kaybı azaltırken kazancı da aynı yönde kısıyorlar. Kazanan şey oran: başabaş için isteklerin
+istenmiş tool'lara giden payı en iyi seçimde ~%10, güvenli seçimde ~%3 (seed 0: 0,12 / (4,50 + 0,12)). Gerçek bir
+kurulumda daha önce çağrılmış tool'lara giden isteklerin %3'ün altında kalması beklenmez, bu yüzden ürün için varsayılan
+güvenli seçim; kurulum kendi günlüğünde ölçüp en iyiye geçebilir.
+
+```bash
+# the same commands as above, with the gates (memory_sim.py at b6c9486), tags g0, g1, g0n20
+uv run python scripts/memory_sim.py --out results/memory_toolret_g0 -- --data data/toolret $E --ks 5,10,20
+uv run toolrank compare --paired --data data/toolret results/memory_toolret_g0_base_runs.jsonl \
+  results/memory_toolret_g0_memory_safe_runs.jsonl
+```
+
 ## Sonraki adımlar
 
-- Yeni tool'lara giden isteklerdeki kaybı azaltmak: mutlak bir eşik (hafıza satırı ancak çok benzerse kaldırsın) ya da
-  seçimde "yeni" isteklerin kaybına sınır.
+- ~~Yeni tool'lara giden isteklerdeki kaybı azaltmak~~: yukarıdaki ek; güvenli seçim kaybı −0,1/−0,3'e indiriyor.
 - Ürünleştirme (kullanıcı kararı): `serve`'de kiracı başına hafıza (`DATA/memory/tenants/<ad>/`), kullanım günlüğünden
   `ok` çağrılarıyla (istek vektörü cache'ten, `learn.state_vectors`'ın yaptığı gibi), arka planda yenilenen; kuralı
   kurulumun kendi günlüğünde birini-dışarıda-bırakla seçer, kazanç yoksa kapalı kalır.
