@@ -71,6 +71,12 @@ def test_the_rules():
     assert np.allclose(mem.combine(c, m, "add", 0.1, 1.0), mem.combine(c, m, "max", 0.1, 0.0))
     with pytest.raises(ValueError):
         mem.combine(c, m, "mean", 0.1, 0.0)
+    # a gate: rows below the floor count as none; a floor per query comes as a column
+    assert np.allclose(mem.combine(c, m, "max", 0.1, 0.0, floor=0.6), [0.5, 0.8, 0.5])
+    assert np.allclose(mem.combine(c, m, "max", 0.0, 0.0, floor=0.95), c)
+    cc, mm = np.full((2, 2), 0.5), np.array([[0.9, 0.7], [0.9, 0.7]])
+    floor = np.array([[0.8], [0.6]])
+    assert np.allclose(mem.combine(cc, mm, "max", 0.0, 0.0, floor=floor), [[0.9, 0.5], [0.9, 0.7]])
 
 
 def test_memory_lifts_a_tool_and_never_repeats_one():
@@ -84,10 +90,19 @@ def test_memory_lifts_a_tool_and_never_repeats_one():
     tools, best = mem.memory_scores(qv, qv[:1], np.array([29]), np.array([0]))
     r = mem.Ranker(qv, tv, tools, best)
     base_idx, _ = r.rank(None)
-    idx, val = r.rank("max", 0.0, 0.0)
+    idx, val = r.rank({"rule": "add", "beta": 0.0, "lambda": 1.0, "gate": None})
     assert base_idx.shape == idx.shape == (4, 30)  # 30 tools: the depth is the catalogue's
     assert idx[0, 0] == 29 and val[0, 0] == pytest.approx(1.0, abs=1e-5)
     assert all(len(set(row.tolist())) == len(row) for row in idx)
+    # gated on the first stage's best cosine plus 0.5: no row is that much better, nothing moves
+    gated, _ = r.rank({"rule": "add", "beta": 0.0, "lambda": 1.0, "gate": "rel", "tau": 0.5})
+    assert np.array_equal(gated, base_idx)
+    # gated on the first stage's shortlist: tool 29 is not query 0's best tool, so the top 1 cannot take it in
+    assert base_idx[0, 0] != 29
+    short, _ = r.rank({"rule": "add", "beta": 0.0, "lambda": 1.0, "gate": "top", "tau": 1})
+    assert np.array_equal(short, base_idx)
+    deep, _ = r.rank({"rule": "add", "beta": 0.0, "lambda": 1.0, "gate": "top", "tau": 30})
+    assert deep[0, 0] == 29
 
 
 def test_a_whole_run_on_the_synthetic_set(tmp_path, monkeypatch, capsys):
@@ -115,15 +130,15 @@ def test_a_whole_run_on_the_synthetic_set(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["memory_sim.py", "--out", str(out), "--", *flags])
     mem.main()
     printed = capsys.readouterr().out
-    assert "**(picked)**" in printed and "| asked |" in printed and "| new |" in printed
+    assert "**(best)**" in printed and "**(safe)**" in printed
+    assert "| asked |" in printed and "| new |" in printed
     report = json.loads(out.with_suffix(".json").read_text())
     assert report["traffic"] == 84 and report["heldout"] == 36 and report["rows"] > 0
-    assert report["picked"]["rule"] in ("max", "add")
+    assert all(report[k] is None or report[k]["rule"] == "add" for k in ("picked", "picked_safe"))
+    assert len(report["grid"]) == 1 + len(mem.LAMBDAS) * len(mem.BETAS) * len(mem.GATES)
     tables = report["tables"]
-    assert (
-        tables["all"]["first stage"]["n"]
-        == tables["asked"]["first stage"]["n"] + tables["new"]["first stage"]["n"]
-    )
+    assert tables["all"]["base"]["n"] == tables["asked"]["base"]["n"] + tables["new"]["base"]["n"]
+    assert Path(f"{out}_memory_safe_runs.jsonl").exists()
     capsys.readouterr()
     cli_main(["compare", "--paired", f"{out}_base_runs.jsonl", f"{out}_memory_runs.jsonl"])
     assert "n = 36 queries paired by id" in capsys.readouterr().out

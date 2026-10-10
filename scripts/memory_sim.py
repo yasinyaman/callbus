@@ -8,14 +8,17 @@ out), the same simulated agent (it calls the gold tools the served list showed: 
 the memory only learns what the ranking already surfaced; ``--noise P``: with probability P it calls the first shown
 tool that is not gold instead, and that wrong link is remembered too), and the same breakdown of the held-out queries
 (all of them; ``asked``: a gold tool of theirs was called in the traffic; ``new``: none was). The rule and its
-parameters are picked on the traffic alone, each request ranked without its own rows, never on the held-out queries.
+parameters are picked on the traffic alone, each request ranked without its own rows, never on the held-out queries:
+``best`` is the highest NDCG@10 there, ``safe`` the highest whose traffic requests about tools no other request had
+called lose at most ``SAFE_LOSS``. A gate keeps weak rows out: from an absolute cosine, or from the first stage's best
+cosine for that request plus a margin (a row less similar than the best tool is no evidence).
 
 uv run python scripts/memory_sim.py [--share 0.7 --seed 0] [--out results/memory_toolret] -- \\
     --data data/toolret --scorer dense --emb-url http://127.0.0.1:8097/v1 --emb-model qwen3-emb-lora \\
     --truncate 8192 --tool-format documentation --query-format instruct_query --with-inst --cut-margin 0.2
 
-``--out PREFIX`` writes PREFIX.json (the grid, the pick, the tables' numbers) and PREFIX_{base,memory}_runs.jsonl for
-``toolrank compare --paired`` on the held-out queries.
+``--out PREFIX`` writes PREFIX.json (the grid, the picks, the tables' numbers) and
+PREFIX_{base,memory,memory_safe}_runs.jsonl for ``toolrank compare --paired`` on the held-out queries.
 """
 
 from __future__ import annotations
@@ -43,13 +46,15 @@ BETAS = (
     0.0,
     0.05,
     0.1,
-    0.15,
     0.2,
     0.3,
-    0.4,
     0.5,
-)  # request-to-request cosines run higher than request-to-tool
-LAMBDAS = (0.25, 0.5)  # 1 is max
+)  # subtracted from a row's cosine: request-to-request cosines run higher
+LAMBDAS = (1.0, 0.5, 0.25)  # the share of the way to the row's score (1: max(c, m - beta))
+GATES = ((None, 0.0), ("abs", 0.7), ("abs", 0.75), ("abs", 0.8), ("abs", 0.85))
+GATES += (("rel", -0.05), ("rel", 0.0), ("rel", 0.05), ("rel", 0.1))
+GATES += (("top", 10), ("top", 20), ("top", 50))
+SAFE_LOSS = 0.002  # the "safe" pick may cost the traffic's new-tool requests this much NDCG@10 (0.2 points)
 
 
 def gold(q: Query) -> set[str]:
@@ -103,9 +108,14 @@ def memory_scores(
     return tools, np.maximum.reduceat(sims, starts, axis=1)
 
 
-def combine(c: np.ndarray, mem: np.ndarray, rule: str, beta: float, lam: float) -> np.ndarray:
+def combine(
+    c: np.ndarray, mem: np.ndarray, rule: str, beta: float, lam: float, floor: Any = None
+) -> np.ndarray:
     """A tool's score from its own cosine ``c`` and its best memory row's ``mem`` (-inf: none): ``max`` takes the
-    row less ``beta`` when that is higher, ``add`` moves ``lam`` of the way there (``lam`` 1 is ``max``)."""
+    row less ``beta`` when that is higher, ``add`` moves ``lam`` of the way there (``lam`` 1 is ``max``). A row
+    below ``floor`` (a number, or one per query as a column) counts as none."""
+    if floor is not None:
+        mem = np.where(mem >= floor, mem, -np.inf)
     if rule == "max":
         return np.maximum(c, mem - beta)
     if rule == "add":
@@ -133,10 +143,22 @@ class Ranker:
         in_mem[mem_tools] = True
         self.base_masked = np.where(in_mem[self.idx], -np.inf, self.val)
 
-    def rank(self, rule: str | None, beta: float = 0.0, lam: float = 0.0) -> tuple[np.ndarray, np.ndarray]:
-        if rule is None:
+    def rank(self, cfg: dict[str, Any] | None) -> tuple[np.ndarray, np.ndarray]:
+        """``cfg``: rule, beta, lambda and gate (None; ``abs``: a row counts from ``tau``; ``rel``: from the first
+        stage's best cosine for that query plus ``tau``; ``top``: only for the first stage's ``tau`` best tools, so
+        the memory reorders the shortlist and pulls nothing in from below it). None: the first stage alone."""
+        if cfg is None:
             return self.idx, self.val
-        s = combine(self.c_mem, self.mem, rule, beta, lam)
+        gate, tau = cfg.get("gate"), cfg.get("tau", 0.0)
+        mem, floor = self.mem, None
+        if gate == "abs":
+            floor = tau
+        elif gate == "rel":
+            floor = self.val[:, :1] + tau
+        elif gate == "top":
+            n = min(int(tau), self.val.shape[1])
+            mem = np.where(self.c_mem >= self.val[:, n - 1 : n], mem, -np.inf)
+        s = combine(self.c_mem, mem, cfg["rule"], cfg["beta"], cfg["lambda"], floor)
         cand_i = np.concatenate([self.idx, np.broadcast_to(self.mem_tools, s.shape)], axis=1)
         cand_v = np.concatenate([self.base_masked, s], axis=1)
         pos, val = top(
@@ -217,33 +239,59 @@ def main() -> None:
         f"noise {a.noise:g}), held out {len(heldout)}; {len(rows)} memory rows over {len(asked)} tools\n"
     )
 
-    # pick the rule on the traffic: each request ranked without its own rows
+    # pick the rule on the traffic: each request ranked without its own rows; a traffic request is "asked" when
+    # another one left a row for one of its gold tools, the way a held-out one is
     tools_t, mem_t = memory_scores(trv, m, row_tool, owner, own=np.arange(len(traffic)))
     loo = Ranker(trv, tv, tools_t, mem_t)
-    grid: list[tuple[str | None, float, float]] = [(None, 0.0, 0.0)]
-    grid += [("max", b, 0.0) for b in BETAS] + [("add", b, lam) for lam in LAMBDAS for b in BETAS]
-    picked: list[dict[str, Any]] = []
-    for rule, beta, lam in grid:
-        r_rows, _ = evaluate(traffic, *loo.rank(rule, beta, lam), ids, ks, None)
-        picked.append({"rule": rule, "beta": beta, "lambda": lam, **report(traffic, r_rows)})
-    best = max(picked[1:], key=lambda p: p["overall"]["NDCG@10"])
-    r_at = f"Recall@{ks[0]}"
-    print(f"| rule (traffic, leave-one-out) | NDCG@10 ↑ % | {r_at} ↑ % |")
-    print("| --- | ---: | ---: |")
-    for p in picked:
-        label = "first stage alone" if p["rule"] is None else f"{p['rule']} β {p['beta']:g}"
-        label += f" λ {p['lambda']:g}" if p["rule"] == "add" else ""
-        label += " **(picked)**" if p is best else ""
-        o = p["overall"]
-        print(f"| {label} | {100 * o['NDCG@10']:.2f} | {100 * o[r_at]:.2f} |")
+    owners: dict[int, set[int]] = {}
+    for o_, t_ in rows:
+        owners.setdefault(t_, set()).add(o_)
+    t_asked = [any(owners.get(t, set()) - {i} for t in g) for i, g in enumerate(golds)]
+    grid: list[dict[str, Any] | None] = [None]
+    grid += [
+        {"rule": "add", "beta": b, "lambda": lam, "gate": gate, "tau": tau}
+        for lam in LAMBDAS
+        for b in BETAS
+        for gate, tau in GATES
+    ]
+    scored: list[dict[str, Any]] = []
+    for cfg in grid:
+        r_rows, _ = evaluate(traffic, *loo.rank(cfg), ids, ks, None)
+        nd = np.array([r["NDCG@10"] for r in r_rows])
+        flag = np.array(t_asked)
+        scored.append(
+            {
+                "cfg": cfg,
+                "all": float(nd.mean()),
+                "asked": float(nd[flag].mean()) if flag.any() else 0.0,
+                "new": float(nd[~flag].mean()) if (~flag).any() else 0.0,
+            }
+        )
+    first = scored[0]  # memory off is a candidate too: a catalogue whose requests do not repeat keeps it off
+    best = max(scored, key=lambda x: x["all"])
+    safe = max((x for x in scored if x["new"] >= first["new"] - SAFE_LOSS), key=lambda x: x["all"])
+    print(
+        f"traffic: {sum(t_asked)} requests asked about a tool another one called, {len(traffic) - sum(t_asked)} not\n"
+    )
+    print("| rule (traffic, leave-one-out) | NDCG@10 ↑ % | asked: fark | new: fark |")
+    print("| --- | ---: | ---: | ---: |")
+    shown_rows = [first, *sorted(scored[1:], key=lambda x: -x["all"])[:8]]
+    shown_rows += [x for x in (best, safe) if x not in shown_rows]
+    for x in shown_rows:
+        label = (
+            label_of(x["cfg"]) + (" **(best)**" if x is best else "") + (" **(safe)**" if x is safe else "")
+        )
+        print(
+            f"| {label} | {100 * x['all']:.2f} | {100 * (x['asked'] - first['asked']):+.2f} | "
+            f"{100 * (x['new'] - first['new']):+.2f} |"
+        )
 
     # the held-out queries, with the memory of the whole traffic
     tools_h, mem_h = memory_scores(hov, m, row_tool, owner)
     held = Ranker(hov, tv, tools_h, mem_h)
-    base_rows, base_lists = evaluate(heldout, *held.rank(None), ids, ks, cut)
-    mem_rows, mem_lists = evaluate(
-        heldout, *held.rank(best["rule"], best["beta"], best["lambda"]), ids, ks, cut
-    )
+    runs = {"base": evaluate(heldout, *held.rank(None), ids, ks, cut)}
+    runs["memory"] = evaluate(heldout, *held.rank(best["cfg"]), ids, ks, cut)
+    runs["memory_safe"] = evaluate(heldout, *held.rank(safe["cfg"]), ids, ks, cut)
     groups = {
         "all": list(range(len(heldout))),
         "asked": [n for n, q in enumerate(heldout) if gold(q) & asked],
@@ -254,38 +302,53 @@ def main() -> None:
         "heldout": len(heldout),
         "rows": len(rows),
         "tools": len(asked),
+        "grid": scored,
+        "picked": best["cfg"],
+        "picked_safe": safe["cfg"],
     }
-    out["grid"] = picked
-    out["picked"] = {k: best[k] for k in ("rule", "beta", "lambda")}
     metrics = ["NDCG@10", f"Recall@{ks[0]}", "Comprehensiveness@10", "K@cut", "Recall@cut"]
+    labels = {"base": "first stage", "memory": f"+ memory, best ({label_of(best['cfg'])})"}
+    labels["memory_safe"] = f"+ memory, safe ({label_of(safe['cfg'])})"
     print(f"\n| held out | n | ranking | {' | '.join(metrics)} | NDCG@10 cat-macro |")
     print("| --- | ---: | --- | " + " | ".join("---:" for _ in metrics) + " | ---: |")
     for g, members in groups.items():
         qs = [heldout[n] for n in members]
-        for label, rws in (("first stage", base_rows), ("+ memory", mem_rows)):
+        for key, (rws, _) in runs.items():
             rep = (
                 report(qs, [rws[n] for n in members]) if qs else {"n": 0, "overall": {}, "category_macro": {}}
             )
-            out.setdefault("tables", {}).setdefault(g, {})[label] = rep
+            out.setdefault("tables", {}).setdefault(g, {})[key] = rep
             o, cm = rep["overall"], rep["category_macro"]
             cells = [
                 (f"{o[k]:.2f}" if k == "K@cut" else f"{100 * o[k]:.2f}") if k in o else "—" for k in metrics
             ]
             macro = f"{100 * cm['NDCG@10']:.2f}" if cm else "—"
-            print(f"| {g} | {rep['n']} | {label} | {' | '.join(cells)} | {macro} |")
+            print(f"| {g} | {rep['n']} | {labels[key]} | {' | '.join(cells)} | {macro} |")
     if a.out:
         prefix = Path(a.out)
         prefix.parent.mkdir(parents=True, exist_ok=True)
         prefix.with_suffix(".json").write_text(json.dumps(out, indent=2))
-        for label, rws, lists in (("base", base_rows, base_lists), ("memory", mem_rows, mem_lists)):
-            runs = [_runs_row(q, r, mm) for q, r, mm in zip(heldout, lists, rws, strict=True)]
-            name = f"{scorer.name}" + (
-                "" if label == "base" else f"+memory[{best['rule']} β {best['beta']:g}]"
+        for key, (rws, lists) in runs.items():
+            rws_ = [_runs_row(q, r, mm) for q, r, mm in zip(heldout, lists, rws, strict=True)]
+            cfg = {"memory": best["cfg"], "memory_safe": safe["cfg"]}.get(key)
+            name = scorer.name + ("" if cfg is None else f"+memory[{label_of(cfg)}]")
+            Path(f"{a.out}_{key}_runs.jsonl").write_text(
+                json.dumps({"dataset": f"{data.name}_heldout", "scorer": name, "rows": rws_}, indent=2)
             )
-            Path(f"{a.out}_{label}_runs.jsonl").write_text(
-                json.dumps({"dataset": f"{data.name}_heldout", "scorer": name, "rows": runs}, indent=2)
-            )
-        print(f"\nsaved {prefix.with_suffix('.json')} and {a.out}_{{base,memory}}_runs.jsonl")
+        print(f"\nsaved {prefix.with_suffix('.json')} and {a.out}_{{base,memory,memory_safe}}_runs.jsonl")
+
+
+def label_of(cfg: dict[str, Any] | None) -> str:
+    if cfg is None:
+        return "first stage alone"
+    rule = "max" if cfg["lambda"] == 1.0 else f"λ {cfg['lambda']:g}"
+    gate = {
+        None: "",
+        "abs": f", row ≥ {cfg.get('tau', 0):g}",
+        "rel": f", row ≥ best tool {cfg.get('tau', 0):+g}",
+        "top": f", first stage's top {cfg.get('tau', 0):g} only",
+    }[cfg.get("gate")]
+    return f"{rule} β {cfg['beta']:g}{gate}"
 
 
 if __name__ == "__main__":
