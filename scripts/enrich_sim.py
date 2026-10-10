@@ -33,7 +33,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from memory_sim import Ranker, evaluate, memory_scores, report  # noqa: E402
+from memory_sim import DEPTH, Ranker, evaluate, report, top  # noqa: E402
 
 from toolrank.build import build_scorer  # noqa: E402
 from toolrank.cli import build_parser  # noqa: E402
@@ -95,6 +95,26 @@ def texts(tool: Tool, base: str, responses: dict[str, str]) -> dict[str, Any]:
     }
 
 
+def rows_rank(
+    qv: np.ndarray, tv: np.ndarray, rv: np.ndarray, row_tool: np.ndarray, k: int = DEPTH, chunk: int = 256
+) -> tuple[np.ndarray, np.ndarray]:
+    """Each tool scored by the best of its own text and its rows -> the top ``k`` per query. Chunked over the
+    queries, so a catalogue whose every tool has rows never needs the [queries, rows] matrix whole."""
+    order = np.argsort(row_tool, kind="stable")
+    rv, row_tool = rv[order], row_tool[order]
+    tools, starts = np.unique(row_tool, return_index=True)
+    parts_i, parts_v = [], []
+    for s in range(0, len(qv), chunk):
+        q = qv[s : s + chunk]
+        scores = q @ tv.T
+        if len(rv):
+            scores[:, tools] = np.maximum(scores[:, tools], np.maximum.reduceat(q @ rv.T, starts, axis=1))
+        i, v = top(scores, k)
+        parts_i.append(i)
+        parts_v.append(v)
+    return np.concatenate(parts_i), np.concatenate(parts_v)
+
+
 def make_chat(a: argparse.Namespace) -> Any:
     from toolrank.adapters.chat_api import OpenAIChat
 
@@ -114,6 +134,11 @@ def main() -> None:
     ap.add_argument("--gen-workers", type=int, default=64)
     ap.add_argument("--gen-max-tokens", type=int, default=400)
     ap.add_argument("--gen-extra", default='{"chat_template_kwargs": {"enable_thinking": false}}')
+    ap.add_argument(
+        "--generate-only",
+        action="store_true",
+        help="write the cache and stop (score in a second run, with the chat model's memory free)",
+    )
     a = ap.parse_args(argv[:at])
     e = build_parser().parse_args(["eval", *argv[at + 1 :]])
     if e.cache_dir == "":
@@ -128,6 +153,9 @@ def main() -> None:
     chat = make_chat(a)
     Path(a.cache).parent.mkdir(parents=True, exist_ok=True)
     responses = generate(chat, prompts(tools), a.cache, workers=a.gen_workers, system=SYSTEM)
+    if a.generate_only:
+        print(f"{len(responses)} answers in {a.cache}")
+        return
     scorer = build_scorer(e)
     per_tool = [texts(t, scorer.tool_format(t), responses) for t in tools]
     n_desc = sum(x["describe"] != x["base"] for x in per_tool)
@@ -154,10 +182,7 @@ def main() -> None:
     row_tool = np.array([n for n, x in enumerate(per_tool) for _ in x["rows"]], dtype=np.int64)
     if len(row_text):
         rv = scorer._vectors(row_text, "document", scorer.project_tools)
-        mem_tools, mem = memory_scores(qv, rv, row_tool, np.zeros(len(row_tool), dtype=np.int64))
-        rankings["requests_rows"] = Ranker(qv, base, mem_tools, mem).rank(
-            {"rule": "max", "beta": 0.0, "lambda": 1.0, "gate": None}
-        )
+        rankings["requests_rows"] = rows_rank(qv, base, rv, row_tool)
 
     out: dict[str, Any] = {"tools": len(tools), "queries": len(queries), "writer": chat.name, "variants": {}}
     if a.out:

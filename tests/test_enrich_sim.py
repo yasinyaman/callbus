@@ -107,3 +107,19 @@ def test_a_whole_run_on_the_synthetic_set(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(m, "make_chat", lambda a: type("Refuse", (_Chat,), {"complete": None})())
     m.main()
     assert len(cache.read_text().splitlines()) == 80
+
+
+def test_rows_rank_is_the_best_of_a_tools_text_and_rows():
+    import numpy as np
+
+    m = _script()
+    rng = np.random.default_rng(0)
+    norm = lambda x: x / np.linalg.norm(x, axis=1, keepdims=True)  # noqa: E731
+    tv, qv, rv = (norm(rng.normal(size=(n, 6)).astype(np.float32)) for n in (12, 7, 9))
+    row_tool = np.array([3, 3, 0, 11, 5, 5, 5, 0, 8])
+    idx, val = m.rows_rank(qv, tv, rv, row_tool, k=12, chunk=3)  # chunks of 3 queries: 3, 3 and 1
+    want = qv @ tv.T
+    for t in set(row_tool.tolist()):
+        want[:, t] = np.maximum(want[:, t], (qv @ rv[row_tool == t].T).max(axis=1))
+    assert np.allclose(val, -np.sort(-want, axis=1), atol=1e-6)
+    assert np.allclose(np.take_along_axis(want, idx, axis=1), val, atol=1e-6)
