@@ -133,6 +133,52 @@ uv run toolrank compare --paired --data data/toolret results/memory_toolret_g0_b
   results/memory_toolret_g0_memory_safe_runs.jsonl
 ```
 
+## Ek: LLM'in yazdığı tool metni (10 Ekim)
+
+Aynı soru, trafik yerine bir LLM'le: her tool için Qwen3-8B (8093, düşünme kapalı) bir arama açıklaması (ne yapar,
+hangi istekleri ve durumları karşılar, ne zaman başka bir tool daha uygun; belgede olmayan yetenek ve örnek çağrı yok)
+ve beş farklı üslupta istek yazdı (`scripts/enrich_sim.py`, `b6c9486`/`6b97916`). Üç varyant, hiçbiri ayarlanmadan,
+`v0.2`'nin tek başına sıralamasına karşı, setin bütün sorgularında: açıklama tool metninin sonuna eklenir (`describe`);
+istekler metnin sonuna eklenir (`requests_concat`, doc2query); her istek tool'un ayrı bir belge satırıdır ve tool en iyi
+satırının skorunu alır (`requests_rows`, hafızanın `max`'ı yazılmış isteklerle). Yazar, sorguları yazan model olmamalı:
+ToolRet'in ve LiveMCPBench'in sorgularını Qwen3-8B yazmadı (MCP-Zero'nunkini ve w3 dev setlerininkini o yazdı, onlar
+dışarıda). ToolRet'te 44.453 açıklama ve 220.374 istek (50 tool dışında hepsine; tool başına 4,96), üretim 2,5 sa.
+
+NDCG@10; parantezde `v0.2`'ye göre fark ve p.
+
+| set | n | `v0.2` | açıklama | istekler, metne | istekler, ayrı satır |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| ToolRet | 7.961 | 58,92 | 57,75 (−1,17; <0,001) | 58,35 (−0,58; 0,001) | **55,78 (−3,15; <0,001)** |
+| ToolRet cat-macro | 35 görev | 54,43 | 52,65 (−1,78; <0,001) | 52,83 (−1,59; <0,001) | 50,26 (−4,17; <0,001) |
+| – code / web / customized | | 61,39 / 46,60 / 55,29 | −2,41 / −0,39 / −2,53 | −1,98 / −0,65 / −2,15 | −2,70 / −3,04 / −6,77 |
+| LiveMCPBench `_server` | 94 | 55,74 | 53,25 (−2,49; 0,04) | 56,23 (+0,49; 0,61) | 56,24 (+0,50; 0,68) |
+
+(`v0.2`'nin ToolRet'i burada 58,92: vektörler eval'inkilerle aynı cache'ten, sıralama süreç içinde; README'nin 58,90'ıyla
+fark eşitlik sıralarından.) ToolRet'te `requests_rows`'ta P@1 347 sorguda düşüyor, 75'inde yükseliyor.
+
+**Sonuç: yazılmış metin `v0.2`'ye eğitimsiz eklenince sıralamayı bozuyor; trafikten gelen gerçek istekler ise
+düzeltiyor.** Aynı mekanizma (tool'a ait istek satırları, en iyi satır) gerçek isteklerle +3,48, yazılmış isteklerle
+−3,15. Olası nedenler: yazılmış istekler genel (ToolRet'te aynı işi yapan çok sayıda tool var; birine yazılan istek
+ötekilere de uyuyor ve satırların en iyisi alınınca yanlış tool öne geçiyor), trafik istekleri ise ayrılmış sorgularla
+aynı dağılımdan; açıklamada "ne zaman başka bir tool uygun" cümlesi başka konuların kelimelerini metne taşıyor ve
+embedding olumsuzlamayı ayırt etmiyor. 3 Ekim'de incelenen Tool-DE de Qwen3-Embedding-8B'de eğitimsiz zenginleştirmenin
+kazandırmadığını (46,21 → 46,23) bulmuştu; burada `v0.2`'de kaybettiriyor. Zenginleştirme ancak eğitim verisi olarak (aynı
+tool'un ikinci görünümü) bir aday olarak kalıyor.
+
+```bash
+# GB10: data/enrich_toolret.sh (untracked): 8093 up (Qwen3-8B, profile gen), the reranker stopped, then
+uv run python scripts/enrich_sim.py --cache data/enrich/toolret.jsonl --generate-only --gen-workers 96 -- $FLAGS
+# 8093 stopped, then (all answers cached)
+uv run python scripts/enrich_sim.py --cache data/enrich/toolret.jsonl --out results/enrich_toolret -- $FLAGS
+#   FLAGS="--data data/toolret --scorer dense --emb-url http://127.0.0.1:8097/v1 --emb-model qwen3-emb-lora --truncate 8192
+#     --emb-batch 128 --tool-format documentation --query-format instruct_query --with-inst"
+uv run python scripts/enrich_sim.py --cache data/enrich/livemcpbench_server.jsonl \
+  --out results/enrich_livemcpbench_server -- ${FLAGS/toolret/livemcpbench_server}
+# Mac
+uv run toolrank compare --paired --data data/toolret results/enrich_toolret_base_runs.jsonl \
+  results/enrich_toolret_requests_rows_runs.jsonl
+```
+
 ## Sonraki adımlar
 
 - ~~Yeni tool'lara giden isteklerdeki kaybı azaltmak~~: yukarıdaki ek; güvenli seçim kaybı −0,1/−0,3'e indiriyor.

@@ -820,6 +820,9 @@ examples/                         anthropic_tool_reference.py, openai_client_too
   Gates (a row counts only above an absolute cosine, above the first stage's best, or within its top N) and a "safe"
   pick (≤ 0.2 lost on the traffic's requests for uncalled tools; memory off is a candidate): ToolRet +1.77 / +2.18,
   −0.12 / −0.31 on the new-tool requests — the break-even share of repeat requests falls from ~10% to ~3%.
+  LLM-written tool text instead (`scripts/enrich_sim.py`, Qwen3-8B per tool, untrained on `v0.2`) hurts ToolRet: a
+  description appended −1.17, five requests appended −0.58, the requests as rows of their own −3.15 (cat-macro −4.17);
+  LiveMCPBench −2.49 / +0.49 / +0.50. Real requests help, written ones do not.
 
 ## Where we are
 
