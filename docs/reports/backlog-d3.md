@@ -97,7 +97,9 @@ NDCG@10 ↑ %; parantezde replikaya göre fark ve p.
   59,71 (ebeveynler 58,90 / 58,66), cat-macro 54,98 (54,36 / 52,87), web 47,12 (46,39 / 44,58), customized 56,71
   (55,29 / 55,70); yalnız MCP-Zero'da ikisinin arasında. Seed'in getirdiği oynamayı ortalama alıyor.
 - **Yayın için:** D1.1'in kuralıyla seed soup da karar setinde berabere (+0,30, p 0,25), yani o kural `v0.2`'de
-  kalmayı söylüyor; ToolRet'teki kazanç ise anlamlı. Karar kullanıcıda (ayrıntı aşağıda, "Sonraki adımlar").
+  kalmayı söylüyor; ToolRet'teki kazanç ise anlamlı ama küçük (seed farkının altında; LoRA'nın kendi kazancının ve
+  ikinci aşamanınkinin onda biri). **Karar (kullanıcı, 10 Eki): 0.3.0 `v0.2` ile çıkıyor; model iyileştirme sonraki
+  adımlara kalıyor.** Soup bir yöntem olarak kalıyor: sonraki backbone tek bir koşu yerine birkaç seed'in ortalaması.
 
 ## Komutlar
 
