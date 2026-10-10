@@ -220,6 +220,9 @@ toolrank ab --data data/mytools [--dry-run] && toolrank learn --data data/mytool
 # logged by an agent that calls the gold tools shown, learn on that log, eval on the 30% never served;
 # NAME/BENCH/GUARD/EVALS/SIZES/NOISE/SEED/TAG/LEARN in the script's header; LEARN="--device cpu" when the GPU is full
 bash scripts/learn_sim.sh                                               # ToolRet, sizes 100..all -> results/sim_toolret_*.json
+# a usage memory, no training: called requests' vectors as extra rows of their tools, the rule picked on the
+# traffic (leave-one-out), learn_sim's split; minutes from the cache (docs/reports/backlog-memory.md)
+uv run python scripts/memory_sim.py [--seed 1 --noise 0.2] --out results/memory_toolret_s0 -- --data data/toolret <eval flags>
 # Faz 2 week 5: a server vote, co-use partners and the no-tool gate (all off by default)
 toolrank eval --data data/mcp_zero_server --scorer clm ... --server-weight 0.2    # tool cosine + 0.2 * its server's
 toolrank serve --data data/mytools --server-weight 0.2 --co-use 2 [--cut-margin 0.2 --cut-threshold T --cut-min 0]
@@ -645,6 +648,7 @@ scripts/                          run_matrix.sh; toolret_paper_avg.py; truncatio
                                   lora_train.py (LoRA on the embedding backbone, [lora] extra), lora_soup.py (adapters averaged into
                                   merged weights), rerank_report.py (faz2-rerank.md's tables, --write);
                                   learn_sim.py (split a benchmark, play its queries as logged traffic), learn_sim.sh (learn + eval per traffic size);
+                                  memory_sim.py (a usage memory on learn_sim's split: called requests as extra rows of their tools);
                                   routing_sweep.py (server -> tool rules and the no-tool gate), couse_sweep.py (co-use partners on a log);
                                   helm_smoke.py (the chart on a cluster without a GPU: fake embeddings, install, upgrade, uninstall);
                                   publish_backbone.py (the LoRA-merged backbone to the Hub, tagged; dry run by default);
@@ -808,6 +812,11 @@ examples/                         anthropic_tool_reference.py, openai_client_too
   (−2.68) and ToolRet cat-macro (−1.15); `--fn-margin 0.1` gains on one-tool sets only (cat-macro −0.81): neither passes.
   The mean of `v0.2`'s and the replica's weights (`scripts/lora_soup.py`, no training) beats `v0.2` on ToolRet
   (58.90 → 59.71, cat-macro 54.36 → 54.98, both significant) and loses ≤ 0.4 anywhere; a tie on `dev_w3_multi2`.
+- Usage memory (`docs/reports/backlog-memory.md`, `scripts/memory_sim.py`, `v0.2`, learn_sim's split): the vectors of
+  requests whose shown gold tool was called, as extra rows of that tool (`c + 0.5 · max(0, m − c)`), lift ToolRet's
+  held-out NDCG@10 59.62 → 63.09 (another split 59.49 → 63.03; a fifth of the calls wrong 61.93; cat-macro +2.86):
+  +10 on requests for tools the traffic had called, −1.2 to −1.7 on the others. Sets without repeats (MCP-Zero,
+  the w3 dev sets) do not move: the rule picked on their traffic leaves the ranking as it is.
 
 ## Where we are
 
