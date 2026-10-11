@@ -161,10 +161,17 @@ koşulunca Q4_K_M'in bir bedeli göründü; eşli testler (`compare --paired`, a
 | MCP-Zero, Q8_0 − bf16 | +0,14 (11 yukarı, 7 aşağı) | +0,09 | 0,48 / 0,13 |
 | MCP-Zero, Q4_K_M − Q8_0 | −1,65 | −0,83 | <0,0001 / 0,0001 |
 | ToolRet, Q4_K_M − bf16 | — | +0,61 (cat-macro +0,17) | 0,0001 / 0,36 |
+| `dev_w3` (tek tool), Q4_K_M − bf16 | +0,50 | +0,07 | 0,50 / 0,77 |
+| `dev_w3_sit` (problem anlatan), Q4_K_M − bf16 | −1,67 | −0,66 | 0,064 / 0,068 |
+| `dev_w3_multi2` (iki tool), Q4_K_M − bf16 | −1,25 | **−0,73** | 0,17 / **0,0017** |
+| `dev_w3_multi3` (üç tool), Q4_K_M − bf16 | −1,61 | **−0,64** | 0,22 / **0,035** |
 
 Yani Q8_0 ölçülen her sette bf16 seviyesinde; Q4_K_M MCP-Zero'nun iki satırlık isteklerinde top-1'de 1,5 puan
-kaybediyor, ToolRet'in talimatlı ve uzun dokümantasyonlu isteklerinde ise 0,6 puan kazanıyor (kategori
-ortalamasında fark yok). Kaba ağırlıkların bedeli kısa istekte çıkıyor — ajanın yazdığı istek de kısa.
+kaybediyor, w3 kataloğundaki çok tool'lu görevlerde 0,7 puan (tek tool'lu isteklerde fark yok), ToolRet'in
+talimatlı ve uzun dokümantasyonlu isteklerinde ise 0,6 puan kazanıyor (kategori ortalamasında fark yok).
+Kaba ağırlıkların bedeli kısa istekte ve birden çok tool gerektiren görevde çıkıyor — ajanın yazdığı istek de
+kısa. (Q8_0'ın dev setleri ve ToolRet'i gece koşuyor; öneri Q4_K_M'in ölçülen kaybına dayanıyor, Q8_0'ın
+LiveMCPBench ve MCP-Zero'daki beraberliğine.)
 **Yeni öneri: 9 GB sığıyorsa Q8_0, sığmıyorsa Q4_K_M** (kart ve `docs/guides/local.md` bunu yazıyor). Bu, 3 Eki'de
 94 görevlik LiveMCPBench ve ToolRet'e bakarak verilen kararın neden yetersiz olduğunu da gösteriyor: kuantizasyon
 farkını görmek için büyük ve kısa istekli bir set gerekiyordu. Q8_0'ın ToolRet satırı (D1.3'ün kuralının hiç

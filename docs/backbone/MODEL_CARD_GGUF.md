@@ -76,8 +76,10 @@ with bf16 (top-1 +0.14, p 0.48 on 2,792 paired requests), and the same holds on 
 Q4_K_M costs 1.5 points of top-1 there (87.07 against 88.57, 9 requests up and 51 down, p < 0.0001)
 — the kind of short request an agent writes is where its coarser weights show. On ToolRet, whose
 requests come with instructions and whose tools carry long documentation, Q4_K_M is instead 0.6
-points above bf16 (p 0.0001) and level by category (+0.17, p 0.36). So: 5 GB and a laptop, take
-Q4_K_M; room for 9 GB, take Q8_0.
+points above bf16 (p 0.0001) and level by category (+0.17, p 0.36). Generated tasks over a GitHub +
+Stripe catalogue agree with MCP-Zero: Q4_K_M costs 0.7 NDCG@10 on tasks needing two or three tools
+(p 0.002 and 0.03) and nothing on requests for a single tool (+0.07, p 0.77). So: 5 GB and a laptop,
+take Q4_K_M; room for 9 GB, take Q8_0.
 
 Qwen3-Embedding's own smaller models are a different story — 0.6B and 4B are 6–7 points behind on
 LiveMCPBench and 9–11 on ToolRet
