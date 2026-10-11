@@ -2,8 +2,9 @@
 
 The default backbone, `toolrank-emb-v0.2`, is an 8B model, and [Docker](docker.md) serves it with vLLM
 on a GPU of 16 GB (8 GB in FP8). Without such a GPU, [Ollama](https://ollama.com) runs GGUF builds of
-the same model, at the same quality and more slowly, and of smaller Qwen3-Embedding models, which are
-faster and score lower.
+the same model ([`yasinyaman/toolrank-emb-8b-GGUF`](https://huggingface.co/yasinyaman/toolrank-emb-8b-GGUF),
+[its card](../backbone/MODEL_CARD_GGUF.md)), at the same quality and more slowly, and of smaller
+Qwen3-Embedding models, which are faster and score lower.
 
 ## Pick a model
 
@@ -34,7 +35,7 @@ benchmarks run with instructions, as in the [README table](../benchmarks.md):
 ## Set up
 
 ```bash
-# the LoRA backbone as GGUF (TODO(launch): publish yasinyaman/toolrank-emb-8b-GGUF); hf: pip install huggingface_hub
+# the LoRA backbone as GGUF; hf: pip install huggingface_hub
 hf download yasinyaman/toolrank-emb-8b-GGUF toolrank-emb-8b-v0.2-Q4_K_M.gguf --revision v0.2 --local-dir models
 printf 'FROM ./models/toolrank-emb-8b-v0.2-Q4_K_M.gguf\nPARAMETER num_ctx 8192\n' > Modelfile
 ollama create toolrank-emb-v0.2-q4_k_m -f Modelfile

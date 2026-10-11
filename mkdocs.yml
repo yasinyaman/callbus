@@ -55,6 +55,7 @@ nav:
       - REST API: reference/rest.md
       - Python API: reference/python.md
       - Backbone model card: backbone/MODEL_CARD.md
+      - Backbone GGUF model card: backbone/MODEL_CARD_GGUF.md
       - Heads model card: heads/MODEL_CARD.md
   - Contributing: contributing.md
   - Changelog: changelog.md
