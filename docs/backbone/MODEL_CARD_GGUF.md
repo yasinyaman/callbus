@@ -70,9 +70,11 @@ whole corpus — the same flags as the README's rows. `bf16` is the same weights
 | --- | ---: | ---: | ---: | ---: |
 | bf16, vLLM | 58.90 | 54.36 | 69.54 | 75.25 |
 | **Q4_K_M** | **59.51** | **54.53** | 69.88 | 75.61 |
+| **Q8_0** | 58.94 | 54.38 | 69.62 | 75.33 |
 
-**Which build.** Q8_0 is the one to take if 9 GB fits: on the largest set measured here it is level
-with bf16 (top-1 +0.14, p 0.48 on 2,792 paired requests), and the same holds on LiveMCPBench.
+**Which build.** Q8_0 is the one to take if 9 GB fits: it is level with bf16 on all three sets, with
+nothing to separate them on paired tests (MCP-Zero top-1 +0.14, p 0.48 on 2,792 requests; ToolRet
+NDCG@10 +0.04, p 0.31 on 7,961; LiveMCPBench −0.33 on 94 tasks).
 Q4_K_M costs 1.5 points of top-1 there (87.07 against 88.57, 9 requests up and 51 down, p < 0.0001)
 — the kind of short request an agent writes is where its coarser weights show. On ToolRet, whose
 requests come with instructions and whose tools carry long documentation, Q4_K_M is instead 0.6

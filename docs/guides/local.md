@@ -14,14 +14,15 @@ benchmarks run with instructions, as in the [README table](../benchmarks.md):
 | Model (Ollama name) | GGUF | LiveMCPBench NDCG@10 | MCP-Zero top-1 | ToolRet NDCG@10 (cat-macro) | One new search | 525 tools embedded in |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | `toolrank-emb-v0.2-q4_k_m` | 5.0 GB | 56.22 | 87.07 | 59.51 (54.53) | 0.67 s | 5.4 min |
-| `toolrank-emb-v0.2-q8_0` | 8.7 GB | 55.41 | **88.72** | | 0.78 s | 8.8 min |
+| `toolrank-emb-v0.2-q8_0` | 8.7 GB | 55.41 | **88.72** | 58.94 (54.38) | 0.78 s | 8.8 min |
 | `qwen3-emb-4b-q4_k_m` | 2.5 GB | 48.71 | | 50.41 (44.99) | 0.33 s | 2.8 min |
 | `qwen3-emb-0.6b-q8_0` | 0.6 GB | 49.21 | | 48.54 (43.14) | 0.05 s | 29 s |
 | *vLLM, bf16, on a GPU* | | *55.74* | *88.57* | *58.90 (54.36)* | | |
 
-- **Take Q8_0 if 9 GB fits, Q4_K_M if it does not.** On MCP-Zero, the largest set here (2,792
-  agent-written requests), Q8_0 is level with bf16 on the GPU (top-1 88.72 against 88.57, p 0.48
-  paired) while Q4_K_M costs 1.5 points of top-1 (87.07; 9 requests up, 51 down, p < 0.0001). The
+- **Take Q8_0 if 9 GB fits, Q4_K_M if it does not.** Q8_0 is level with bf16 on all three sets, with
+  nothing to separate them on paired tests (MCP-Zero top-1 88.72 against 88.57, p 0.48; ToolRet 58.94
+  against 58.90, p 0.31). Q4_K_M costs 1.5 points of top-1 on MCP-Zero's 2,792 agent-written
+  requests (87.07; 9 requests up, 51 down, p < 0.0001). The
   other sets do not see it: on ToolRet, where requests carry instructions and tools long
   documentation, Q4_K_M is 0.6 points above bf16 (p 0.0001, level by category), and LiveMCPBench's 94
   tasks are too few to separate anything. Coarser weights cost most on short requests, which is what

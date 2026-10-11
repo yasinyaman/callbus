@@ -146,7 +146,7 @@ tutmuyor). Bu yüzden yayımlanan baytlar GB10'da Ollama ile yeniden ölçüldü
 | *vLLM bf16, `toolrank-emb-v0.2`* | 55,74 | 52,06 | 58,90 | 54,36 |
 | Q4_K_M, 3 Eki yapısı (dizüstü) | 55,75 | 52,22 | 59,50 | 54,51 |
 | **Q4_K_M, yayımlanan** | **56,22** | 52,22 | **59,51** | **54,53** |
-| **Q8_0, yayımlanan** | 55,41 | 52,17 | — | — |
+| **Q8_0, yayımlanan** | 55,41 | 52,17 | **58,94** | **54,38** |
 
 İki yapı arasındaki fark yarım puanın altında, yani kuantizasyonun değişmesi sıralamayı değiştirmiyor. Depo:
 `yasinyaman/toolrank-emb-8b-GGUF@v0.2`, kart `docs/backbone/MODEL_CARD_GGUF.md`, yükleme GB10'dan
@@ -161,6 +161,7 @@ koşulunca Q4_K_M'in bir bedeli göründü; eşli testler (`compare --paired`, a
 | MCP-Zero, Q8_0 − bf16 | +0,14 (11 yukarı, 7 aşağı) | +0,09 | 0,48 / 0,13 |
 | MCP-Zero, Q4_K_M − Q8_0 | −1,65 | −0,83 | <0,0001 / 0,0001 |
 | ToolRet, Q4_K_M − bf16 | — | +0,61 (cat-macro +0,17) | 0,0001 / 0,36 |
+| ToolRet, Q8_0 − bf16 | −0,04 | +0,04 (cat-macro +0,03) | 0,82 / 0,31 (0,81) |
 | `dev_w3` (tek tool), Q4_K_M − bf16 | +0,50 | +0,07 | 0,50 / 0,77 |
 | `dev_w3_sit` (problem anlatan), Q4_K_M − bf16 | −1,67 | −0,66 | 0,064 / 0,068 |
 | `dev_w3_multi2` (iki tool), Q4_K_M − bf16 | −1,25 | **−0,73** | 0,17 / **0,0017** |
@@ -170,8 +171,9 @@ Yani Q8_0 ölçülen her sette bf16 seviyesinde; Q4_K_M MCP-Zero'nun iki satırl
 kaybediyor, w3 kataloğundaki çok tool'lu görevlerde 0,7 puan (tek tool'lu isteklerde fark yok), ToolRet'in
 talimatlı ve uzun dokümantasyonlu isteklerinde ise 0,6 puan kazanıyor (kategori ortalamasında fark yok).
 Kaba ağırlıkların bedeli kısa istekte ve birden çok tool gerektiren görevde çıkıyor — ajanın yazdığı istek de
-kısa. (Q8_0'ın dev setleri ve ToolRet'i gece koşuyor; öneri Q4_K_M'in ölçülen kaybına dayanıyor, Q8_0'ın
-LiveMCPBench ve MCP-Zero'daki beraberliğine.)
+kısa. **D1.3'ün kuralı ("Q8_0 her sette 1 puan içinde") ilk kez harfiyen sağlandı:** Q8_0 üç sette de bf16'dan
+ayırt edilemiyor (ToolRet +0,04 p 0,31, MCP-Zero top-1 +0,14 p 0,48, LiveMCPBench −0,33 / 94 görev). Q8_0'ın
+dev setleri 12 Eki 00:04'te koşmaya başladı.
 **Yeni öneri: 9 GB sığıyorsa Q8_0, sığmıyorsa Q4_K_M** (kart ve `docs/guides/local.md` bunu yazıyor). Bu, 3 Eki'de
 94 görevlik LiveMCPBench ve ToolRet'e bakarak verilen kararın neden yetersiz olduğunu da gösteriyor: kuantizasyon
 farkını görmek için büyük ve kısa istekli bir set gerekiyordu. Q8_0'ın ToolRet satırı (D1.3'ün kuralının hiç
