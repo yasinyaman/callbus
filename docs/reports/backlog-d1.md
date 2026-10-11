@@ -8,7 +8,9 @@ ve Strands rehberi (D1.11). Bu rapor maddeler bittikçe büyüyor.
 ## Sonuç (tek cümle)
 
 D1.1, D1.3, D1.4, D1.5, D1.7–D1.9, D1.11, D1.12 ve D1.10'un kodu bitti; D1.2'nin dizüstü kısmı bitti, MCP-Zero
-ve dev setleri GB10'u bekliyor. 60k çiftle eğitilen LoRA, önceden yazılan kurala göre v0.3 olmuyor: karar
+ve dev setleri GB10'u bekliyor. 0.3.0'ın taşıdığı yığın (resmi `vllm/vllm-openai:v0.30.0` imajı, FP8) NGC
+0.13'teki satırları tutuyor: üç sette fark en çok 0,5 puan, vektör kosinüsü 0,997, ağırlık 7,92 GiB ve soğuk
+batch-1 gecikmesi 56,1 ms (bf16'da 14,11 GiB ve 92,4 ms). 60k çiftle eğitilen LoRA, önceden yazılan kurala göre v0.3 olmuyor: karar
 setinde 20k'yla berabere (NDCG@10 83,12'ye karşı 82,95, p 0,64), MCP-Zero'da 1,5 puan geride (p 0,0001); 0.3.0
 `v0.2` ile çıkıyor. Hub'daki `v0.2` yerel 20k'yla bayt bayt aynı. 20k tarifinin yalnız eğitim seed'i değişmiş
 tekrarı da `v0.2`'den MCP-Zero'da 0,7, ToolRet cat-macro'da 1,5 puan geride (ikisi de p 0,0001): sorgu düzeyindeki
@@ -262,6 +264,55 @@ veriyor. Görevlerden biri senkron, öbürü asenkron koşuldu.
 - Geçersiz saat diliminde tool'un hatası ve sunucunun şema ipucu çıktıya geldi (çıkış 1); `--search-id`
   verilmediği için günlükte `link: client`.
 
+## D1.6 — varsayılan yığının ölçümü (11 Eki 2026)
+
+0.3.0'dan önceki soru: kullanıcının kurduğu yığın bizim ölçtüğümüz yığın mı? README'nin satırları NVIDIA'nın
+NGC imajındaki vLLM 0.13'ten geliyor; Docker örnekleri ise vLLM'in resmi `vllm/vllm-openai:v0.30.0` imajını
+taşıyor ve varsayılanı FP8 (`entrypoint-vllm.sh`). Ölçüm: `v0.2`'nin merged ağırlıkları o imajda FP8 olarak
+8099'da (`qwen3-emb-lora-fp8-v030`), üç set NGC satırlarına karşı; ardından bf16 ile vektör uyumu, batch-1
+gecikme ve ağırlık belleği. Hepsi talimatlı (w/ inst), `documentation` + `instruct_query`, head'siz.
+
+| ölçü | NGC 0.13 bf16 (8097) | NGC 0.13 FP8 (8098) | resmi v0.30.0 FP8 (8099) |
+| --- | ---: | ---: | ---: |
+| ToolRet NDCG@10 | 58,90 | 59,02 | **58,95** |
+| ToolRet cat-macro | 54,36 | 54,53 | **54,37** |
+| LiveMCPBench NDCG@10 | 55,74 | 55,34 | **56,24** |
+| MCP-Zero NDCG@10 | 93,67 | 93,26 | **93,46** |
+| MCP-Zero top-1 | 88,57 | 87,71 | **88,07** |
+
+Resmi imaj üç sette de NGC'nin bf16 ve FP8 satırlarının arasında ya da yarım puan içinde; LiveMCPBench'teki
++0,50 bir sorgunun ağırlığından küçük (94 istek). Vektör uyumu (aynı metinler, 8097 bf16 ↔ 8099 FP8):
+tool'larda kosinüs ortalama 0,99739 (p1 0,99604, en kötü 0,99231), sorgularda 0,99711; 1.000 sorgunun ilk
+10'unda örtüşme %95,6, ilk sırada %94,1 — Hafta 7'nin NGC içindeki FP8/bf16 karşılaştırmasıyla (0,997,
+%95,4) aynı. Yani fark imajdan değil kuantizasyondan geliyor.
+
+Gecikme ve bellek, 44.453 tool'luk ToolRet kataloğunda, istekler tek tek (`scripts/latency.py --n 100`):
+
+| yığın | ağırlık ↓ GiB | soğuk p50 ↓ ms | soğuk p95 ↓ ms | ılık p50 ↓ ms |
+| --- | ---: | ---: | ---: | ---: |
+| `v0.2` bf16, NGC 0.13 (8097) | 14,11 | 92,4 | 108,5 | 7,5 |
+| `v0.2` FP8, resmi v0.30.0 (8099) | 7,92 | 56,1 | 106,5 | 7,5 |
+
+FP8 ağırlığı yarıya indiriyor, soğuk gecikmeden üçte birini alıyor. README'nin FP8 cümlesi bugüne kadar temel
+modelin sayılarını (14,1 → 7,6 GiB, 98,5 → 54,9 ms; Faz 1 Hafta 6) anlatıyordu; artık varsayılan backbone'un
+kendi sayıları yazıyor (`docs/results.toml`).
+
+Leaderboard satırı (aynı oturumda, 8097): `v0.2`'nin ToolRet w/o inst koşusu — düz sorgular, talimat yok.
+
+| model | NDCG@10 | cat-macro |
+| --- | ---: | ---: |
+| Qwen3-Embedding-8B (temel) | 42,73 | 35,28 |
+| + v0.1 head'leri | 44,86 | 34,64 |
+| `v0.2` | **46,63** | **36,41** |
+
+ToolRet leaderboard'unun w/o inst sütununda NV-Embed-v1 35,50 ile öndeydi (Faz 1 Hafta 7); `v0.2` onu da
+geçiyor. Gönderim 0.3.0'dan sonra.
+
+Sapma: zincirin vektör uyumu adımı ilk denemede düştü. `scripts/fp8_agreement.py`'nin `--heads` varsayılanı
+CLM'in referans head'lerini GPU'ya yüklüyor; GB10'da üç vLLM sunucusu ve başka bir projenin `llama-server`'ı
+varken GPU belleği kalmadı (`torch.AcceleratorError: CUDA error: out of memory`). `--heads none` ile tekrar
+koşuldu — `v0.2` head'siz servis edildiği için ölçümün kapsamı da bu.
+
 ## D1.7–D1.12 — Jev koltuğu, öğrenme ve eşli testler (kod)
 
 Ölçüm değil kod maddeleri; davranışı testler sabitliyor, sayılar GB10'daki koşularla gelecek.
@@ -351,6 +402,34 @@ MODELS="qwen3-emb-8b-q4_k_m toolrank-emb-v0.2-q4_k_m qwen3-emb-8b-q8_0 toolrank-
 SETS=toolret MODELS="qwen3-emb-0.6b-f16 qwen3-emb-4b-q4_k_m toolrank-emb-v0.2-q4_k_m" bash scripts/gguf_matrix.sh
 $UV run python scripts/latency.py --data data/livemcpbench_server --emb-url $EMB_URL --emb-model <model> --n 50 \
   --scorer dense --truncate 8192 --tool-format documentation --query-format instruct_query   # ToolRet: --n 100
+
+# D1.6, GB10: v0.2 in FP8 on the image the Docker examples ship, the entrypoint's own flags
+docker run -d --name toolrank-v030-fp8 --gpus all --ipc host \
+  -v $HOME/toolrank/data/lora/qwen3-emb-lora-20k/merged:/models/lora:ro \
+  -v $HOME/.cache/huggingface:/root/.cache/huggingface -p 8099:8000 vllm/vllm-openai:v0.30.0 \
+  /models/lora --served-model-name qwen3-emb-lora-fp8-v030 --runner pooling --max-model-len 8192 \
+  --quantization fp8 --no-enable-chunked-prefill --max-num-batched-tokens 8192 \
+  --gpu-memory-utilization 0.2 --host 0.0.0.0 --port 8000
+# then the three sets, the agreement and both latency runs (data/v030_chain.sh, untracked):
+FLAGS="--emb-url http://127.0.0.1:8099/v1 --emb-model qwen3-emb-lora-fp8-v030 --truncate 8192 --emb-batch 128
+  --tool-format documentation --query-format instruct_query --with-inst"
+for d in livemcpbench_server mcp_zero_server toolret; do   # mcp_zero_server also --ks 1,5,10,20
+  $UV run toolrank eval --data data/$d --scorer dense $FLAGS --out results/v030_${d}_fp8.json; done
+$UV run python scripts/fp8_agreement.py --a http://127.0.0.1:8097/v1=qwen3-emb-lora \
+  --b http://127.0.0.1:8099/v1=qwen3-emb-lora-fp8-v030 --truncate 8192 --tool-format documentation \
+  --query-format instruct_query --heads none          # without --heads none it loads CLM's heads onto the GPU
+$UV run python scripts/latency.py --data data/toolret --scorer dense --truncate 8192 \
+  --tool-format documentation --n 100 --emb-url http://127.0.0.1:8099/v1 --emb-model qwen3-emb-lora-fp8-v030
+$UV run python scripts/latency.py --data data/toolret --scorer dense --truncate 8192 \
+  --tool-format documentation --n 100 --emb-url http://127.0.0.1:8097/v1 --emb-model qwen3-emb-lora
+# the leaderboard's w/o inst row: no --with-inst, so the query format falls back to plain
+$UV run toolrank eval --data data/toolret --scorer dense --emb-url http://127.0.0.1:8097/v1 \
+  --emb-model qwen3-emb-lora --truncate 8192 --emb-batch 128 --tool-format documentation \
+  --out results/readme_lora_toolret_qwen3emb_noinst.json
+# Mac, after scp 'gb10:toolrank/results/{v030_*,readme_lora_toolret_qwen3emb_noinst}.json' results/:
+uv run toolrank compare results/lora_toolret_lora.json results/lora_toolret_lora_fp8.json results/v030_toolret_fp8.json
+uv run toolrank compare results/readme_toolret_qwen3emb_noinst.json results/readme_toolret_heads_noinst.json \
+  results/readme_lora_toolret_qwen3emb_noinst.json
 ```
 
 ## Ortam
@@ -358,6 +437,10 @@ $UV run python scripts/latency.py --data data/livemcpbench_server --emb-url $EMB
 - Mac'te `toolrank serve` (`--emb-model qwen3-emb`, v0.1 head'leri), `data/w3` indeksi ve embedding cache'i sıcak.
 - langchain 1.4.3, langchain-core 1.6.6, langgraph 1.2.12.
 - Test paketi (D1.5 sonrası): 278 geçti, 1 atlandı; torch'suz 264 geçti, 13 atlandı.
+- D1.6: GB10, 11 Eki 16:54–17:55. Aynı anda 8091 (temel model) ve 8097 (`v0.2` bf16) ayakta, reranker (8095)
+  yer açmak için durduruldu; başka bir projenin `llama-server`'ı GPU'yu paylaşıyordu (ToolRet'in 44.453
+  tool'u 43 dakikada kodlandı, kendi GPU'sunda 0,4 saat). Ölçümlerin hiçbiri paylaşılan GPU'dan etkilenmeyen
+  büyüklükler değil: gecikme satırları bu yükle birlikte okunmalı, kalite satırları yükten bağımsız.
 - D1.2 / D1.3: dizüstü NVIDIA RTX 3050 Ti Laptop (4 GB), 14 GB RAM, 20 iş parçacığı, Ubuntu 26.04 x86_64.
   Ollama 0.35.1, her modelde `num_ctx` 8192; dönüştürme `ghcr.io/ggml-org/llama.cpp:full-cuda` ile. Koşular
   3 Ekim 08:28–23:00 arası, sırayla. ToolRet'in ilk satırı koşarken dizüstünde D1.4'ün LangChain denemesi ve
