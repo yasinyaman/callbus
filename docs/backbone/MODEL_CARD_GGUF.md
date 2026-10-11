@@ -56,19 +56,22 @@ whole corpus — the same flags as the README's rows. `bf16` is the same weights
 | **Q4_K_M** | **56.22** | 52.22 | 62.77 |
 | **Q8_0** | 55.41 | 52.17 | 62.80 |
 
-**ToolRet** (7,961 requests, 44,453 tools), measured on a Q4_K_M build of the same recipe made with
-an older llama.cpp (3 Oct 2026; its quantized payload differs from these files, so read the row as
-the recipe's, not these bytes'):
+**ToolRet** (7,961 requests, 44,453 tools)
 
 | Build | NDCG@10 | cat-macro | Recall@10 | Recall@20 |
 | --- | ---: | ---: | ---: | ---: |
 | bf16, vLLM | 58.90 | 54.36 | 69.54 | 75.25 |
-| Q4_K_M (3 Oct build) | 59.50 | 54.51 | 69.85 | 75.67 |
+| **Q4_K_M** | **59.51** | **54.53** | 69.88 | 75.61 |
 
 So quantization costs nothing measurable here: Q4_K_M lands within half a point of bf16 on both
 sets, in both directions, and Q8_0 does the same. Qwen3-Embedding's own smaller models are a
 different story — 0.6B and 4B are 6–7 points behind on LiveMCPBench and 9–11 on ToolRet
 ([the report](https://github.com/yasinyaman/toolrank/blob/main/docs/reports/backlog-d1.md)).
+
+Both tables are these files, scored where they were built. An earlier Q4_K_M of the same recipe,
+made on 3 October with an older llama.cpp, scores the same (ToolRet 59.50, LiveMCPBench 55.75)
+although its quantized payload is not byte-identical: llama.cpp's quantizer changed in between, the
+ranking did not.
 
 ## What it costs on a small GPU
 

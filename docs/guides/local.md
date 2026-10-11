@@ -13,15 +13,19 @@ benchmarks run with instructions, as in the [README table](../benchmarks.md):
 
 | Model (Ollama name) | GGUF | LiveMCPBench NDCG@10 | Recall@5 | ToolRet NDCG@10 (cat-macro) | One new search | 525 tools embedded in |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `toolrank-emb-v0.2-q4_k_m` | 5.0 GB | 55.75 | 52.22 | 59.50 (54.51) | 0.67 s | 5.4 min |
-| `toolrank-emb-v0.2-q8_0` | 8.7 GB | 55.23 | 52.17 | | 0.78 s | 8.8 min |
+| `toolrank-emb-v0.2-q4_k_m` | 5.0 GB | 56.22 | 52.22 | 59.51 (54.53) | 0.67 s | 5.4 min |
+| `toolrank-emb-v0.2-q8_0` | 8.7 GB | 55.41 | 52.17 | | 0.78 s | 8.8 min |
 | `qwen3-emb-4b-q4_k_m` | 2.5 GB | 48.71 | 45.79 | 50.41 (44.99) | 0.33 s | 2.8 min |
 | `qwen3-emb-0.6b-q8_0` | 0.6 GB | 49.21 | 47.39 | 48.54 (43.14) | 0.05 s | 29 s |
 | *vLLM, bf16, on a GPU* | | *55.74* | *52.06* | *58.90 (54.36)* | | |
 
-- The LoRA backbone's GGUF builds score as vLLM does. Q4_K_M is level with it on LiveMCPBench and 0.6
-  points above on ToolRet (7,961 requests). Q8_0 is half a point behind on LiveMCPBench, within that
-  benchmark's noise (94 requests). Take Q4_K_M: it is smaller and faster.
+- The LoRA backbone's GGUF builds score as vLLM does. Q4_K_M is half a point above it on LiveMCPBench
+  and 0.6 above on ToolRet (7,961 requests); Q8_0 is level on LiveMCPBench. Differences this size are
+  noise on 94 requests, so read them as "the same". Take Q4_K_M: it is smaller and faster.
+- The two `toolrank-emb-v0.2` rows' quality columns are the published files
+  ([`yasinyaman/toolrank-emb-8b-GGUF`](https://huggingface.co/yasinyaman/toolrank-emb-8b-GGUF)), scored
+  through Ollama on the machine that built them; every timing column is this laptop. Quality does not
+  depend on the hardware, timings do.
 - Qwen3-Embedding-0.6B and 4B are faster, and score about 7 points lower on LiveMCPBench and 9 to 11
   lower on ToolRet. They are still well ahead of BM25 (ToolRet 39.27, 36.41 cat-macro). The 0.6B's
   ToolRet row is the f16 build, which scores like Q8_0 on LiveMCPBench (49.12).

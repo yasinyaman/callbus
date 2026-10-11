@@ -133,6 +133,25 @@ Değerlendirmeler dizüstünde koştu, Ollama'ya kendi Tailscale adresinden gidi
 | Qwen3-Embedding-4B Q4_K_M | 50,41 | 44,99 | 61,80 | 68,56 | 3,6 |
 | `toolrank-emb-v0.2` Q4_K_M | 59,50 | 54,51 | 69,85 | 75,67 | 7,3 |
 
+### Yayımlanan yapılar (11 Eki 2026)
+
+Dosyalar dizüstünden taşınmak yerine GB10'da, ağırlıkların yanında yeniden üretildi (kullanıcının kararı) ve
+oradan Hub'a yüklendi. Bu sırada **llama.cpp'nin kuantizasyonunun 3 Ekim'den beri değiştiği** görüldü: aynı
+tarif, aynı ağırlıklar, ama üç dosyada da metaveri 704 bayt kısa *ve* tensör yükü farklı (son 5 GB'ın sha256'sı
+tutmuyor). Bu yüzden yayımlanan baytlar GB10'da Ollama ile yeniden ölçüldü — ölçülmemiş bir dosyayı kartta
+ölçülmüş sayılarla sunmamak için:
+
+| Yapı | LiveMCPBench NDCG@10 | Recall@5 | ToolRet NDCG@10 | cat-macro |
+| --- | ---: | ---: | ---: | ---: |
+| *vLLM bf16, `toolrank-emb-v0.2`* | 55,74 | 52,06 | 58,90 | 54,36 |
+| Q4_K_M, 3 Eki yapısı (dizüstü) | 55,75 | 52,22 | 59,50 | 54,51 |
+| **Q4_K_M, yayımlanan** | **56,22** | 52,22 | **59,51** | **54,53** |
+| **Q8_0, yayımlanan** | 55,41 | 52,17 | — | — |
+
+İki yapı arasındaki fark yarım puanın altında, yani kuantizasyonun değişmesi sıralamayı değiştirmiyor; D1.3'ün
+kararı (Q4_K_M önerilir) aynı kalıyor. Depo: `yasinyaman/toolrank-emb-8b-GGUF@v0.2`, kart
+`docs/backbone/MODEL_CARD_GGUF.md`, yükleme GB10'dan (`088af90`, kart `1cb12ac3`).
+
 ### Gecikme, istekler tek tek
 
 `scripts/latency.py`: LiveMCPBench'te model başına 50, ToolRet'te 100 istek.
