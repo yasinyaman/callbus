@@ -6,9 +6,12 @@ bu dört karar `v0.2`'de de aynı mı?
 
 ## Sonuç (tek cümle)
 
-Öğrenme döngüsü `v0.2`'de de kazandırıyor ama daha az (ayrılmış isteklerde +1,88 ve +1,55; v0.1'de +3,03), yani
-önceden yazılan kural tuttu ve `learn` gecelik komutta kalıyor; yanında bıraktığı 1,5–3 puanlık kaybı `--replay`
-kapatıyor, ama ancak 10.000 çiftle (varsayılan 1.000 hiçbir şey yapmıyor, o yüzden varsayılan değişti); adaptive K
+Öğrenme döngüsü `v0.2`'de de kazandırıyor ama daha az (ayrılmış isteklerde beş eğitim seed'inin ortalaması +2,43
+micro / +1,99 cat-macro, MCP-Zero kataloğuyla +1,55; v0.1'de +3,03), yani önceden yazılan kural tuttu ve `learn`
+gecelik komutta kalıyor; yanında bıraktığı 1,5–3 puanlık kaybı `--replay`
+kapatıyor, ama ancak 10.000 çiftle (varsayılan 1.000 hiçbir şey yapmıyor, o yüzden varsayılan değişti); eğitim
+seed'i tek başına ayrılmış NDCG@10'u ±0,5 oynattığı için bundan sonraki farklar 2·SD'yi (micro 1,1, cat-macro 1,6)
+geçmek zorunda; adaptive K
 marjı 0,2'de kalıyor (hiçbir marj kuralı geçmedi); hybrid artık her sette kaybettiriyor (v0.1'de yalnız
 MCP-Zero'da kazanıyordu) ve sunucu oyu berabere düştü (v0.1'de MCP-Zero top-1'e +1,1) — ikisi de isteğe bağlı
 kalıyor, belgeleri düzeltildi.
@@ -28,10 +31,15 @@ bölmeleriyle aynı (aynı seed): ToolRet 5.573 trafik / 2.388 ayrılmış / 1.0
 Kural (`karar-modelleri.md`, koşudan önce): ayrılmış isteklerde başlangıcı ≥ 1 puan geçmezse `learn` `v0.2` için
 gecelik komuttan çıkar ve D2.15'in head kolu düşer.
 
-| katalog | set | n | başlangıç | öğrenilen | fark |
+Aşağıdaki satırlar tek bir eğitim seed'inin (0) koşusu. **6. bölümdeki gürültü tabanı sonradan ölçüldü ve
+seed 0'ın beş koşunun en kötüsü olduğunu gösterdi**: ToolRet kolunda ayrılmış NDCG@10 beş seedde 61,46–62,52
+(ortalama 62,04, yani +2,43) ve cat-macro 55,90–57,67 (ortalama 56,89, +1,99). Tabloyu o bantla birlikte okumak
+gerekiyor; MCP-Zero kolunun bandı ölçülmedi.
+
+| katalog | set | n | başlangıç | öğrenilen (seed 0) | fark |
 | --- | --- | ---: | ---: | ---: | ---: |
-| ToolRet | ayrılmış | 2.388 | 59,61 | **61,49** | **+1,88** |
-| ToolRet | ayrılmış, cat-macro | 3 kat. | 54,90 | 55,90 | +1,00 |
+| ToolRet | ayrılmış | 2.388 | 59,61 | **61,49** (5 seed ort. **62,04**) | **+1,88** (ort. +2,43) |
+| ToolRet | ayrılmış, cat-macro | 3 kat. | 54,90 | 55,90 (ort. 56,89) | +1,00 (ort. +1,99) |
 | ToolRet | yeni | 1.061 | 69,12 | 70,16 | +1,04 |
 | ToolRet | yeni, cat-macro | 3 kat. | 60,63 | 59,93 | −0,70 |
 | ToolRet | LiveMCPBench (unutma) | 94 | 55,74 | 54,28 | −1,46 |
@@ -135,8 +143,11 @@ iki dozla: varsayılan 1.000 çift ve 10.000 çift.
 - **Varsayılan 1.000 çift hiçbir şey yapmıyor.** İki kolda da unutulan set yerinde kalıyor (ToolRet 56,43,
   LiveMCPBench 54,35). 208.826 çiftin binde beşi, batch'lerde günlüğün yanında görünmüyor.
 - **10.000 çiftte unutma kapanıyor.** MCP-Zero kolunda ToolRet 56,42 → 59,27 (başlangıç 58,90, cat-macro da
-  54,40'a dönüyor) ve kataloğun kendi kazancı duruyor (95,76). ToolRet kolunda LiveMCPBench 54,28 → 55,15
-  (başlangıç 55,74; kalan −0,59, 94 görevde bir görevin altında).
+  54,40'a dönüyor; +2,85, aşağıdaki tabandan büyük) ve kataloğun kendi kazancı duruyor (95,76). ToolRet kolunda
+  LiveMCPBench 54,28 → 55,15 (başlangıç 55,74; kalan −0,59, 94 görevde bir görevin altında).
+- **ToolRet kolundaki "replay fazladan kazandırıyor" okuması düştü.** Replay'li ayrılmış skorlar (62,56 ve 62,49)
+  replay'siz beş seedin bandının (61,46–62,52) içinde; yani in-domain replay'in ayrılmış isteklere kattığı şey
+  eğitim seed'i gürültüsünden ayırt edilemiyor. Replay'in ölçülebilir işi unutmayı onarmak.
 - **Bedeli, tesadüfi kazançlar.** MCP-Zero trafiğinin LiveMCPBench'e kattığı +2,98, replay'le +1,09'a iniyor;
   ToolRet kolunda MCP-Zero 93,67 → 93,33. Yani replay head'leri backbone'a doğru geri çekiyor: unutmayı da,
   beklenmedik kazancı da kırpıyor.
@@ -148,6 +159,28 @@ iki dozla: varsayılan 1.000 çift ve 10.000 çift.
 **Karar:** `--replay` gecelik komuta giriyor ve `--replay-n`'in varsayılanı 1.000'den **10.000**'e çıkıyor
 (`cli.py`; kılavuz ve CLAUDE.md da bunu yazıyor). Çiftlerin vektörleri embedding cache'inden geliyor, eksikler
 bir kez gömülüyor; GB10'da hepsi önbellekteydi ve epoch süresi 3 sn'den 9 sn'ye çıktı.
+
+## 6. Gürültü tabanı — bir "+X puan" ne kadar olmalı
+
+Aynı tarif, aynı bölme, aynı günlük; değişen tek şey `learn`'ün eğitim seed'i (`--seed 0..4`, veri seed'i sabit).
+Ayrılmış isteklerin (2.388) NDCG@10'u:
+
+| yığın | başlangıç | 5 seedin aralığı | ortalama | SD | 2·SD |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| temel model + v0.1 head'leri (8091) | 54,20 | 56,65 – 57,39 | 57,11 | 0,31 | 0,62 |
+| aynısı, cat-macro | 48,59 | 51,31 – 52,77 | 52,34 | 0,60 | 1,20 |
+| `v0.2`, kimlik head'lerinden (8097) | 59,61 | 61,46 – 62,52 | 62,04 | 0,53 | 1,05 |
+| aynısı, cat-macro | 54,90 | 55,90 – 57,67 | 56,89 | 0,78 | 1,56 |
+
+- **Kural:** bundan sonra bu düzenekteki bir fark, ancak 2·SD'yi geçerse sayılır — micro'da 0,6 (temel model) /
+  1,1 (`v0.2`), cat-macro'da 1,2 / 1,6 puan. Dalga 3'ün LoRA seed replikası (cat-macro 1,5 puan) eğitim
+  verisinin değil backbone'un gürültüsüydü; bu taban head eğitiminin kendi gürültüsü ve ikisi toplanıyor.
+- **Hafta 4'ün sayısı yerinde:** v0.1'de bildirilen 57,23, buradaki 56,65–57,39 bandının içinde.
+- **Bugünün `learn` sonucu bu bantla daha güçlü:** `v0.2`'de ortalama +2,43 micro ve +1,99 cat-macro, ikisi de
+  2·SD'nin üstünde. Ama 1. bölümün tek seedi (seed 0) bandın en altıydı; tek koşuya dayanan "+1,00 cat-macro"
+  gibi bir ifade bu bantta anlamsız.
+- Bant yalnız head eğitiminin seed'i için ölçüldü (ToolRet kataloğu, trafiğin tamamı). MCP-Zero kolu, `--replay`
+  kolları ve farklı trafik büyüklükleri tek seed; onların bandı bu büyüklükte varsayılıyor, ölçülmedi.
 
 ## Komutlar
 
@@ -167,7 +200,13 @@ done   # mcp_zero_server also --ks 1,5,10,20
 # the replay arms (data/replay_chain.sh, untracked): the same logs, only the learn step changes
 NAME=toolret_v02 TAG=replay SIZES=0 LEARN="--device cpu --replay data/toolret_train/pairs.jsonl" \
   bash scripts/learn_sim.sh      # and TAG=replay10k with --replay-n 10000; the same two for mcpzero_v02
-# Mac, after scp 'gb10:toolrank/results/{sim_*_v02_*,v02base_*}.json' results/:
+# the noise floor (data/noise_floor.sh and data/noise_v02.sh, untracked): the same split and log, five
+# training seeds, nothing else changed
+for s in 0 1 2 3 4; do
+  NAME=toolret TAG=seed$s SIZES=0 LEARN="--device cpu --seed $s" bash scripts/learn_sim.sh   # 8091 + v0.1 heads
+  NAME=toolret_v02 TAG=v02seed$s SIZES=0 LEARN="--device cpu --seed $s" bash scripts/learn_sim.sh  # HEADS=none, 8097
+done
+# Mac, after scp 'gb10:toolrank/results/{sim_*_v02_*,v02base_*,sim_toolret_n0_seed*}.json' results/:
 uv run toolrank compare results/sim_toolret_v02_base_heldout.json results/sim_toolret_v02_n0_v02_heldout.json
 uv run toolrank compare results/lora_toolret_lora.json results/v02base_toolret_hybrid.json results/v02base_toolret_srv.json
 uv run toolrank compare results/sim_mcpzero_v02_{base,n0_v02,n0_replay,n0_replay10k}_toolret.json
@@ -195,7 +234,10 @@ anlamsız; kalite sayıları yükten bağımsız.
 
 ## Sonraki adımlar
 
-- Head gürültü tabanı: aynı tarifle 5 seed (GB10 sırası 4), bundan sonraki "±X puan" kuralları için. `--replay`'in
-  10.000 ile 1.000 arasındaki farkı tek bölmede ölçüldü; dozun nerede doyduğu (3.000? 30.000?) açık.
+- `--replay`'in dozu tek bölmede iki noktada ölçüldü (1.000 ve 10.000); nerede doyduğu (3.000? 30.000?) açık.
+- Bant yalnız ToolRet kataloğu ve trafiğin tamamı için var. MCP-Zero kolunun ve `--replay` kollarının kendi
+  bandı, bir karar onlara dayanacaksa ölçülmeli (her biri ~13 dakika).
+- LoRA tarafında bant yok: eğitim seed'i replikası yalnız bir kez koşuldu (Dalga 3), o yüzden backbone
+  karşılaştırmaları hâlâ eşli test istiyor (D1.10).
 - Kullanım hafızası (`backlog-memory.md`) ile `learn`'ün aynı bölmede karşılaştırması ve ikisinin birlikte:
   hafıza aynı ToolRet bölmesinde +3,48 almıştı, `learn` burada +1,88.

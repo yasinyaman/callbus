@@ -140,8 +140,12 @@ backbone's own ranking and there is less left to win.
 | | 5,573 | 4,313 | 54.2 → 57.2 |
 | MCP-Zero (2,792 tools) | 300 | 288 | nothing published |
 | | 1,954 | 1,857 | 89.2 → 92.0 |
-| ToolRet, on the v0.2 backbone | 5,573 | 4,313 | 59.6 → 61.5 (62.5 with `--replay`) |
+| ToolRet, on the v0.2 backbone | 5,573 | 4,313 | 59.6 → 62.0 ± 0.5 |
 | MCP-Zero, on the v0.2 backbone | 1,954 | 1,857 | 94.3 → 95.8 |
+
+The ± is what the training seed alone moves: five runs of the same recipe on the same log and the
+same split landed between 61.5 and 62.5 (cat-macro 55.9 to 57.7). Read your own before-and-after
+with that in mind — on this setup a difference under about a point is the seed, not the learning.
 
 What the numbers say:
 

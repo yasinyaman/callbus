@@ -214,8 +214,9 @@ export LAPTOP=…; export EMB_URL=http://$LAPTOP:11434/v1 UV=~/.local/bin/uv; ba
 toolrank learn --data data/mytools [--dev data/livemcpbench_server] [--since 2026-10-01] [--tenant NAME] [--dry-run]
 # Faz 2 week 3: learn writes DATA/heads/candidate.npz, a running serve gives it --candidate-share (0.1) of the
 # requests, ab reads the log back and promotes it to current.npz or sets it aside; every night (learn pays on
-# v0.2: +1.9 / +1.6 held-out NDCG@10 on simulated ToolRet / MCP-Zero traffic, and --replay at its 10k default
-# keeps what the traffic does not cover; 1k changed nothing: docs/reports/olcum-tabani.md):
+# v0.2: held-out NDCG@10 +2.4 over five training seeds on simulated ToolRet traffic and +1.6 on MCP-Zero's, and
+# --replay at its 10k default keeps what the traffic does not cover; 1k changed nothing. A difference in this
+# setup counts only beyond 2 SD of the seed spread: micro 1.1, cat-macro 1.6 — docs/reports/olcum-tabani.md):
 toolrank ab --data data/mytools [--dry-run] && toolrank learn --data data/mytools --replay data/toolret_train/pairs.jsonl
 # Faz 2 week 4: the loop on simulated traffic (GB10): a benchmark as the served catalogue, 70% of its queries
 # logged by an agent that calls the gold tools shown, learn on that log, eval on the 30% never served;
