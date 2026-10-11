@@ -56,6 +56,14 @@ whole corpus — the same flags as the README's rows. `bf16` is the same weights
 | **Q4_K_M** | **56.22** | 52.22 | 62.77 |
 | **Q8_0** | 55.41 | 52.17 | 62.80 |
 
+**MCP-Zero** (2,792 requests, 2,792 tools — one request per tool, agent-written, two lines each)
+
+| Build | NDCG@10 | top-1 | Recall@5 |
+| --- | ---: | ---: | ---: |
+| bf16, vLLM | 93.67 | 88.57 | 96.53 |
+| Q4_K_M | 92.93 | 87.07 | 96.33 |
+| **Q8_0** | **93.76** | **88.72** | 96.65 |
+
 **ToolRet** (7,961 requests, 44,453 tools)
 
 | Build | NDCG@10 | cat-macro | Recall@10 | Recall@20 |
@@ -63,9 +71,16 @@ whole corpus — the same flags as the README's rows. `bf16` is the same weights
 | bf16, vLLM | 58.90 | 54.36 | 69.54 | 75.25 |
 | **Q4_K_M** | **59.51** | **54.53** | 69.88 | 75.61 |
 
-So quantization costs nothing measurable here: Q4_K_M lands within half a point of bf16 on both
-sets, in both directions, and Q8_0 does the same. Qwen3-Embedding's own smaller models are a
-different story — 0.6B and 4B are 6–7 points behind on LiveMCPBench and 9–11 on ToolRet
+**Which build.** Q8_0 is the one to take if 9 GB fits: on the largest set measured here it is level
+with bf16 (top-1 +0.14, p 0.48 on 2,792 paired requests), and the same holds on LiveMCPBench.
+Q4_K_M costs 1.5 points of top-1 there (87.07 against 88.57, 9 requests up and 51 down, p < 0.0001)
+— the kind of short request an agent writes is where its coarser weights show. On ToolRet, whose
+requests come with instructions and whose tools carry long documentation, Q4_K_M is instead 0.6
+points above bf16 (p 0.0001) and level by category (+0.17, p 0.36). So: 5 GB and a laptop, take
+Q4_K_M; room for 9 GB, take Q8_0.
+
+Qwen3-Embedding's own smaller models are a different story — 0.6B and 4B are 6–7 points behind on
+LiveMCPBench and 9–11 on ToolRet
 ([the report](https://github.com/yasinyaman/toolrank/blob/main/docs/reports/backlog-d1.md)).
 
 Both tables are these files, scored where they were built. An earlier Q4_K_M of the same recipe,

@@ -3,7 +3,7 @@
 The default backbone, `toolrank-emb-v0.2`, is an 8B model, and [Docker](docker.md) serves it with vLLM
 on a GPU of 16 GB (8 GB in FP8). Without such a GPU, [Ollama](https://ollama.com) runs GGUF builds of
 the same model ([`yasinyaman/toolrank-emb-8b-GGUF`](https://huggingface.co/yasinyaman/toolrank-emb-8b-GGUF),
-[its card](../backbone/MODEL_CARD_GGUF.md)), at the same quality and more slowly, and of smaller
+[its card](../backbone/MODEL_CARD_GGUF.md)), at nearly the same quality and more slowly, and of smaller
 Qwen3-Embedding models, which are faster and score lower.
 
 ## Pick a model
@@ -11,17 +11,21 @@ Qwen3-Embedding models, which are faster and score lower.
 Measured on a laptop with an RTX 3050 Ti (4 GB) and 14 GB of RAM, Ollama 0.35.1, `num_ctx` 8192. The
 benchmarks run with instructions, as in the [README table](../benchmarks.md):
 
-| Model (Ollama name) | GGUF | LiveMCPBench NDCG@10 | Recall@5 | ToolRet NDCG@10 (cat-macro) | One new search | 525 tools embedded in |
+| Model (Ollama name) | GGUF | LiveMCPBench NDCG@10 | MCP-Zero top-1 | ToolRet NDCG@10 (cat-macro) | One new search | 525 tools embedded in |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `toolrank-emb-v0.2-q4_k_m` | 5.0 GB | 56.22 | 52.22 | 59.51 (54.53) | 0.67 s | 5.4 min |
-| `toolrank-emb-v0.2-q8_0` | 8.7 GB | 55.41 | 52.17 | | 0.78 s | 8.8 min |
-| `qwen3-emb-4b-q4_k_m` | 2.5 GB | 48.71 | 45.79 | 50.41 (44.99) | 0.33 s | 2.8 min |
-| `qwen3-emb-0.6b-q8_0` | 0.6 GB | 49.21 | 47.39 | 48.54 (43.14) | 0.05 s | 29 s |
-| *vLLM, bf16, on a GPU* | | *55.74* | *52.06* | *58.90 (54.36)* | | |
+| `toolrank-emb-v0.2-q4_k_m` | 5.0 GB | 56.22 | 87.07 | 59.51 (54.53) | 0.67 s | 5.4 min |
+| `toolrank-emb-v0.2-q8_0` | 8.7 GB | 55.41 | **88.72** | | 0.78 s | 8.8 min |
+| `qwen3-emb-4b-q4_k_m` | 2.5 GB | 48.71 | | 50.41 (44.99) | 0.33 s | 2.8 min |
+| `qwen3-emb-0.6b-q8_0` | 0.6 GB | 49.21 | | 48.54 (43.14) | 0.05 s | 29 s |
+| *vLLM, bf16, on a GPU* | | *55.74* | *88.57* | *58.90 (54.36)* | | |
 
-- The LoRA backbone's GGUF builds score as vLLM does. Q4_K_M is half a point above it on LiveMCPBench
-  and 0.6 above on ToolRet (7,961 requests); Q8_0 is level on LiveMCPBench. Differences this size are
-  noise on 94 requests, so read them as "the same". Take Q4_K_M: it is smaller and faster.
+- **Take Q8_0 if 9 GB fits, Q4_K_M if it does not.** On MCP-Zero, the largest set here (2,792
+  agent-written requests), Q8_0 is level with bf16 on the GPU (top-1 88.72 against 88.57, p 0.48
+  paired) while Q4_K_M costs 1.5 points of top-1 (87.07; 9 requests up, 51 down, p < 0.0001). The
+  other sets do not see it: on ToolRet, where requests carry instructions and tools long
+  documentation, Q4_K_M is 0.6 points above bf16 (p 0.0001, level by category), and LiveMCPBench's 94
+  tasks are too few to separate anything. Coarser weights cost most on short requests, which is what
+  an agent writes.
 - The two `toolrank-emb-v0.2` rows' quality columns are the published files
   ([`yasinyaman/toolrank-emb-8b-GGUF`](https://huggingface.co/yasinyaman/toolrank-emb-8b-GGUF)), scored
   through Ollama on the machine that built them; every timing column is this laptop. Quality does not
@@ -41,6 +45,7 @@ benchmarks run with instructions, as in the [README table](../benchmarks.md):
 ```bash
 # the LoRA backbone as GGUF; hf: pip install huggingface_hub
 hf download yasinyaman/toolrank-emb-8b-GGUF toolrank-emb-8b-v0.2-Q4_K_M.gguf --revision v0.2 --local-dir models
+# ... -Q8_0.gguf instead (8.7 GB) where there is room: level with bf16 on MCP-Zero's short requests
 printf 'FROM ./models/toolrank-emb-8b-v0.2-Q4_K_M.gguf\nPARAMETER num_ctx 8192\n' > Modelfile
 ollama create toolrank-emb-v0.2-q4_k_m -f Modelfile
 

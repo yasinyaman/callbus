@@ -148,9 +148,27 @@ tutmuyor). Bu yüzden yayımlanan baytlar GB10'da Ollama ile yeniden ölçüldü
 | **Q4_K_M, yayımlanan** | **56,22** | 52,22 | **59,51** | **54,53** |
 | **Q8_0, yayımlanan** | 55,41 | 52,17 | — | — |
 
-İki yapı arasındaki fark yarım puanın altında, yani kuantizasyonun değişmesi sıralamayı değiştirmiyor; D1.3'ün
-kararı (Q4_K_M önerilir) aynı kalıyor. Depo: `yasinyaman/toolrank-emb-8b-GGUF@v0.2`, kart
-`docs/backbone/MODEL_CARD_GGUF.md`, yükleme GB10'dan (`088af90`, kart `1cb12ac3`).
+İki yapı arasındaki fark yarım puanın altında, yani kuantizasyonun değişmesi sıralamayı değiştirmiyor. Depo:
+`yasinyaman/toolrank-emb-8b-GGUF@v0.2`, kart `docs/backbone/MODEL_CARD_GGUF.md`, yükleme GB10'dan
+(`088af90`, kart `1cb12ac3`).
+
+**Ama D1.3'ün "Q4_K_M önerilir" kararı değişti.** Dizüstünün erişemediği MCP-Zero (2.792 ajan isteği) GB10'da
+koşulunca Q4_K_M'in bir bedeli göründü; eşli testler (`compare --paired`, aynı sorgular):
+
+| karşılaştırma | P@1 | NDCG@10 | p (P@1 / NDCG@10) |
+| --- | ---: | ---: | --- |
+| MCP-Zero, Q4_K_M − bf16 | **−1,50** (9 yukarı, 51 aşağı) | −0,74 | <0,0001 / 0,0001 |
+| MCP-Zero, Q8_0 − bf16 | +0,14 (11 yukarı, 7 aşağı) | +0,09 | 0,48 / 0,13 |
+| MCP-Zero, Q4_K_M − Q8_0 | −1,65 | −0,83 | <0,0001 / 0,0001 |
+| ToolRet, Q4_K_M − bf16 | — | +0,61 (cat-macro +0,17) | 0,0001 / 0,36 |
+
+Yani Q8_0 ölçülen her sette bf16 seviyesinde; Q4_K_M MCP-Zero'nun iki satırlık isteklerinde top-1'de 1,5 puan
+kaybediyor, ToolRet'in talimatlı ve uzun dokümantasyonlu isteklerinde ise 0,6 puan kazanıyor (kategori
+ortalamasında fark yok). Kaba ağırlıkların bedeli kısa istekte çıkıyor — ajanın yazdığı istek de kısa.
+**Yeni öneri: 9 GB sığıyorsa Q8_0, sığmıyorsa Q4_K_M** (kart ve `docs/guides/local.md` bunu yazıyor). Bu, 3 Eki'de
+94 görevlik LiveMCPBench ve ToolRet'e bakarak verilen kararın neden yetersiz olduğunu da gösteriyor: kuantizasyon
+farkını görmek için büyük ve kısa istekli bir set gerekiyordu. Q8_0'ın ToolRet satırı (D1.3'ün kuralının hiç
+koşulmamış parçası) 11 Eki gecesi koşuyor.
 
 ### Gecikme, istekler tek tek
 
