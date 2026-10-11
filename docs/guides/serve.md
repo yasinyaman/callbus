@@ -202,10 +202,21 @@ From then on, every search answered by that first stage carries a `confidence`. 
 those answerable requests whose best score was at or below this one's, so 0.05 means only 5%
 scored lower. An agent or a client can choose its own band from it.
 `serve --min-confidence 0.05` turns away the requests below that share: an empty list with the
-note above, about 5% of answerable requests on any catalogue. A request that names its own `k` is
-never turned away. `calibrate` also ranks each request with its tool's server hidden, and reports
+note above, about 5% of the requests the calibration was made of. A request that names its own `k`
+is never turned away. `calibrate` also ranks each request with its tool's server hidden, and reports
 the share of those "twins" that the band would catch: the unanswerable requests it can tell apart.
 Calibration does not make the score separate them any better; it makes the threshold portable.
+
+**Calibrate on requests that look like your traffic.** "5% of the requests the calibration was made
+of" is the whole caveat: a band is only as representative as its requests. Measured on one
+catalogue two ways — requests written by a chat model, one per tool, against the 94 multi-step tasks
+people wrote for the same tools — the generated requests scored much higher (median best score 0.69
+against 0.49), so their 5% band turned away **54%** of the real tasks. `--styles situation`, which
+states a problem instead of naming the operation, narrowed it to 21%; tasks of two tools did not
+help. Within one style the band is exact: calibrated on half of a set's requests, it turned away
+5.3% of the other half. So treat `confidence` as "compared with the requests I was calibrated on",
+keep `--min-confidence` off until you have requests that resemble what your agents send, and
+re-calibrate when that changes ([the measurement](https://github.com/yasinyaman/toolrank/blob/main/docs/reports/backlog-d214.md)).
 
 A calibration holds for one backbone, set of heads and serving instruction. After any of them
 changes (a new backbone, heads promoted by `toolrank ab`, `--instruction`), run `calibrate` again.

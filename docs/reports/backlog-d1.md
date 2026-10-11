@@ -179,6 +179,37 @@ dev setleri 12 Eki 00:04'te koşmaya başladı.
 farkını görmek için büyük ve kısa istekli bir set gerekiyordu. Q8_0'ın ToolRet satırı (D1.3'ün kuralının hiç
 koşulmamış parçası) 11 Eki gecesi koşuyor.
 
+### Dev setleri ve küçük modeller (12 Eki 2026, GB10)
+
+Dizüstünde koşulamayan setler GB10'da Ollama ile koşuldu. Önce yayımlanan iki yapı, w3 kataloğundaki
+(1.862 tool) üretilmiş isteklerde — bf16 / Q4_K_M / Q8_0, NDCG@10:
+
+| set | n | bf16 | Q4_K_M | Q8_0 |
+| --- | ---: | ---: | ---: | ---: |
+| `dev_w3` (tek tool) | 1.000 | 92,49 | 92,56 | **92,62** |
+| `dev_w3_sit` (problem anlatan) | 598 | 87,71 | 87,05 | **87,70** |
+| `dev_w3_multi2` (iki tool) | 800 | 82,95 | 82,22 | **83,02** |
+| `dev_w3_multi3` (üç tool) | 498 | 75,40 | 74,76 | **75,36** |
+
+Dört sette de aynı örüntü: Q8_0 bf16'nın üstünde duruyor (en büyük fark 0,13), Q4_K_M 0,6–0,7 geride. Bu,
+MCP-Zero'daki 1,5 puanlık top-1 farkıyla aynı yönde ve Q8_0 önerisinin dördüncü teyidi.
+
+Küçük Qwen3-Embedding modelleri aynı setlerde (D1.2'nin kalan satırları; `v0.2` bf16 ile karşılaştırmalı):
+
+| set | `v0.2` | Qwen3-Embedding-0.6B Q8_0 | Qwen3-Embedding-4B Q4_K_M |
+| --- | ---: | ---: | ---: |
+| MCP-Zero NDCG@10 | 93,67 | 88,21 | 88,09 |
+| MCP-Zero top-1 | 88,57 | 79,98 | 79,19 |
+| `dev_w3` NDCG@10 | 92,49 | 90,11 | 91,19 |
+| `dev_w3_multi2` NDCG@10 | 82,95 | 72,28 | 70,98 |
+
+- **Küçük modeller tek tool'lu isteklerde yakın, çok tool'lu görevlerde değil.** `dev_w3`'te fark 1,3–2,4 puan;
+  `dev_w3_multi2`'de 10,7–12,0 ve MCP-Zero top-1'de 8,6–9,4. D1.2'nin kararı (varsayılanın yerini tutmuyorlar)
+  bu iki sette daha da belirginleşiyor.
+- **4B, 0.6B'den iyi değil.** MCP-Zero'da ve `dev_w3_multi2`'de 0.6B'nin biraz gerisinde (top-1 79,19'a karşı
+  79,98), yalnız `dev_w3`'te önde. Dört kat büyüklük burada bir şey getirmiyor; LiveMCPBench'teki tablo da
+  (48,71'e karşı 49,21) aynı şeyi söylüyordu.
+
 ### Gecikme, istekler tek tek
 
 `scripts/latency.py`: LiveMCPBench'te model başına 50, ToolRet'te 100 istek.

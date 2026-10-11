@@ -15,8 +15,8 @@ benchmarks run with instructions, as in the [README table](../benchmarks.md):
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | `toolrank-emb-v0.2-q4_k_m` | 5.0 GB | 56.22 | 87.07 | 59.51 (54.53) | 0.67 s | 5.4 min |
 | `toolrank-emb-v0.2-q8_0` | 8.7 GB | 55.41 | **88.72** | 58.94 (54.38) | 0.78 s | 8.8 min |
-| `qwen3-emb-4b-q4_k_m` | 2.5 GB | 48.71 | | 50.41 (44.99) | 0.33 s | 2.8 min |
-| `qwen3-emb-0.6b-q8_0` | 0.6 GB | 49.21 | | 48.54 (43.14) | 0.05 s | 29 s |
+| `qwen3-emb-4b-q4_k_m` | 2.5 GB | 48.71 | 79.19 | 50.41 (44.99) | 0.33 s | 2.8 min |
+| `qwen3-emb-0.6b-q8_0` | 0.6 GB | 49.21 | 79.98 | 48.54 (43.14) | 0.05 s | 29 s |
 | *vLLM, bf16, on a GPU* | | *55.74* | *88.57* | *58.90 (54.36)* | | |
 
 - **Take Q8_0 if 9 GB fits, Q4_K_M if it does not.** Q8_0 is level with bf16 on all three sets, with
@@ -31,9 +31,13 @@ benchmarks run with instructions, as in the [README table](../benchmarks.md):
   ([`yasinyaman/toolrank-emb-8b-GGUF`](https://huggingface.co/yasinyaman/toolrank-emb-8b-GGUF)), scored
   through Ollama on the machine that built them; every timing column is this laptop. Quality does not
   depend on the hardware, timings do.
-- Qwen3-Embedding-0.6B and 4B are faster, and score about 7 points lower on LiveMCPBench and 9 to 11
-  lower on ToolRet. They are still well ahead of BM25 (ToolRet 39.27, 36.41 cat-macro). The 0.6B's
-  ToolRet row is the f16 build, which scores like Q8_0 on LiveMCPBench (49.12).
+- Qwen3-Embedding-0.6B and 4B are faster, and score about 7 points lower on LiveMCPBench, 9 to 11
+  lower on ToolRet and 9 lower at top-1 on MCP-Zero. They are still well ahead of BM25 (ToolRet 39.27,
+  36.41 cat-macro). The 0.6B's ToolRet row is the f16 build, which scores like Q8_0 on LiveMCPBench
+  (49.12). **Where they really fall behind is tasks that need more than one tool:** on generated
+  two-tool tasks over a GitHub + Stripe catalogue they score 72.3 and 71.0 against the default's 83.0,
+  while on requests for a single tool they are within 1 to 2 points (90.1 and 91.2 against 92.5). Four
+  times the size buys nothing here — the 4B trails the 0.6B on both MCP-Zero and the two-tool tasks.
 - **One new search** is the median time of a search for a request the server has not seen before:
   one request at a time, on LiveMCPBench, embedding included. A request seen before is answered from
   the embedding cache in a few milliseconds, whatever the model.

@@ -12,9 +12,11 @@ kabul ölçütü değil.
 
 ## Sonuç (tek cümle)
 
-MCP-Zero'da eşik devrini geçti: isteklerin bir yarısında kalibre edilen %5 bandı, hiç görmediği öteki yarıda
-%5,3'ünü geri çeviriyor (kural ≤ %7) ve ikizlerin %70,9'unu yakalıyor; gerçek test olan LiveMCPBench (model
-yazımı kalibrasyon, insan yazımı 94 görev) GB10'da kuyrukta.
+Kalibrasyon ölçeği kendi istek dağılımı içinde doğru taşıyor (MCP-Zero: bir yarıda seçilen %5 bandı öteki
+yarının %5,3'ünü geri çeviriyor, kural ≤ %7) ama dağılımlar arasında taşımıyor: model yazımı isteklerden
+kurulan band LiveMCPBench'in insan yazımı 94 görevinin **%54,3'ünü** geri çeviriyor (`--styles situation` ile
+%21,3), yani **kabul ölçütü gerçek testte tutmadı** ve `--min-confidence` varsayılansız kalıyor; sıradaki
+yol kalibrasyonu kurulumun kendi günlüğünden kurmak.
 
 ## 1. MCP-Zero: aynı katalog, görülmemiş istekler
 
@@ -43,13 +45,33 @@ a'nın bandı b'nin isteklerine uygulandığında (`scripts/confidence_accept.py
   yakalıyor, %1'lik band üçte birini. Ham eşikle (Hafta 5) MCP-Zero'da 0,45 eşiği cevaplıların %0,8'ini geri
   çevirip %23'ünü yakalıyordu; kalibre edilmiş %5 bandı aynı katalogda çok daha iyi bir takas sunuyor.
 
-## 2. LiveMCPBench: gerçek test (kuyrukta)
+## 2. LiveMCPBench: gerçek test — **kural tutmadı**
 
-Kataloğuna 200 istek üretilecek (8093'teki sohbet modeli, `data gen-queries --exclude
-data/livemcpbench_server`), kalibrasyon onlardan kurulacak ve band 94 insan yazımı göreve uygulanacak
-(`data/d214_chain.sh`, 11 Eki gecesi Q8_0 koşularının ardından). Beklenti belirsiz: LiveMCPBench'in görevleri
-daha uzun ve çok adımlı, cevaplı isteklerinin en iyi skorları Hafta 5'te 0,51 ortalamayla MCP-Zero'nun 0,71'inin
-çok altındaydı; model yazımı isteklerle kurulan bir dağılımın onları nereye koyacağı ölçülecek.
+Kataloğuna üç ayrı istek seti üretildi (8093'teki Qwen3-8B, `--exclude data/livemcpbench_server`), her biriyle
+ayrı bir kalibrasyon kuruldu ve bandı 94 insan yazımı göreve uygulandı.
+
+| kalibrasyon | n | kendi p5 / medyanı | 94 gerçek görevde %5 bandının geri çevirdiği | yakalama |
+| --- | ---: | ---: | ---: | ---: |
+| varsayılan stiller (task, step, goal) | 192 | 0,498 / 0,689 | **%54,3** | %89,4 |
+| `--styles situation` | 199 | 0,420 / 0,601 | **%21,3** | %55,3 |
+| `--tools-per-request 2` | 132 | 0,487 / 0,640 | **%53,2** | %88,3 |
+| *gerçek görevlerin kendisi* | 94 | *0,340 / 0,492* | — | — |
+
+Kural ≤ %7 istiyordu; en iyi kol %21,3'te kaldı, yani **D2.14'ün kabulü LiveMCPBench'te tutmadı.**
+
+- **Sebep stil değil, zorluk farkı.** Üretilmiş istekler bir tool için yazıldığı için o tool'un metniyle sözcük
+  sözcük örtüşüyor: medyan en iyi skor 0,689, gerçek görevlerde 0,492. Dağılım 0,2 kayınca o dağılımın %5'lik
+  dilimi gerçek trafiğin yarısının üstüne düşüyor. `situation` stili aradaki farkın yarısını kapatıyor (medyan
+  0,601) ama yetmiyor; iki tool'lu görevler hiç yardım etmiyor, çünkü onlar da tool'lara bakarak yazılıyor.
+- **Katalog içi devir yine de doğru** (1. bölüm): aynı kalemden çıkan isteklerde band %5,3 geri çeviriyor. Yani
+  kalibrasyon ölçeği doğru taşıyor, ama yalnız kendi istek dağılımı için.
+- **Ürün sonucu:** `--min-confidence` varsayılansız kalıyor (bugün de öyle) ve `docs/guides/serve.md` artık
+  "her katalogda cevaplı isteklerin %5'i" demiyor; "kalibrasyonun kurulduğu isteklerin %5'i" diyor, bu ölçümle
+  birlikte.
+- **Sıradaki öneri:** kalibrasyonu kurulumun kendi trafiğinden kurmak. Kullanım günlüğü istek metnini tutmuyor
+  ama vektörünü embedding cache'inden geri getirebiliyoruz (`learn.state_vectors` bunu zaten yapıyor), yani
+  `toolrank calibrate --from-log` gerçek isteklerin dağılımını ölçebilir. Üretilmiş istekler o zaman yalnız
+  soğuk başlangıç için kalır — ve bandın anlamı kurulumun kendi trafiğine bağlanır.
 
 ## Komutlar
 
@@ -60,6 +82,16 @@ uv run toolrank data split data/mcp_zero_server --out-a data/mz_calib_a --out-b 
 uv run toolrank calibrate --data data/mcp_zero_server --requests data/mz_calib_a $FLAGS   # --dry-run to look first
 uv run python scripts/confidence_accept.py --check data/mz_calib_b --out results/confaccept_mcpzero_b.json -- \
   --data data/mcp_zero_server --scorer dense $FLAGS --query-format instruct_query --with-inst
+
+# the LiveMCPBench arms (data/d214_chain.sh and data/d214_styles.sh, untracked): the chat model up and down
+docker compose -f deploy/spark/compose.yaml --profile gen up -d qwen3-8b-chat   # 8093
+uv run toolrank data gen-queries --data data/livemcpbench_server --out data/calib_livemcp --n 200 \
+  --exclude data/livemcpbench_server --gen-workers 32        # and --styles situation / --tools-per-request 2
+docker compose -f deploy/spark/compose.yaml --profile gen stop qwen3-8b-chat
+uv run toolrank calibrate --data data/livemcpbench_server --requests data/calib_livemcp $FLAGS
+uv run python scripts/confidence_accept.py --check data/livemcpbench_server \
+  --out results/confaccept_livemcp.json -- --data data/livemcpbench_server --scorer dense $FLAGS \
+  --query-format instruct_query --with-inst
 ```
 
 ## Sapmalar ve açıklamalar
