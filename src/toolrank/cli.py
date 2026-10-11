@@ -1639,7 +1639,12 @@ def build_parser() -> argparse.ArgumentParser:
     ln.add_argument(
         "--replay", default=None, help="general pairs.jsonl mixed into training, against forgetting"
     )
-    ln.add_argument("--replay-n", type=int, default=1000, help="how many of --replay's pairs")
+    ln.add_argument(
+        "--replay-n",
+        type=int,
+        default=10000,
+        help="how many of --replay's pairs (1,000 did not stop the forgetting, 10,000 did)",
+    )
     ln.add_argument(
         "--dev", default=None, help="benchmark-format dir scored alongside: a guard against forgetting"
     )

@@ -213,10 +213,10 @@ export LAPTOP=…; export EMB_URL=http://$LAPTOP:11434/v1 UV=~/.local/bin/uv; ba
 # Faz 2 week 1: learn from what serve logged (no request text leaves the machine; --dry-run needs no torch)
 toolrank learn --data data/mytools [--dev data/livemcpbench_server] [--since 2026-10-01] [--tenant NAME] [--dry-run]
 # Faz 2 week 3: learn writes DATA/heads/candidate.npz, a running serve gives it --candidate-share (0.1) of the
-# requests, ab reads the log back and promotes it to current.npz or sets it aside; every night (learn itself
-# pays on v0.2: +1.9 / +1.6 held-out NDCG@10 on simulated ToolRet / MCP-Zero traffic, docs/reports/olcum-tabani.md;
-# --replay stays out of the command until it is measured there too, now that the collateral is 1.5-3 points):
-toolrank ab --data data/mytools [--dry-run] && toolrank learn --data data/mytools
+# requests, ab reads the log back and promotes it to current.npz or sets it aside; every night (learn pays on
+# v0.2: +1.9 / +1.6 held-out NDCG@10 on simulated ToolRet / MCP-Zero traffic, and --replay at its 10k default
+# keeps what the traffic does not cover; 1k changed nothing: docs/reports/olcum-tabani.md):
+toolrank ab --data data/mytools [--dry-run] && toolrank learn --data data/mytools --replay data/toolret_train/pairs.jsonl
 # Faz 2 week 4: the loop on simulated traffic (GB10): a benchmark as the served catalogue, 70% of its queries
 # logged by an agent that calls the gold tools shown, learn on that log, eval on the 30% never served;
 # NAME/BENCH/GUARD/EVALS/SIZES/NOISE/SEED/TAG/LEARN in the script's header; LEARN="--device cpu" when the GPU is full
@@ -553,8 +553,9 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   (`DATA/heads/candidate.npz`, `tenants/<name>/` with `--tenant`) only when epoch > 0 beats the start on the
   log without losing more than `--max-drop` NDCG@10 points on the benchmark; `--dry-run` mines without torch;
   `--replay pairs.jsonl` mixes general pairs into the batches against forgetting: a seeded reservoir sample of
-  the whole file (`--replay-n`, 1000; `--data-seed`), positives only, requests a `--dev` set asks about dropped
-  (selection stays on the log; not in the nightly command until learn_sim measures it on v0.2). `serve --mask-pii` (with `--log-text`) tags e-mail, phone, card and IBAN numbers before they are written.
+  the whole file (`--replay-n`, 10000; `--data-seed`), positives only, requests a `--dev` set asks about dropped
+  (selection stays on the log). The sample size is the whole effect: 1,000 pairs changed nothing on v0.2, 10,000
+  gave back the 2.5 points a benchmark the traffic never covered had lost, the catalogue's own gain intact. `serve --mask-pii` (with `--log-text`) tags e-mail, phone, card and IBAN numbers before they are written.
 - **Heads that change while serving** (Faz 2 week 3): `Retriever.pick` answers a request with a variant, a
   state built from a heads file under `DATA/heads` by `build_retriever`'s `variant` factory (same encoder
   flags, index snapshot under `index/variants/<name>`): `current.npz` replaces the flags' heads (not when

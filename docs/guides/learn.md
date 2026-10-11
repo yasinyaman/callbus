@@ -100,21 +100,27 @@ learned. While a candidate is still being judged, `learn` leaves it alone (`--re
 overwrites it, and its comparison starts over).
 
 ```bash
-toolrank ab --data data/mytools && toolrank learn --data data/mytools
+toolrank ab --data data/mytools && \
+  toolrank learn --data data/mytools --replay data/toolret_train/pairs.jsonl
 ```
 
-(`--replay` stays out of the nightly command until the simulation measures it on the default
-backbone; see below.)
+(`--replay` keeps the heads from forgetting what the backbone already ranked well; *Not forgetting*
+below has the numbers and why the sample size matters.)
 
 ## Not forgetting
 
 Heads trained on one catalogue's traffic can lose what the released ones knew. `--replay pairs.jsonl`
-mixes general request-to-tool pairs into the training batches (`--replay-n`, 1,000 of them; ToolRet's
+mixes general request-to-tool pairs into the training batches (`--replay-n`, 10,000 of them; ToolRet's
 training pairs from `toolrank data pull toolret-train` are what the released heads saw): a seeded
 sample over the whole file, positives only, requests a `--dev` set asks about dropped. They are
 embedded once into the same cache; the epoch is still picked on the log, and `--dev` still guards.
-On the v0.1 heads this paid; on the default (v0.2) backbone it is not measured yet, so the nightly
-command leaves it out until the simulation says.
+
+How much to replay is not a free choice. On the default backbone, learning from one catalogue's
+traffic costs 1.5–3 NDCG@10 points on benchmarks the traffic never covers, and the guard only
+protects the `--dev` set you name. 1,000 pairs changed none of that; 10,000 removed it — a
+catalogue's own gain stayed (held-out 94.3 → 95.8) while the set that had lost 2.5 points came back
+(58.9 → 56.4 → 59.3). Incidental gains on other sets shrink in exchange. Hence the default, and
+hence `--replay` in the nightly command.
 
 ## What to expect
 
@@ -122,7 +128,8 @@ Measured on simulated traffic: a benchmark served as a catalogue, 70% of its que
 requests by an agent that calls the right tools when they are shown, and the other 30% never served
 (`scripts/learn_sim.py` and `scripts/learn_sim.sh` in the repository; NDCG@10 on the held-out
 queries, with the released heads as the start, on the base Qwen3-Embedding-8B). On the default v0.2
-backbone, `learn` starts from identity heads instead; that start is not measured yet.
+backbone, `learn` starts from identity heads instead — the last two rows — so its start is the
+backbone's own ranking and there is less left to win.
 
 | Catalogue | Requests logged | Usable pairs | Held-out NDCG@10 |
 | --- | ---: | ---: | --- |
@@ -133,6 +140,8 @@ backbone, `learn` starts from identity heads instead; that start is not measured
 | | 5,573 | 4,313 | 54.2 → 57.2 |
 | MCP-Zero (2,792 tools) | 300 | 288 | nothing published |
 | | 1,954 | 1,857 | 89.2 → 92.0 |
+| ToolRet, on the v0.2 backbone | 5,573 | 4,313 | 59.6 → 61.5 (62.5 with `--replay`) |
+| MCP-Zero, on the v0.2 backbone | 1,954 | 1,857 | 94.3 → 95.8 |
 
 What the numbers say:
 

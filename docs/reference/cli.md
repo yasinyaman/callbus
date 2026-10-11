@@ -415,7 +415,7 @@ From an ingest dir toolrank serve has served: the log's searches and calls becom
 | `--out OUT` |  | the .npz to write (default: DATA/heads/candidate.npz, or tenants/<name>/ with --tenant: a running server gives it a share of the requests) |
 | `--replace-candidate` |  | train even though a candidate is still being judged |
 | `--replay REPLAY` |  | general pairs.jsonl mixed into training, against forgetting |
-| `--replay-n REPLAY_N` | `1000` | how many of --replay's pairs |
+| `--replay-n REPLAY_N` | `10000` | how many of --replay's pairs (1,000 did not stop the forgetting, 10,000 did) |
 | `--dev DEV` |  | benchmark-format dir scored alongside: a guard against forgetting |
 | `--init INIT` | `default` | heads to start from: default (the served ones: DATA/heads/current.npz when there, else the packaged ones when they fit the backbone, else fresh identity heads), a path, or none |
 | `--since SINCE` |  | only searches from this ISO date or timestamp on |

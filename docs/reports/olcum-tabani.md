@@ -7,9 +7,11 @@ bu dört karar `v0.2`'de de aynı mı?
 ## Sonuç (tek cümle)
 
 Öğrenme döngüsü `v0.2`'de de kazandırıyor ama daha az (ayrılmış isteklerde +1,88 ve +1,55; v0.1'de +3,03), yani
-önceden yazılan kural tuttu ve `learn` gecelik komutta kalıyor; adaptive K marjı 0,2'de kalıyor (hiçbir marj
-kuralı geçmedi); hybrid artık her sette kaybettiriyor (v0.1'de yalnız MCP-Zero'da kazanıyordu) ve sunucu oyu
-berabere düştü (v0.1'de MCP-Zero top-1'e +1,1) — ikisi de isteğe bağlı kalıyor, belgeleri düzeltildi.
+önceden yazılan kural tuttu ve `learn` gecelik komutta kalıyor; yanında bıraktığı 1,5–3 puanlık kaybı `--replay`
+kapatıyor, ama ancak 10.000 çiftle (varsayılan 1.000 hiçbir şey yapmıyor, o yüzden varsayılan değişti); adaptive K
+marjı 0,2'de kalıyor (hiçbir marj kuralı geçmedi); hybrid artık her sette kaybettiriyor (v0.1'de yalnız
+MCP-Zero'da kazanıyordu) ve sunucu oyu berabere düştü (v0.1'de MCP-Zero top-1'e +1,1) — ikisi de isteğe bağlı
+kalıyor, belgeleri düzeltildi.
 
 ## Ölçüler, birimler ve yön
 
@@ -104,6 +106,49 @@ v0.1'de MCP-Zero top-1'e +1,11 katıyordu; `v0.2`'de hiçbir şey katmıyor. Sun
 sunucusunun konu olduğunu söylüyor, `v0.2` bunu tool metninden zaten çıkarıyor. İsteğe bağlı kalıyor,
 `docs/guides/serve.md` iki yığının sayılarını da yazıyor.
 
+## 5. `--replay` — işe yarıyor, ama varsayılan dozda değil
+
+Yukarıdaki yan etkinin ilacı `--replay`: genel istek–tool çiftlerinden bir örnek eğitim batch'lerine
+karışıyor. Aynı bölme, aynı günlük, yalnız `learn` adımı değişti (`--replay data/toolret_train/pairs.jsonl`),
+iki dozla: varsayılan 1.000 çift ve 10.000 çift.
+
+**MCP-Zero kataloğu** (unutmanın en belirgin olduğu kol: ToolRet trafiğin hiç kapsamadığı set):
+
+| set | başlangıç | learn | + replay 1k | + replay 10k |
+| --- | ---: | ---: | ---: | ---: |
+| ayrılmış (838) | 94,28 | 95,83 | 95,78 | **95,76** |
+| yeni (829) | 94,32 | 95,90 | 95,84 | 95,84 |
+| ToolRet (7.961) | 58,90 | 56,42 | 56,43 | **59,27** |
+| ToolRet cat-macro | 54,36 | 52,74 | 52,38 | **54,40** |
+| LiveMCPBench (94) | 55,74 | 58,72 | 57,68 | 56,83 |
+
+**ToolRet kataloğu** (unutulan set LiveMCPBench):
+
+| set | başlangıç | learn | + replay 1k | + replay 10k |
+| --- | ---: | ---: | ---: | ---: |
+| ayrılmış (2.388) | 59,61 | 61,49 | 62,56 | **62,49** |
+| ayrılmış, cat-macro | 54,90 | 55,90 | 57,42 | 57,05 |
+| yeni (1.061) | 69,12 | 70,16 | 70,49 | 70,67 |
+| LiveMCPBench (94) | 55,74 | 54,28 | 54,35 | **55,15** |
+| MCP-Zero (2.792) | 93,67 | 93,68 | 93,71 | 93,33 |
+
+- **Varsayılan 1.000 çift hiçbir şey yapmıyor.** İki kolda da unutulan set yerinde kalıyor (ToolRet 56,43,
+  LiveMCPBench 54,35). 208.826 çiftin binde beşi, batch'lerde günlüğün yanında görünmüyor.
+- **10.000 çiftte unutma kapanıyor.** MCP-Zero kolunda ToolRet 56,42 → 59,27 (başlangıç 58,90, cat-macro da
+  54,40'a dönüyor) ve kataloğun kendi kazancı duruyor (95,76). ToolRet kolunda LiveMCPBench 54,28 → 55,15
+  (başlangıç 55,74; kalan −0,59, 94 görevde bir görevin altında).
+- **Bedeli, tesadüfi kazançlar.** MCP-Zero trafiğinin LiveMCPBench'e kattığı +2,98, replay'le +1,09'a iniyor;
+  ToolRet kolunda MCP-Zero 93,67 → 93,33. Yani replay head'leri backbone'a doğru geri çekiyor: unutmayı da,
+  beklenmedik kazancı da kırpıyor.
+- **Sızma yok.** `pairs.jsonl`'ın 208.826 isteğinden 768'i (binde 4) ToolRet'in değerlendirme sorgularıyla
+  birebir aynı; 10.000'lik örnekte beklenen ~37 istek, yani ToolRet'in geri gelişi örneklemenin kendi
+  sorgularını görmesinden değil. (`learn` yalnız `--dev` setinin sorduklarını atıyor; burada `--dev`
+  LiveMCPBench ve MCP-Zero'ydu.)
+
+**Karar:** `--replay` gecelik komuta giriyor ve `--replay-n`'in varsayılanı 1.000'den **10.000**'e çıkıyor
+(`cli.py`; kılavuz ve CLAUDE.md da bunu yazıyor). Çiftlerin vektörleri embedding cache'inden geliyor, eksikler
+bir kez gömülüyor; GB10'da hepsi önbellekteydi ve epoch süresi 3 sn'den 9 sn'ye çıktı.
+
 ## Komutlar
 
 ```bash
@@ -119,9 +164,13 @@ for d in toolret livemcpbench_server mcp_zero_server; do
   $UV run toolrank eval --data data/$d --scorer dense $V02 --hybrid --out results/v02base_${d}_hybrid.json
   $UV run toolrank eval --data data/$d --scorer dense $V02 --server-weight 0.2 --out results/v02base_${d}_srv.json
 done   # mcp_zero_server also --ks 1,5,10,20
+# the replay arms (data/replay_chain.sh, untracked): the same logs, only the learn step changes
+NAME=toolret_v02 TAG=replay SIZES=0 LEARN="--device cpu --replay data/toolret_train/pairs.jsonl" \
+  bash scripts/learn_sim.sh      # and TAG=replay10k with --replay-n 10000; the same two for mcpzero_v02
 # Mac, after scp 'gb10:toolrank/results/{sim_*_v02_*,v02base_*}.json' results/:
 uv run toolrank compare results/sim_toolret_v02_base_heldout.json results/sim_toolret_v02_n0_v02_heldout.json
 uv run toolrank compare results/lora_toolret_lora.json results/v02base_toolret_hybrid.json results/v02base_toolret_srv.json
+uv run toolrank compare results/sim_mcpzero_v02_{base,n0_v02,n0_replay,n0_replay10k}_toolret.json
 ```
 
 ## Ortam
@@ -146,8 +195,7 @@ anlamsız; kalite sayıları yükten bağımsız.
 
 ## Sonraki adımlar
 
-- `--replay` aynı bölmede ölçülsün (dakikalar): MCP-Zero trafiğiyle ToolRet'in −2,48'ini ve ToolRet trafiğiyle
-  LiveMCPBench'in −1,46'sını kapatıyor mu? Kapatıyorsa gecelik komuta girer (CLAUDE.md'deki not o ölçüme bağlı).
-- Head gürültü tabanı: aynı tarifle 5 seed (GB10 sırası 4), bundan sonraki "±X puan" kuralları için.
+- Head gürültü tabanı: aynı tarifle 5 seed (GB10 sırası 4), bundan sonraki "±X puan" kuralları için. `--replay`'in
+  10.000 ile 1.000 arasındaki farkı tek bölmede ölçüldü; dozun nerede doyduğu (3.000? 30.000?) açık.
 - Kullanım hafızası (`backlog-memory.md`) ile `learn`'ün aynı bölmede karşılaştırması ve ikisinin birlikte:
   hafıza aynı ToolRet bölmesinde +3,48 almıştı, `learn` burada +1,88.
