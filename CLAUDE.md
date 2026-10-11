@@ -213,8 +213,9 @@ export LAPTOP=…; export EMB_URL=http://$LAPTOP:11434/v1 UV=~/.local/bin/uv; ba
 # Faz 2 week 1: learn from what serve logged (no request text leaves the machine; --dry-run needs no torch)
 toolrank learn --data data/mytools [--dev data/livemcpbench_server] [--since 2026-10-01] [--tenant NAME] [--dry-run]
 # Faz 2 week 3: learn writes DATA/heads/candidate.npz, a running serve gives it --candidate-share (0.1) of the
-# requests, ab reads the log back and promotes it to current.npz or sets it aside; every night (--replay stays
-# out until learn_sim measures it on the v0.2 backbone: GB10 queue 4):
+# requests, ab reads the log back and promotes it to current.npz or sets it aside; every night (learn itself
+# pays on v0.2: +1.9 / +1.6 held-out NDCG@10 on simulated ToolRet / MCP-Zero traffic, docs/reports/olcum-tabani.md;
+# --replay stays out of the command until it is measured there too, now that the collateral is 1.5-3 points):
 toolrank ab --data data/mytools [--dry-run] && toolrank learn --data data/mytools
 # Faz 2 week 4: the loop on simulated traffic (GB10): a benchmark as the served catalogue, 70% of its queries
 # logged by an agent that calls the gold tools shown, learn on that log, eval on the 30% never served;
@@ -339,16 +340,19 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   A fresh in-memory index reproduces Faz 0 numbers exactly; non-numpy indexes add `@<name>` to the
   scorer name.
 - **Hybrid and adaptive K**: `HybridScorer` (RRF k 60, depth 100, optional BM25 weight; BM25 arm
-  without instruction, 0-score hits dropped) is opt-in: it helps only MCP-Zero's agent-written
-  requests and costs 8–12 points on ToolRet/LiveMCPBench. `cut.AdaptiveK` (default margin 0.2, max
-  10, chosen on ToolRet) keeps the tools within the margin of the best cosine; on hybrid lists the
+  without instruction, 0-score hits dropped) is opt-in: on the v0.1 heads it helped only MCP-Zero's
+  agent-written requests and cost 8–12 points on ToolRet/LiveMCPBench; on the v0.2 backbone it loses
+  everywhere (ToolRet −11.0, LiveMCPBench −14.5, MCP-Zero −0.6 and top-1 −1.4), so a stronger first
+  stage leaves the keyword arm nothing to fix. `cut.AdaptiveK` (default margin 0.2, max
+  10, chosen on ToolRet and re-swept there on v0.2, where no other margin met the rule) keeps the tools within the margin of the best cosine; on hybrid lists the
   count comes from `last_semantic`. Eval reports it as `K@cut`, `Recall@cut`, `Precision@cut`,
   `Comprehensiveness@cut` next to the untouched fixed-k metrics.
 - **Server vote and co-use** (Faz 2 week 5, both opt-in): `DenseScorer(server_weight=W)` (`--server-weight`)
   embeds each server (`Tool.category`) as `formats.server_summary` (name + tool names, 4,000 characters) and
   re-scores the index's top 100 as cosine + W × the request's cosine with the tool's server; scores are then no
   longer plain cosines (the name ends in `+srv<W>`, adaptive K cuts on them as they are), one server = no-op.
-  Picking servers first (MCP-Zero's pattern) loses everywhere. `couse.py`: `co_use(events)` counts, per request
+  Picking servers first (MCP-Zero's pattern) loses everywhere. The vote was worth +1.1 MCP-Zero top-1 on the
+  v0.1 heads and is a wash on the v0.2 backbone (top-1 unchanged, ToolRet cat-macro −0.2). `couse.py`: `co_use(events)` counts, per request
   (`emb_hmac`), the tools whose calls ended `ok` together; `serve --co-use N` keeps a `CoUseTable` of the last
   30 daily log files (rebuilt in the background every 5 minutes, all API keys together) and `Retriever.search`
   appends up to N partners of the shown tools (`Hit.used_with`, `SearchResult.added`; never for a request's

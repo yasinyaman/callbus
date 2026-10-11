@@ -129,13 +129,15 @@ each says which first stage it was measured on.
 
 **`--server-weight 0.2`: a vote for the right server.** Each server is embedded once as a summary
 (its name and tool names), and a tool's score becomes its own cosine plus 0.2 of the request's
-cosine with its server. On catalogues of many servers this lifts the first hit (measured on the
-base model with the v0.1 heads, not yet on the v0.2 backbone): MCP-Zero (293 servers) top-1 79.9 →
-81.0, LiveMCPBench NDCG@10 54.0 → 55.1, with fewer tools returned at a higher recall. Choosing
-servers first and searching only those loses points everywhere (the right server ranks first only
-68–86% of the time), so the vote is soft. On a catalogue whose "servers" are a few
-huge groups it does nothing useful (ToolRet's three categories: −0.1 NDCG@10, −0.8 averaged by
-category), which is why it is not the default.
+cosine with its server. On catalogues of many servers this lifted the first hit on the base model
+with the v0.1 heads: MCP-Zero (293 servers) top-1 79.9 → 81.0, LiveMCPBench NDCG@10 54.0 → 55.1,
+with fewer tools returned at a higher recall. On the v0.2 backbone the same rule is a wash —
+MCP-Zero top-1 88.6 unchanged and NDCG@10 93.7 → 93.8, LiveMCPBench 55.7 → 55.9 — so a stronger
+first stage leaves it little to add. Choosing servers first and searching only those loses points
+everywhere (the right server ranks first only 68–86% of the time), so the vote is soft. On a
+catalogue whose "servers" are a few huge groups it does nothing useful (ToolRet's three categories:
+−0.1 NDCG@10, −0.8 averaged by category on the v0.1 heads; +0.0 and −0.2 on v0.2), which is why it
+is not the default.
 
 **`--co-use 2`: tools that are called together.** The usage log knows which tools agents called
 after the same request. With `--co-use N`, a result gains up to N tools that were called along with
