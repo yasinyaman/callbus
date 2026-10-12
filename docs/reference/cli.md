@@ -251,7 +251,10 @@ Rank requests written for the catalogue's own tools (toolrank data gen-queries -
 
 | Argument | Default | Description |
 | --- | --- | --- |
-| `--requests REQUESTS` | required | a toolrank data gen-queries dir over this catalogue |
+| `--requests REQUESTS` |  | a toolrank data gen-queries dir over this catalogue |
+| `--from-log` |  | calibrate on what serve answered instead: the requests whose call landed on a tool (their vectors come from the embedding cache; generated requests score higher than real traffic) |
+| `--since SINCE` |  | --from-log: an ISO date or timestamp, searches from it on |
+| `--tenant TENANT` |  | --from-log: one API key's searches |
 | `--dry-run` |  | print the bands, write nothing |
 | `--data DATA` | required | ingest dir with tools.jsonl |
 | `--instruction INSTRUCTION` |  | default: the heads' instruction |

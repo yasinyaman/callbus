@@ -13,12 +13,13 @@ import pytest
 
 from toolrank.adapters.embeddings_api import OpenAIEmbeddings
 from toolrank.calibration import FILE, Calibration, Calibrations, band_score, load, measure, save
-from toolrank.cli import main
+from toolrank.cli import build_parser, main
 from toolrank.cut import AdaptiveK
 from toolrank.datasets.jsonl import write_queries, write_tools
 from toolrank.domain import Query, RankedList, Tool
 from toolrank.ingest.text import tool_text
 from toolrank.retriever import Retriever, innermost
+from toolrank.usage import UsageLog
 
 
 def _cal(best, **kw):
@@ -194,3 +195,70 @@ def test_calibrate_writes_what_search_and_serve_read(tmp_path, fake_endpoint, mo
         main(["calibrate", "--requests", str(tmp_path / "nowhere"), *base])
     with pytest.raises(SystemExit, match="between 0 and 1"):
         main(["search", "x", "--min-confidence", "5", *base])
+
+
+def test_calibrate_from_log_measures_the_requests_a_server_answered(
+    tmp_path, fake_endpoint, monkeypatch, capsys
+):
+    """``--from-log``: a band from generated requests describes generated requests (the LiveMCPBench
+    measurement in docs/reports/backlog-d214.md), so a calibration can be built from the traffic the
+    server already answered instead — its vectors come back from the embedding cache."""
+    monkeypatch.setenv("TOOLRANK_CACHE", str(tmp_path / "no-heads"))
+    tools = [
+        Tool(id=f"{src}/{n}", doc={"server": src, "name": n, "description": f"{n} on {src}"},
+             documentation=tool_text(src, n, f"{n} on {src}"), category=src)
+        for src in ("mail", "cal", "files") for n in ("create", "list", "delete", "update")
+    ]  # fmt: skip
+    data = tmp_path / "tools"
+    write_tools(data / "tools.jsonl", tools)
+    base = ["--data", str(data), "--cache-dir", str(tmp_path / "c"), "--emb-url", "http://unused/v1"]
+
+    flags = build_parser().parse_args(["calibrate", "--from-log", *base])
+    enc = OpenAIEmbeddings(
+        flags.emb_model, flags.emb_url, cache_dir=tmp_path / "c", truncate_prompt_tokens=flags.truncate
+    )
+    texts = [f"please {i} something for me" for i in range(60)]
+    enc.encode(texts, kind="query")  # what serve would have cached while answering them
+    log = UsageLog(data / "usage")
+    events = []
+    for i, text in enumerate(texts):
+        called = tools[i % len(tools)].id
+        events.append(
+            {
+                "v": 3,
+                "event": "search",
+                "id": f"s{i}",
+                "ts": "2026-10-01T10:00:00",
+                "model": flags.emb_model,
+                "emb_hmac": log.digest(enc.cache_key(text)),
+                "results": [[called, 0.7], [tools[(i + 1) % len(tools)].id, 0.5]],
+                "shown": 2,
+            }  # fmt: skip
+        )
+        events.append({"v": 3, "event": "call", "tool": called, "search_id": f"s{i}", "outcome": "ok"})
+    (data / "usage" / "usage-2026-10-01.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8"
+    )
+
+    assert main(["calibrate", "--from-log", *base]) == 0
+    out = capsys.readouterr().out
+    assert "usage log: 60 requests with a linked call" in out
+    assert "Recall@5" not in out  # a log has no gold list, only the tool the agent called
+    (entry,) = load(data / FILE)
+    assert len(entry.best) == 60 and entry.requests == "usage log, 60 requests"
+    assert entry.recall_at_5 is None and len(entry.twins) == 60  # the called tool's source hidden
+    assert all(0 < s <= 1 for s in entry.best) and max(entry.twins) <= max(entry.best)
+
+    with pytest.raises(SystemExit, match="--requests DIR .generated requests. or --from-log"):
+        main(["calibrate", *base])
+    with pytest.raises(SystemExit, match="no usage log here"):
+        main(
+            [
+                "calibrate",
+                "--from-log",
+                "--data",
+                str(tmp_path / "elsewhere"),
+                "--cache-dir",
+                str(tmp_path / "c"),
+            ]
+        )

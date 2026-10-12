@@ -20,7 +20,9 @@ import os
 import sys
 import time
 from collections import Counter
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from toolrank import __version__
 from toolrank.datasets.jsonl import load_queries, load_tools
@@ -458,7 +460,14 @@ def cmd_calibrate(a: argparse.Namespace) -> int:
     from datetime import UTC, datetime
 
     from toolrank.build import build_retriever
-    from toolrank.calibration import FILE, MIN_REQUESTS, Calibration, band_score, measure, save
+    from toolrank.calibration import (
+        FILE,
+        MIN_REQUESTS,
+        Calibration,
+        band_score,
+        measure,
+        save,
+    )
     from toolrank.datasets.jsonl import load_queries
     from toolrank.retriever import LOG_TOP, innermost
 
@@ -468,39 +477,52 @@ def cmd_calibrate(a: argparse.Namespace) -> int:
     _data_cache(a, data)
     _check_rerank(a)
     _check_confidence(a)
-    path = Path(a.requests) / "queries.jsonl"
-    if not path.exists():
-        sys.exit(f"{path} not found: --requests is a dir from toolrank data gen-queries --data {a.data}")
-    queries = load_queries(path)
+    if (a.requests is None) == (not a.from_log):
+        sys.exit("calibrate: give --requests DIR (generated requests) or --from-log (what serve answered)")
+    if a.from_log and not (data / "usage" / ".key").exists():  # before an index is built: it takes minutes
+        sys.exit(f"{data / 'usage'}: no usage log here (toolrank serve writes one, with its .key)")
+    queries: list[Any] = []
+    if a.requests is not None:
+        path = Path(a.requests) / "queries.jsonl"
+        if not path.exists():
+            sys.exit(f"{path} not found: --requests is a dir from toolrank data gen-queries --data {a.data}")
+        queries = load_queries(path)
     try:
         retriever = build_retriever(a)
     except ValueError as e:
         sys.exit(str(e))
     st, arm, heads = retriever.settled()
     first = innermost(st.scorer)
-    best, twins, recall, skipped = measure(
-        first, st.tools, queries, retriever.instruction, depth=max(a.cut_max, LOG_TOP)
-    )
+    recall: float | None = None
+    if a.from_log:
+        best, twins, skipped, source = _logged_requests(a, data, first, st.tools)
+        hint = "serve has to have answered requests whose calls landed on a tool; toolrank learn --dry-run counts them"
+    else:
+        best, twins, got, skipped = measure(
+            first, st.tools, queries, retriever.instruction, depth=max(a.cut_max, LOG_TOP)
+        )
+        recall, source = got, Path(a.requests).name
+        hint = f"toolrank data gen-queries --data {a.data} --n 200"
     gone = f" ({skipped} skipped: their tools are no longer in the catalogue)" if skipped else ""
     if len(best) < MIN_REQUESTS:
-        sys.exit(
-            f"{len(best)} requests{gone}: a calibration needs at least {MIN_REQUESTS} "
-            f"(toolrank data gen-queries --data {a.data} --n 200)"
-        )
+        sys.exit(f"{len(best)} requests{gone}: a calibration needs at least {MIN_REQUESTS} ({hint})")
     cal = Calibration(
         scorer=first.name,
         heads=heads,
         instruction=retriever.instruction,
         best=tuple(sorted(best)),
         twins=tuple(sorted(twins)),
-        recall_at_5=round(recall, 4),
+        recall_at_5=None if recall is None else round(recall, 4),
         catalog=st.catalog,
-        requests=Path(a.requests).name,
+        requests=source,
         made=datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         extra={"arm": arm, "skipped": skipped},
     )
-    print(f"{len(best)} requests{gone}; first stage {first.name} ({arm} heads); Recall@5 {100 * recall:.1f}%")
-    if recall < 0.8:
+    print(
+        f"{len(best)} requests{gone}; first stage {first.name} ({arm} heads)"
+        + ("" if recall is None else f"; Recall@5 {100 * recall:.1f}%")
+    )
+    if recall is not None and recall < 0.8:
         print(
             "warning: under 80% of these requests find their tool in the top 5; check the set before trusting it"
         )
@@ -509,7 +531,7 @@ def cmd_calibrate(a: argparse.Namespace) -> int:
         caught = cal.caught(band)
         print(
             f"--min-confidence {band:g}: turns away requests below {band_score(cal, band):.3f}, "
-            f"about {100 * band:g}% of answerable ones"
+            f"about {100 * band:g}% of the requests it was calibrated on"
             + (f", and {100 * caught:.1f}% of the twins (their answer hidden)" if caught is not None else "")
         )
     if a.dry_run:
@@ -517,6 +539,36 @@ def cmd_calibrate(a: argparse.Namespace) -> int:
     save(data / FILE, cal)
     print(f"wrote {data / FILE}: searches by this first stage carry a confidence")
     return 0
+
+
+def _logged_requests(
+    a: argparse.Namespace, data: Path, first: Any, tools: Sequence[Any]
+) -> tuple[list[float], list[float], int, str]:
+    """``calibrate --from-log``: the requests a server answered, as (backbone vector, called tools).
+    The log keeps no request text, only the embedding cache's key as a digest, so the vectors come
+    back the way ``learn`` recovers them. A request counts when its call landed on a tool that is
+    still in the catalogue — the evidence that it was answerable."""
+    from toolrank.calibration import measure_logged
+    from toolrank.learn import mine, state_vectors
+    from toolrank.retriever import LOG_TOP
+    from toolrank.usage import read_events, read_key
+
+    usage = data / "usage"
+    if not (usage / ".key").exists():
+        sys.exit(f"{usage}: no usage log here (toolrank serve writes one, with its .key)")
+    pairs, counts = mine(read_events(usage), since=a.since, tenant=a.tenant, model=a.emb_model)
+    cache_dir = Path(a.cache_dir) if a.cache_dir else data / "cache"
+    states = state_vectors(
+        cache_dir / "embeddings.sqlite", read_key(usage / ".key"), {p.state for p in pairs}
+    )
+    requests = [(states[p.state], p.positives) for p in pairs if p.state in states and p.positives]
+    missing = sum(1 for p in pairs if p.state not in states)
+    best, twins, skipped = measure_logged(first, tools, requests, depth=max(a.cut_max, LOG_TOP))
+    passed = {k: v for k, v in counts.items() if v} | (
+        {"requests_without_vector": missing} if missing else {}
+    )
+    print(f"usage log: {len(pairs)} requests with a linked call, {passed}")
+    return best, twins, skipped, f"usage log, {len(best)} requests"
 
 
 def _check_confidence(a: argparse.Namespace) -> None:
@@ -1494,7 +1546,15 @@ def build_parser() -> argparse.ArgumentParser:
         "answerable requests that scored lower), and --min-confidence turns away requests below a share. "
         "Calibrate again after the backbone, the heads (toolrank ab) or the instruction change.",
     )
-    ca.add_argument("--requests", required=True, help="a toolrank data gen-queries dir over this catalogue")
+    ca.add_argument("--requests", help="a toolrank data gen-queries dir over this catalogue")
+    ca.add_argument(
+        "--from-log",
+        action="store_true",
+        help="calibrate on what serve answered instead: the requests whose call landed on a tool "
+        "(their vectors come from the embedding cache; generated requests score higher than real traffic)",
+    )
+    ca.add_argument("--since", help="--from-log: an ISO date or timestamp, searches from it on")
+    ca.add_argument("--tenant", help="--from-log: one API key's searches")
     ca.add_argument("--dry-run", action="store_true", help="print the bands, write nothing")
     _add_retrieval_args(ca)
     ca.set_defaults(fn=cmd_calibrate, scorer=None)

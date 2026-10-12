@@ -10,9 +10,12 @@ calibrate`` ranks them the way a server does and keeps their best first-stage sc
 best score: 0.05 says only 5% of the answerable requests scored lower.
 
 It separates answerable requests from the rest no better than the raw score does (same order, same
-AUROC). What it buys is a threshold that means the same everywhere: ``--min-confidence 0.05`` turns
-away about 5% of answerable requests on any catalogue, so the false refusals are chosen, not
-discovered. What it catches is measured, not promised: each request is also ranked with its gold
+AUROC). What it buys is a threshold whose cost is chosen rather than discovered: ``--min-confidence
+0.05`` turns away about 5% of *the requests it was calibrated on*. That last part is the whole
+caveat — a band only describes requests like its own. Generated requests, each written for one
+tool's text, score well above real traffic: on LiveMCPBench a band from them turned away 54% of the
+94 tasks people wrote for the same catalogue (``docs/reports/backlog-d214.md``). Hence
+``calibrate --from-log``, which measures the distribution of the requests a server has answered. What it catches is measured, not promised: each request is also ranked with its gold
 tools' sources hidden (a "twin", the same request on a catalogue that lacks the answer), and the
 share of twins below the band is the catch rate ``calibrate`` reports. Formulas that rescale by the
 number of options, (N·p − 1)/(N − 1), have no meaning for cosines and are not used.
@@ -36,6 +39,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+import numpy as np
 
 from toolrank.domain import Query, Tool
 
@@ -193,6 +198,51 @@ def measure(
         if twin is not None:
             twins.append(float(twin))
     return best, twins, (hits / len(best) if best else 0.0), len(queries) - len(kept)
+
+
+def measure_logged(
+    scorer: Any,
+    tools: Sequence[Tool],
+    requests: Sequence[tuple[Any, Sequence[str]]],
+    *,
+    depth: int = 20,
+) -> tuple[list[float], list[float], int]:
+    """The best scores of requests the server has already answered -> (best scores, twins' best
+    scores, requests skipped). Each request is a backbone vector and the tools the agent called
+    after it (``learn.mine`` and ``learn.state_vectors`` produce both; the log keeps no text). A
+    called tool still in the catalogue is the evidence that the request was answerable, which is
+    what a calibration's distribution is supposed to hold; generated requests are answerable by
+    construction but score higher than real traffic (``docs/reports/backlog-d214.md``). Twins are
+    as in ``measure``: the best score among tools from no source the called ones belong to."""
+    if not hasattr(scorer, "rank_vectors"):
+        raise ValueError(
+            f"{getattr(scorer, 'name', scorer)} cannot score vectors: --from-log needs a dense first stage"
+        )
+    source = {t.id: t.category for t in tools}
+    kept = [(v, tuple(c for c in called if c in source)) for v, called in requests]
+    usable = [(v, called) for v, called in kept if called]
+    if not usable:
+        return [], [], len(requests)
+    states = np.asarray([v for v, _ in usable], dtype=np.float32)
+    short = scorer.rank_vectors(states, min(depth, len(tools)))
+    deep = scorer.rank_vectors(states, len(tools))
+    best: list[float] = []
+    twins: list[float] = []
+    for (_, called), r, whole in zip(usable, short, deep, strict=True):
+        ranked = [(t, s) for t, s in zip(r.tool_ids, r.scores, strict=True) if t in source]
+        if not ranked:
+            continue
+        best.append(float(ranked[0][1]))
+        hidden = {source[t] for t in called}
+        others = (
+            s
+            for t, s in zip(whole.tool_ids, whole.scores, strict=True)
+            if t in source and source[t] not in hidden
+        )
+        twin = next(others, None)
+        if twin is not None:
+            twins.append(float(twin))
+    return best, twins, len(requests) - len(best)
 
 
 def band_score(cal: Calibration, band: float) -> float:

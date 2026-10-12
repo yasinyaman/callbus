@@ -388,7 +388,15 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   one entry per (first stage's name, heads sha16, serving instruction). `Retriever.calibration` re-reads the file
   when it changes; a search's `confidence` = the share of those scores ≤ its best first-stage score (`semantic or
   fused`), `--min-confidence Q` empties a list below Q unless the request named `k`. REST/MCP `confidence`, the
-  log's `confidence`, `toolrank_search_confidence`.
+  log's `confidence`, `toolrank_search_confidence`. A band describes the requests it was calibrated on and nothing
+  else: within one style it is exact (MCP-Zero's held-out half: 5.3% turned away at the 5% band) but generated
+  requests sit 0.2 above real traffic, so their band turned away 54% of LiveMCPBench's human-written tasks —
+  hence no default threshold and `calibrate --from-log` (`cli._logged_requests`, `calibration.measure_logged`,
+  `DenseScorer.rank_vectors`): the searches whose call landed on a tool, their vectors recovered from the
+  embedding cache as `learn` does, twins by hiding the called tool's source, no Recall@5 (a log has no gold
+  list). The same two sets say a "no tool fits" gate is catalogue-bound: on MCP-Zero the reranker's highest
+  score separates at AUROC 0.976 and the cosine at 0.944 (0.882 on the v0.1 heads), on LiveMCPBench 0.760 and
+  0.772 — `--cut-threshold` stays without a default (`docs/reports/backlog-d214.md`, `scripts/gate_second_stage.py`).
 - **Tenants** (Faz 2 week 6, `tenants.py`): `--api-keys` entries are a key string or `{key, sources, headers,
   env}`. One shared catalogue and index; `Retriever(allowed={tenant: sources})` sets `ports.visible_ids` and the
   first-stage scorers rank within it (`within_visible`: deeper, ×4 at a time), so fusion and a second stage see

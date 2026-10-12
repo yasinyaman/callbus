@@ -141,16 +141,34 @@ class DenseScorer:
         if not queries:
             return []
         q = self._vectors([self.query_format(x) for x in queries], "query", self.project_queries)
+        return self._ranked(q, [x.id for x in queries], k)
+
+    def rank_vectors(
+        self, states: np.ndarray, k: int, labels: Sequence[str] | None = None
+    ) -> list[RankedList]:
+        """``rank`` from backbone vectors instead of request text. The usage log keeps a request's
+        vector (``learn.state_vectors`` recovers it from the embedding cache) and never its text, so
+        this is how a calibration can be measured on the traffic a server actually answered. The
+        projections, the index and the server vote are a search's own."""
+        q = np.asarray(states, dtype=np.float32)
+        if q.size == 0:
+            return []
+        if self.project_queries is not None:
+            q = np.asarray(self.project_queries(q), dtype=np.float32)
+        q = l2_normalize(q)
+        return self._ranked(q, list(labels) if labels is not None else [str(i) for i in range(len(q))], k)
+
+    def _ranked(self, q: np.ndarray, labels: Sequence[str], k: int) -> list[RankedList]:
         if self._servers is None:
             ids, scores = within_visible(lambda depth: self.vindex.search(q, depth), k)
-            return [RankedList(x.id, ids[i], scores[i]) for i, x in enumerate(queries)]
+            return [RankedList(label, ids[i], scores[i]) for i, label in enumerate(labels)]
         ids, scores = within_visible(lambda depth: self.vindex.search(q, depth), max(k, ROUTE_DEPTH))
         term = self.server_weight * (q @ self._servers.T)
         out: list[RankedList] = []
-        term = np.concatenate([term, np.zeros((len(queries), 1), dtype=term.dtype)], axis=1)
-        for i, x in enumerate(queries):
+        term = np.concatenate([term, np.zeros((len(labels), 1), dtype=term.dtype)], axis=1)
+        for i, label in enumerate(labels):
             server = [self._server_of.get(t, -1) for t in ids[i]]  # -1: a row index() did not see, no term
             routed = np.asarray(scores[i], dtype=np.float32) + term[i, server]
             order = np.argsort(-routed, kind="stable")[:k]
-            out.append(RankedList(x.id, [ids[i][j] for j in order], [float(routed[j]) for j in order]))
+            out.append(RankedList(label, [ids[i][j] for j in order], [float(routed[j]) for j in order]))
         return out

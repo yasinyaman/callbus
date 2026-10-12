@@ -1,4 +1,4 @@
-# Backlog D2.14 — aramanın güveni ve katalog başına eşik (11 Ekim 2026–)
+# Backlog D2.14 ve D2.1 — aramanın güveni, katalog başına eşik ve "tool yok" kapısı (11–12 Ekim 2026)
 
 Soru: "bu istek için katalogda tool yok" kararı taşınabilir mi? Faz 2 Hafta 5 ham kosinüs eşiğinin taşınmadığını
 ölçmüştü (AUROC 0,88 / 0,76, cevaplı isteklerin ortalama en iyi skoru MCP-Zero'da 0,71, LiveMCPBench'te 0,51).
@@ -16,7 +16,10 @@ Kalibrasyon ölçeği kendi istek dağılımı içinde doğru taşıyor (MCP-Zer
 yarının %5,3'ünü geri çeviriyor, kural ≤ %7) ama dağılımlar arasında taşımıyor: model yazımı isteklerden
 kurulan band LiveMCPBench'in insan yazımı 94 görevinin **%54,3'ünü** geri çeviriyor (`--styles situation` ile
 %21,3), yani **kabul ölçütü gerçek testte tutmadı** ve `--min-confidence` varsayılansız kalıyor; sıradaki
-yol kalibrasyonu kurulumun kendi günlüğünden kurmak.
+yol kalibrasyonu kurulumun kendi günlüğünden kurmak (`toolrank calibrate --from-log`, bu oturumda yazıldı).
+İkinci aşamanın kapıyı kurması da (D2.1) kuralı geçmedi: MCP-Zero'da çok iyi (reranker AUROC 0,976, kosinüs
+0,944) ama LiveMCPBench'te hiç (0,760 / 0,772), yani kapı kataloğa bağlı ve `--cut-threshold` varsayılansız
+kalıyor.
 
 ## 1. MCP-Zero: aynı katalog, görülmemiş istekler
 
@@ -73,6 +76,40 @@ Kural ≤ %7 istiyordu; en iyi kol %21,3'te kaldı, yani **D2.14'ün kabulü Liv
   `toolrank calibrate --from-log` gerçek isteklerin dağılımını ölçebilir. Üretilmiş istekler o zaman yalnız
   soğuk başlangıç için kalır — ve bandın anlamı kurulumun kendi trafiğine bağlanır.
 
+## 3. D2.1: ikinci aşama "tool yok"u daha iyi görüyor mu? — kataloğa bağlı
+
+Aynı ürün sorusunun öteki yarısı (D2.1): karar ham skorla değil, isteği adaylarla birlikte okuyan ikinci aşamayla
+verilse ayrım düzelir mi? `scripts/gate_second_stage.py` her istek için iki kısa liste kuruyor — tam katalogdan
+ilk 20 (cevaplı) ve altın tool'ların sunucuları çıkarılmış katalogdan ilk 20 (cevapsız) — ikisini de
+Qwen3-Reranker-8B'ye veriyor ve en yüksek skorun ayrımını ölçüyor. Listwise bir "hiçbiri" ilk listeden
+maskelenemediği için ikinci liste baştan kuruluyor.
+
+| ölçü | MCP-Zero (500 istek) | LiveMCPBench (94 görev) |
+| --- | ---: | ---: |
+| en iyi kosinüs: cevaplı / cevapsız ortalama | 0,721 / 0,545 | 0,527 / 0,417 |
+| **en iyi kosinüs AUROC** | **0,944** | **0,772** |
+| reranker: cevaplı / cevapsız ortalama | 0,983 / 0,334 | 0,772 / 0,438 |
+| **reranker AUROC** | **0,976** | **0,760** |
+| reranker eşiği 0,2: geri çevirme / yakalama | %0,4 / %52,6 | %8,5 / %41,5 |
+| reranker eşiği 0,5 | %1,4 / %69,4 | %19,2 / %55,3 |
+| reranker eşiği 0,9 | %2,8 / %88,6 | %44,7 / %80,9 |
+
+Kural (koşudan önce): iki sette de AUROC ≥ 0,90, MCP-Zero'da seçilen eşik LiveMCPBench'in cevaplı isteklerinin
+≤ %5'ini geri çevirip ≥ %50'sini yakalamalı. **İkisi de tutmadı:** LiveMCPBench'te AUROC 0,760 ve MCP-Zero'da
+seçilen 0,2 eşiği orada isteklerin %8,5'ini geri çevirip yalnız %41,5'ini yakalıyor. **`--cut-threshold`
+varsayılansız kalıyor.**
+
+Yine de iki şey öğrenildi:
+
+- **Kapı MCP-Zero kalıbında gerçekten çalışıyor.** Kısa, tek tool'luk ajan istekleriyle reranker eşiği
+  isteklerin %1,4'ünü geri çevirip cevapsızların %69'unu yakalıyor. Böyle bir katalogda kapı açılabilir —
+  ama kararı kurulumun kendi ölçümü vermeli, varsayılan değil.
+- **Güçlenen ilk aşama kapıyı da güçlendirdi.** Aynı ayrım v0.1 head'leriyle AUROC 0,882'ydi (Hafta 5),
+  `v0.2`'de 0,944. Reranker bunun üstüne 0,03 katıyor ve istek başına bir ikinci aşama çağrısı istiyor:
+  kapı için ilk aşama neredeyse yeterli, ikinci aşama yalnız zaten yoldaysa anlamlı.
+- **LiveMCPBench'te hiçbir yol açılmıyor.** Çok adımlı görevlerin skorları cevaplıyken de düşük; ne kosinüs
+  ne reranker ayırıyor. 2. bölümün bulgusuyla aynı kök: o görevler katalog metnine benzemiyor.
+
 ## Komutlar
 
 ```bash
@@ -82,6 +119,15 @@ uv run toolrank data split data/mcp_zero_server --out-a data/mz_calib_a --out-b 
 uv run toolrank calibrate --data data/mcp_zero_server --requests data/mz_calib_a $FLAGS   # --dry-run to look first
 uv run python scripts/confidence_accept.py --check data/mz_calib_b --out results/confaccept_mcpzero_b.json -- \
   --data data/mcp_zero_server --scorer dense $FLAGS --query-format instruct_query --with-inst
+
+# D2.1, the second stage as the gate (scripts/gate_second_stage.py; 8095 serves Qwen3-Reranker-8B)
+uv run python scripts/gate_second_stage.py --rerank-url http://127.0.0.1:8095/v1 --rerank-model qwen3-reranker \
+  --depth 20 --max-chars 3000 --rerank-workers 8 --limit 500 --out results/gate_mcpzero.json -- \
+  --data data/mcp_zero_server --scorer dense $FLAGS --query-format instruct_query --with-inst
+# ... and --data data/livemcpbench_server (94 tasks, no --limit) into results/gate_livemcp.json
+
+# a calibration from the traffic a server answered, instead of generated requests (this session)
+uv run toolrank calibrate --data data/mytools --from-log [--since 2026-10-01] [--tenant NAME] $FLAGS
 
 # the LiveMCPBench arms (data/d214_chain.sh and data/d214_styles.sh, untracked): the chat model up and down
 docker compose -f deploy/spark/compose.yaml --profile gen up -d qwen3-8b-chat   # 8093

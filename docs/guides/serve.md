@@ -218,6 +218,20 @@ help. Within one style the band is exact: calibrated on half of a set's requests
 keep `--min-confidence` off until you have requests that resemble what your agents send, and
 re-calibrate when that changes ([the measurement](https://github.com/yasinyaman/toolrank/blob/main/docs/reports/backlog-d214.md)).
 
+**`--from-log`: calibrate on the traffic the server answered.** Once a server has run for a while,
+its own log is the representative set:
+
+```bash
+toolrank calibrate --data tools/ --from-log [--since 2026-10-01] [--tenant NAME]
+```
+
+It takes the searches whose call landed on a tool — the evidence that the request was answerable —
+and recovers each request's vector from the embedding cache, the way `toolrank learn` does; the log
+itself keeps no request text. There is no Recall@5 to report (a log has no gold list, only the tool
+the agent chose), and the twins are measured by hiding the called tool's source. It needs at least
+50 such requests, so generated requests remain the way to start; swap to the log when the traffic is
+there, and the band then means what it says.
+
 A calibration holds for one backbone, set of heads and serving instruction. After any of them
 changes (a new backbone, heads promoted by `toolrank ab`, `--instruction`), run `calibrate` again.
 Until then searches carry no confidence and nothing is turned away, and the server says so at
