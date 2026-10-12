@@ -60,6 +60,11 @@ change behaviour.
   is chosen. `calibrate` reports how many unanswerable "twins" (each request with its tool's server
   hidden) a band catches. An entry holds for one first stage, set of heads and serving instruction;
   a server whose first stage matches no entry gives no confidence and says so at start.
+  `calibrate --from-log` builds the distribution from the traffic a server has answered instead of
+  from generated requests: the searches whose call landed on a tool, with their vectors recovered
+  from the embedding cache (the log keeps no request text) and twins measured by hiding the called
+  tool's source. Prefer it once a server has run — a band only describes requests like its own, and
+  generated requests score well above real traffic (`docs/guides/serve.md` has the measurement).
 - `toolrank.integrations.langchain.ToolrankToolSelector` (`[langchain]` extra): a LangChain 1.x
   `create_agent` middleware that shows each model call only the tools toolrank finds for the last
   user message. It ranks the agent's own tools through `/v1/rank`, or, with a `Toolbox`, picks the
@@ -85,6 +90,10 @@ change behaviour.
 
 ### Changed
 
+- `toolrank learn --replay-n` defaults to 10,000 instead of 1,000. A thousand general pairs mixed
+  into the batches changed nothing about what heads trained on one catalogue's traffic forget; ten
+  thousand gave back the points a benchmark the traffic never covered had lost, with the
+  catalogue's own gain intact, so `--replay` now belongs in the nightly command.
 - `toolrank ab` weighs the noise. A candidate is promoted or rolled back only when its `mrr`
   differs from the control's by more than one standard error of the difference (unpaired) and more
   than `--margin`. A tie within that is promoted only when the candidate hands over fewer tools:
