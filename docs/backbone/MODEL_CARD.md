@@ -8,6 +8,12 @@ is used (last-token pooling, 4096 dimensions, L2-normalised), with the instructi
 Code, documentation and benchmarks: [github.com/yasinyaman/toolrank](https://github.com/yasinyaman/toolrank),
 [yaman.dev/toolrank](https://yaman.dev/toolrank/).
 
+Without a 16 GB GPU, the same weights run as GGUF through Ollama or llama.cpp:
+[`yasinyaman/toolrank-emb-8b-GGUF`](https://huggingface.co/yasinyaman/toolrank-emb-8b-GGUF) (Q8_0,
+level with these weights on every set measured, and Q4_K_M at 5 GB, which costs about a point of
+top-1 on short agent requests). [Running locally](https://yaman.dev/toolrank/guides/local/) has the
+numbers and the setup.
+
 | | |
 | --- | --- |
 | Weights | `yasinyaman/toolrank-emb-8b` at revision `v0.2`: `model.safetensors`, bfloat16, 16.4 GB |
