@@ -7,7 +7,7 @@ repository's config, tokenizer and pooling files), so vLLM serves it the same wa
 ``lora``, port 8097). Uses: the checkpoints of one run (``--keep-all``'s ``checkpoints/step-N``), or the
 adapters of runs that differ only in their seed. One adapter is merged as ``lora_train.py`` merges it, so
 a scored model's ``merged/`` can be deleted and made again from its adapter. CPU is enough (the base
-weights in bf16, ~16 GB of memory); ``[lora]`` extra. On the GB10, from ~/toolrank:
+weights in bf16, ~16 GB of memory); ``[lora]`` extra. On the GB10, from ~/callbus:
 
     uv run --extra lora python scripts/lora_soup.py --adapter data/lora/qwen3-emb-lora-20k/adapter \\
       --adapter data/lora/qwen3-emb-lora-20k-r1/adapter --out data/lora/qwen3-emb-lora-soup-seeds

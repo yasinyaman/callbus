@@ -11,7 +11,7 @@
 # TAG the results' prefix (results/<TAG>_<set>_<model>.json).
 set -u -o pipefail # a failed eval, not tail, decides "FAILED"
 EMB_URL=${EMB_URL:?set EMB_URL to the Ollama endpoint, e.g. http://\$LAPTOP:11434/v1}
-MODELS=${MODELS:-"qwen3-emb-0.6b-f16 qwen3-emb-0.6b-q8_0 qwen3-emb-4b-q4_k_m qwen3-emb-4b-q8_0 qwen3-emb-8b-q4_k_m qwen3-emb-8b-q8_0 toolrank-emb-v0.2-q4_k_m toolrank-emb-v0.2-q8_0"}
+MODELS=${MODELS:-"qwen3-emb-0.6b-f16 qwen3-emb-0.6b-q8_0 qwen3-emb-4b-q4_k_m qwen3-emb-4b-q8_0 qwen3-emb-8b-q4_k_m qwen3-emb-8b-q8_0 callbus-emb-v0.2-q4_k_m callbus-emb-v0.2-q8_0"}
 SETS=${SETS:-"livemcpbench_server"}
 TAG=${TAG:-gguf}
 UV=${UV:-uv}
@@ -21,7 +21,7 @@ for set in $SETS; do
     out=results/${TAG}_${set}_${m}.json
     [ -s "$out" ] && continue
     echo "$(date -Is) == $out"
-    $UV run toolrank eval --data "data/$set" --scorer dense --emb-url "$EMB_URL" --emb-model "$m" \
+    $UV run callbus eval --data "data/$set" --scorer dense --emb-url "$EMB_URL" --emb-model "$m" \
       --truncate 8192 --tool-format documentation --query-format instruct_query --with-inst \
       --out "$out" 2>&1 | tail -3 || echo "FAILED $out"
   done

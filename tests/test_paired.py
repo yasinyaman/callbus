@@ -3,11 +3,11 @@ import random
 
 import pytest
 
-from toolrank.cli import main
-from toolrank.datasets.jsonl import write_queries, write_tools
-from toolrank.datasets.synthetic import make_queries, make_tools
-from toolrank.domain import Query
-from toolrank.eval.paired import category_weights, permutation_test, sign_test, weighted_permutation_test
+from callbus.cli import main
+from callbus.datasets.jsonl import write_queries, write_tools
+from callbus.datasets.synthetic import make_queries, make_tools
+from callbus.domain import Query
+from callbus.eval.paired import category_weights, permutation_test, sign_test, weighted_permutation_test
 
 
 def test_sign_test_known_example():
@@ -108,7 +108,7 @@ def test_compare_paired_needs_two_runs_files(tmp_path):
 
 
 def test_data_seed_reaches_the_split_not_the_training_seed(monkeypatch, tmp_path):
-    import toolrank.finetune as ft
+    import callbus.finetune as ft
 
     captured = {}
 
@@ -167,7 +167,7 @@ def test_weighted_permutation_test_is_deterministic_and_spots_a_real_difference(
 
 
 def test_category_weights_reproduce_the_category_averages():
-    from toolrank.eval.metrics import aggregate, category_macro
+    from callbus.eval.metrics import aggregate, category_macro
 
     groups = {"q1": ("t1", "x"), "q2": ("t1", "x"), "q3": ("t2", "x"), "q4": ("t3", "y")}
     ids = list(groups)

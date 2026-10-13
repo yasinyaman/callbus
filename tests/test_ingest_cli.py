@@ -6,8 +6,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from toolrank.adapters.embeddings_api import OpenAIEmbeddings
-from toolrank.cli import main
+from callbus.adapters.embeddings_api import OpenAIEmbeddings
+from callbus.cli import main
 
 SPEC = {
     "openapi": "3.0.3",
@@ -82,8 +82,8 @@ def test_warm_up_embeds_only_new_and_changed_tools(tmp_path, monkeypatch, capsys
     main(["ingest", "openapi", spec, "--out", out, *emb])
     assert len(sent[-1]) == 1 and '"List all invoices"' in sent[-1][0]
     # in a container the endpoint comes from the environment, as it does for serve
-    monkeypatch.setenv("TOOLRANK_EMB_URL", "http://unused/v1")
-    monkeypatch.setenv("TOOLRANK_EMB_MODEL", "m")
+    monkeypatch.setenv("CALLBUS_EMB_URL", "http://unused/v1")
+    monkeypatch.setenv("CALLBUS_EMB_MODEL", "m")
     changed["paths"]["/invoices"]["get"]["summary"] = "List every invoice"
     _write_spec(tmp_path / "billing.json", changed)
     main(["ingest", "openapi", spec, "--out", out, "--cache-dir", str(tmp_path / "cache")])

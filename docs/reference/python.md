@@ -3,42 +3,42 @@
 The client and the integrations are the stable Python surface. Everything else is reached through
 the CLI.
 
-::: toolrank.client.ToolrankClient
+::: callbus.client.CallBusClient
 
-::: toolrank.client.AsyncToolrankClient
+::: callbus.client.AsyncCallBusClient
 
-::: toolrank.client.ToolrankError
+::: callbus.client.CallBusError
 
 ## Claude tool search
 
-::: toolrank.integrations.anthropic.Toolbox
+::: callbus.integrations.anthropic.Toolbox
 
-::: toolrank.integrations.anthropic.run
+::: callbus.integrations.anthropic.run
 
 ## OpenAI tool search
 
-::: toolrank.integrations.openai.Toolbox
+::: callbus.integrations.openai.Toolbox
 
-::: toolrank.integrations.openai.run
+::: callbus.integrations.openai.run
 
 ## LangChain
 
-`ToolrankToolSelector` is built lazily, on first use (`langchain` is an optional extra), so the
+`CallBusToolSelector` is built lazily, on first use (`langchain` is an optional extra), so the
 module carries its documentation:
 
-::: toolrank.integrations.langchain
+::: callbus.integrations.langchain
     options:
       members:
         - Selector
 
 ## LangGraph
 
-::: toolrank.integrations.langgraph.Toolbox
+::: callbus.integrations.langgraph.Toolbox
 
 ## LlamaIndex
 
-::: toolrank.integrations.llamaindex.ToolrankToolRetriever
+::: callbus.integrations.llamaindex.CallBusToolRetriever
 
 ## LiteLLM
 
-::: toolrank.integrations.litellm.ToolFilter
+::: callbus.integrations.litellm.ToolFilter

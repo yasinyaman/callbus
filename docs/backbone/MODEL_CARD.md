@@ -1,22 +1,22 @@
-# toolrank-emb-8b v0.2: Qwen3-Embedding-8B trained further on tool retrieval
+# callbus-emb-8b v0.2: Qwen3-Embedding-8B trained further on tool retrieval
 
 [Qwen3-Embedding-8B](https://huggingface.co/Qwen/Qwen3-Embedding-8B) with a LoRA trained on
-request–tool pairs and merged into the weights. It is toolrank's default backbone: a request and
+request–tool pairs and merged into the weights. It is CallBus's default backbone: a request and
 each tool become vectors, and the tools closest to the request come first. Use it as Qwen3-Embedding-8B
 is used (last-token pooling, 4096 dimensions, L2-normalised), with the instruction below.
 
-Code, documentation and benchmarks: [github.com/yasinyaman/toolrank](https://github.com/yasinyaman/toolrank),
-[yaman.dev/toolrank](https://yaman.dev/toolrank/).
+Code, documentation and benchmarks: [github.com/yasinyaman/callbus](https://github.com/yasinyaman/callbus),
+[yaman.dev/callbus](https://yaman.dev/callbus/).
 
 Without a 16 GB GPU, the same weights run as GGUF through Ollama or llama.cpp:
-[`yasinyaman/toolrank-emb-8b-GGUF`](https://huggingface.co/yasinyaman/toolrank-emb-8b-GGUF) (Q8_0,
+[`yasinyaman/callbus-emb-8b-GGUF`](https://huggingface.co/yasinyaman/callbus-emb-8b-GGUF) (Q8_0,
 level with these weights on every set measured, and Q4_K_M at 5 GB, which costs about a point of
-top-1 on short agent requests). [Running locally](https://yaman.dev/toolrank/guides/local/) has the
+top-1 on short agent requests). [Running locally](https://yaman.dev/callbus/guides/local/) has the
 numbers and the setup.
 
 | | |
 | --- | --- |
-| Weights | `yasinyaman/toolrank-emb-8b` at revision `v0.2`: `model.safetensors`, bfloat16, 16.4 GB |
+| Weights | `yasinyaman/callbus-emb-8b` at revision `v0.2`: `model.safetensors`, bfloat16, 16.4 GB |
 | sha256 | `53789cfff18f631fa7e6494bcf8d2db7b5c18a25d2a239443b1614a5eacb7f42` |
 | Base | `Qwen/Qwen3-Embedding-8B` (Apache-2.0) |
 | Change | LoRA rank 16, alpha 32, dropout 0.05 on the base model, merged; nothing else changes (tokenizer, pooling and config are the base model's) |
@@ -25,17 +25,17 @@ numbers and the setup.
 ## Serving
 
 ```bash
-vllm serve yasinyaman/toolrank-emb-8b --revision v0.2 --served-model-name toolrank-emb-v0.2 \
+vllm serve yasinyaman/callbus-emb-8b --revision v0.2 --served-model-name callbus-emb-v0.2 \
   --runner pooling --max-model-len 8192 --port 8091 \
-  --no-enable-chunked-prefill --max-num-batched-tokens 8192   # add --quantization fp8 (as toolrank-emb-v0.2-fp8)
+  --no-enable-chunked-prefill --max-num-batched-tokens 8192   # add --quantization fp8 (as callbus-emb-v0.2-fp8)
 ```
 
 - Requests: `Instruct: Given an agent's request for a tool, retrieve the MCP tool that fulfills it.\nQuery: <request>`.
-- Tools: toolrank's `documentation` text; for MCP and OpenAPI tools `{"server", "name", "description",
+- Tools: callbus's `documentation` text; for MCP and OpenAPI tools `{"server", "name", "description",
   "inputSchema"}` as JSON. 8192 tokens per text.
-- No heads: toolrank's v0.1 heads, trained on the base model, cost 0.2–3.9 points here (the table below), and heads
-  trained on top of this model stay at the identity. toolrank applies none on it.
-- Serve it under a name with the version in it: toolrank's embedding cache is keyed by the served
+- No heads: callbus's v0.1 heads, trained on the base model, cost 0.2–3.9 points here (the table below), and heads
+  trained on top of this model stay at the identity. callbus applies none on it.
+- Serve it under a name with the version in it: callbus's embedding cache is keyed by the served
   name, and a new version must not meet the old one's vectors.
 
 ## Training
@@ -58,25 +58,25 @@ vllm serve yasinyaman/toolrank-emb-8b --revision v0.2 --served-model-name toolra
 ToolRet-Training-20w states no license: its dataset card has no license field and no license text.
 The ToolRet code repository (`mangopy/tool-retrieval-benchmark`) is Apache-2.0, but that does not
 cover the data, and the data itself is drawn from earlier benchmarks with their own terms. The
-toolrank maintainers publish these weights accepting that risk. If you need clean data provenance,
+callbus maintainers publish these weights accepting that risk. If you need clean data provenance,
 use the base Qwen3-Embedding-8B.
 
 ## Results
 
-w/ inst, each set under its own protocol ([benchmarks](https://yaman.dev/toolrank/benchmarks/)):
+w/ inst, each set under its own protocol ([benchmarks](https://yaman.dev/callbus/benchmarks/)):
 
 | | ToolRet NDCG@10 (micro / cat-macro) | LiveMCPBench NDCG@10 / Recall@5 | MCP-Zero top-1 (selection set) |
 | --- | ---: | ---: | ---: |
 | Qwen3-Embedding-8B | 51.11 / 46.54 | 53.74 / 50.82 | 78.19 |
-| Qwen3-Embedding-8B + toolrank heads v0.1 | 54.03 / 47.13 | 53.95 / 53.03 | 79.87 |
+| Qwen3-Embedding-8B + callbus heads v0.1 | 54.03 / 47.13 | 53.95 / 53.03 | 79.87 |
 | **this model** | **58.90 / 54.36** | **55.74** / 52.06 | 88.57 |
 | this model in FP8 (`--quantization fp8`) | 59.02 / 54.53 | 55.34 / 52.06 | 87.71 |
-| this model + toolrank heads v0.1 | 58.71 / 52.94 | 53.52 / 48.18 | 87.46 |
+| this model + callbus heads v0.1 | 58.71 / 52.94 | 53.52 / 48.18 | 87.46 |
 
 - ToolRet: 44,453 tools, 7,961 queries. LiveMCPBench: 525 tools, 94 tasks. MCP-Zero: 2,792 tools, one
   LLM-written request per tool. On both MCP sets the server name is in the tool text.
 - With a second stage over its top 20 (Qwen3-Reranker-8B reading each tool's documentation):
-  ToolRet 59.36 / 54.35, LiveMCPBench 61.24, MCP-Zero top-1 91.94 (`toolrank serve --rerank cross`).
+  ToolRet 59.36 / 54.35, LiveMCPBench 61.24, MCP-Zero top-1 91.94 (`callbus serve --rerank cross`).
 
 ## Where it helps, and where it does not
 
@@ -101,8 +101,8 @@ model does:
 - **One tool:** the two models tie, except on requests that describe a problem without naming the
   operation, where the base model finds the tool in its top five for 19 requests this model misses,
   against 4 the other way (p = 0.003). Both find one-tool requests easily (Recall@5 95–99%).
-- The generated sets come from `toolrank data gen-queries` (requests written by Qwen3-8B over 1,862
+- The generated sets come from `callbus data gen-queries` (requests written by Qwen3-8B over 1,862
   tools; `--tools-per-request` for the tasks): selection sets, not benchmarks. Measure on your own
-  catalogue the same way, then `toolrank eval` with each backbone.
+  catalogue the same way, then `callbus eval` with each backbone.
 - Behind a second stage over the top 20, one-tool requests come out the same on both backbones
   (top-1 89.4 and 89.5).

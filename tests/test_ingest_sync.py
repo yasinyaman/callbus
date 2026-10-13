@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from toolrank.ingest.mcp import tool_from_mcp
-from toolrank.ingest.sync import Listing, drop, load_dir, sync, write_dir
+from callbus.ingest.mcp import tool_from_mcp
+from callbus.ingest.sync import Listing, drop, load_dir, sync, write_dir
 
 
 def _mcp(server, *names, desc="d"):

@@ -12,7 +12,7 @@ artırıyor; "bu istek için tool yok" kararı ise skor eşiğiyle güvenilir ve
 ## Ölçüler, birimler ve yön
 
 - `P@1 ↑ %` (MCP-Zero'nun top-1 doğruluğu), `Recall@5 ↑ %`, `NDCG@10 ↑ %` (micro; ToolRet'te ayrıca
-  cat-macro): `toolrank eval` protokolü, w/ inst, v0.1 head'leri (`toolrank-heads-qwen3-emb-8b-v0.1`).
+  cat-macro): `callbus eval` protokolü, w/ inst, v0.1 head'leri (`callbus-heads-qwen3-emb-8b-v0.1`).
 - `K@cut ↓`, `Recall@cut ↑ %`, `Comprehensiveness@cut ↑ %`: uyarlanabilir K'nın (margin 0,2, en çok 10)
   döndürdüğü listenin uzunluğu, geri çağırması ve **tamlığı** (isteğin bütün altın tool'ları listede mi).
 - **Doğru sunucu ilk sırada ↑ %**: sunucu skoruna göre en iyi sunucu, isteğin altın tool'larından
@@ -55,7 +55,7 @@ Diğer setlerde aynı kurallar (özet skoru; tam tablolar komutların çıktıs�
 | MCP-Zero `_server`, head'siz (Qwen3-Embedding-8B) | 78,19 / 87,21 | 79,48 / 88,24 | 79,44 / 88,43 | 79,12 / 88,33 | 73,96 / 82,14 |
 | ToolRet (44.453 tool, 3 kategori "sunucu") | 45,75 / 54,01 | 45,56 / 53,91 | 45,25 / 53,78 | 23,63 / 28,77 | 23,98 / 29,08 |
 
-## Tablo 2 — ürün yolunda: `toolrank eval --server-weight W --cut-margin 0.2`
+## Tablo 2 — ürün yolunda: `callbus eval --server-weight W --cut-margin 0.2`
 
 | Set | W | P@1 ↑ % | Recall@5 ↑ % | NDCG@10 ↑ % (micro / cat-macro) | K@cut ↓ | Recall@cut ↑ % | Comprehensiveness@cut ↑ % |
 | --- | ---: | ---: | ---: | --- | ---: | ---: | ---: |
@@ -115,10 +115,10 @@ Tablo: A tool'uyla aynı istekten sonra en az `count` istekte ve A'nın çağrı
 ## Komutlar
 
 ```bash
-# GB10, ~/toolrank; bütün vektörler önbellekte
+# GB10, ~/callbus; bütün vektörler önbellekte
 EMB="--emb-url http://127.0.0.1:8091/v1 --emb-model qwen3-emb --truncate 8192 --tool-format documentation \
   --query-format instruct_query --with-inst"
-E="--scorer clm --clm-ckpt dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz $EMB"
+E="--scorer clm --clm-ckpt dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz $EMB"
 
 # Tablo 1 ve 3 (--gate): mcp_zero_server, livemcpbench_server; sunucu adsız: mcp_zero, livemcpbench
 uv run python scripts/routing_sweep.py --gate -- --data data/mcp_zero_server $E
@@ -127,7 +127,7 @@ uv run python scripts/routing_sweep.py --servers centroid,summary --weights 0.1,
   --data data/mcp_zero_server --scorer dense $EMB                              # head'siz satır
 
 # Tablo 2: W = 0, 0.2, 0.3; MCP-Zero'da --ks 1,5,10,20
-uv run toolrank eval --data data/mcp_zero_server $E --ks 1,5,10,20 --cut-margin 0.2 --server-weight 0.2 \
+uv run callbus eval --data data/mcp_zero_server $E --ks 1,5,10,20 --cut-margin 0.2 --server-weight 0.2 \
   --out results/route_mcp_zero_server_w0.2.json
 
 # Tablo 4: Hafta 4'ün simüle günlüğü (bash scripts/learn_sim.sh) üzerinde
@@ -136,7 +136,7 @@ uv run python scripts/couse_sweep.py --log data/sim/toolret/runs/n0/usage --min-
 # öğrenilmiş head'ler: --clm-ckpt data/sim/toolret/runs/n0/learned/default.npz; yeni tool'lar: --data …/heldout_new
 # servis yolu: günlüğün bir kopyasında (runs/n0_couse), ayrılmış sorgular
 uv run python scripts/learn_sim.py traffic --queries data/sim/toolret/heldout/queries.jsonl -- \
-  --data data/sim/toolret/runs/n0_couse --emb-url http://127.0.0.1:8091/v1 --cache-dir .cache/toolrank --co-use 2
+  --data data/sim/toolret/runs/n0_couse --emb-url http://127.0.0.1:8091/v1 --cache-dir .cache/callbus --co-use 2
 ```
 
 ## Ortam

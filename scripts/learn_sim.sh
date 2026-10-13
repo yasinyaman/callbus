@@ -11,11 +11,11 @@
 #   SIZES=0 TAG=e10 LEARN="--epochs 10" bash scripts/learn_sim.sh   # another recipe, the same logs
 #   SIZES=0 NOISE=0.2 bash scripts/learn_sim.sh                 # an agent that calls a wrong tool 1 time in 5
 #   SIZES=0 SEED=1 NAME=toolret_s1 bash scripts/learn_sim.sh    # another split of the queries
-#   HEADS=none EMB_MODEL=toolrank-emb-v0.2 bash scripts/learn_sim.sh   # headless: dense scoring,
+#   HEADS=none EMB_MODEL=callbus-emb-v0.2 bash scripts/learn_sim.sh   # headless: dense scoring,
 #                                                                      # learn from identity heads
 #
 # Restartable: a run dir that has a usage log is not served again, a report that exists is not
-# recomputed. Reports: results/sim_<NAME>_*.json; then `toolrank compare results/sim_<NAME>_*heldout.json`.
+# recomputed. Reports: results/sim_<NAME>_*.json; then `callbus compare results/sim_<NAME>_*heldout.json`.
 set -u
 cd "$(dirname "$0")/.."
 
@@ -31,18 +31,18 @@ TAG=${TAG:-default}
 LEARN=${LEARN:-}
 EMB_URL=${EMB_URL:-http://127.0.0.1:8091/v1}
 EMB_MODEL=${EMB_MODEL:-qwen3-emb}
-CACHE=${CACHE:-.cache/toolrank}
-HEADS=${HEADS:-dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz}
+CACHE=${CACHE:-.cache/callbus}
+HEADS=${HEADS:-dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz}
 ROOT=data/sim/$NAME
 EMB="--emb-url $EMB_URL --emb-model $EMB_MODEL --truncate 8192 --cache-dir $CACHE"
 if [ "$HEADS" = none ]; then
   # headless (the v0.2 backbone): serve and score the start with the embedding model alone, learn
   # from fresh identity heads (--init none); no packaged heads anywhere, cached ones included
-  unset TOOLRANK_HEADS || true
+  unset CALLBUS_HEADS || true
   INIT=(--init none)
   SERVE=(--clm-ckpt none)
 else
-  export TOOLRANK_HEADS=$PWD/$HEADS
+  export CALLBUS_HEADS=$PWD/$HEADS
   INIT=()
   SERVE=()
 fi
@@ -56,7 +56,7 @@ score() { # score <heads|none> <report prefix>: the held-out sets and EVALS with
     out=results/${prefix}_$(basename "$dir").json
     [ -s "$out" ] && continue
     # shellcheck disable=SC2086
-    "$UV" run toolrank eval --data "$dir" "${ckpt[@]}" $EMB --tool-format documentation \
+    "$UV" run callbus eval --data "$dir" "${ckpt[@]}" $EMB --tool-format documentation \
       --query-format instruct_query --with-inst --out "$out" | tail -n 4 || echo "FAILED $out"
   done
 }
@@ -78,7 +78,7 @@ for n in $SIZES; do
   heads=$dir/learned/$TAG.npz
   if [ ! -s "results/learn_sim_${NAME}_${run}_${TAG}.json" ]; then
     # shellcheck disable=SC2086
-    "$UV" run toolrank learn --data "$dir" --out "$heads" --dev "$GUARD" $EMB ${INIT[@]+"${INIT[@]}"} $LEARN \
+    "$UV" run callbus learn --data "$dir" --out "$heads" --dev "$GUARD" $EMB ${INIT[@]+"${INIT[@]}"} $LEARN \
       --name "sim_${NAME}_${run}_${TAG}" | tail -n 6
   fi
   [ -s "$heads" ] && score "$heads" "sim_${NAME}_${run}_${TAG}"

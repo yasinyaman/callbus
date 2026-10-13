@@ -1,17 +1,17 @@
-"""Claude with toolrank as its tool search.
+"""Claude with callbus as its tool search.
 
-Every tool of the toolrank catalogue goes to the Messages API with ``defer_loading: true``; Claude
-gets one tool it can see, ``search_tools``, and toolrank answers it with ``tool_reference`` blocks
-that load the matching tools. Calls to them run through toolrank (``POST /v1/call``). See
-``toolrank.integrations.anthropic`` for the rules the loop keeps.
+Every tool of the callbus catalogue goes to the Messages API with ``defer_loading: true``; Claude
+gets one tool it can see, ``search_tools``, and callbus answers it with ``tool_reference`` blocks
+that load the matching tools. Calls to them run through callbus (``POST /v1/call``). See
+``callbus.integrations.anthropic`` for the rules the loop keeps.
 
-    toolrank serve --data data/mytools --config toolrank.json          # in another shell
+    callbus serve --data data/mytools --config callbus.json          # in another shell
     uv run --extra anthropic python examples/anthropic_tool_reference.py "What time is it in Tokyo?"
 
-``ANTHROPIC_API_KEY`` (and ``TOOLRANK_API_KEY`` when the server has one) come from the environment
+``ANTHROPIC_API_KEY`` (and ``CALLBUS_API_KEY`` when the server has one) come from the environment
 or from a ``.env`` file in the working directory, and are never printed. A call that could change
 something — no ``readOnlyHint``, or an OpenAPI operation other than GET/HEAD — is asked about first
-unless ``--yes``: a tool's output can steer the model. ``--builtin bm25`` swaps toolrank's search
+unless ``--yes``: a tool's output can steer the model. ``--builtin bm25`` swaps callbus's search
 for the API's own BM25 tool search over the same deferred tools.
 """
 
@@ -37,9 +37,9 @@ def load_env(path: str = ".env") -> None:
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description="Claude + toolrank tool search")
+    p = argparse.ArgumentParser(description="Claude + callbus tool search")
     p.add_argument("task")
-    p.add_argument("--toolrank", default=os.environ.get("TOOLRANK_URL", "http://127.0.0.1:8765"))
+    p.add_argument("--callbus", default=os.environ.get("CALLBUS_URL", "http://127.0.0.1:8765"))
     p.add_argument("--model", default="claude-opus-5-5")
     p.add_argument("--max-tokens", type=int, default=4096)
     p.add_argument("--max-turns", type=int, default=12)
@@ -59,9 +59,9 @@ def main() -> int:
 
     import anthropic
 
-    from toolrank.client import ToolrankClient
-    from toolrank.integrations import anthropic as claude
-    from toolrank.integrations import read_only
+    from callbus.client import CallBusClient
+    from callbus.integrations import anthropic as claude
+    from callbus.integrations import read_only
 
     def approve(entry: dict, arguments: dict) -> bool:
         if a.yes or read_only(entry):
@@ -78,7 +78,7 @@ def main() -> int:
         elif kind == "call":
             print(f"  call {d['tool']}: {d.get('outcome')}" + (f" ({d['ms']} ms)" if "ms" in d else ""))
 
-    tr = ToolrankClient(a.toolrank, api_key=os.environ.get("TOOLRANK_API_KEY"))
+    tr = CallBusClient(a.callbus, api_key=os.environ.get("CALLBUS_API_KEY"))
     servers = [s for s in a.servers.split(",") if s] or None
     box = claude.Toolbox(
         tr,

@@ -1,7 +1,7 @@
 """LLM-written text for each tool, indexed without training: does the backbone rank better with it?
 
 Two kinds of text, written once per tool by a chat model (cached in ``--cache``, keyed by model and prompt) and
-scored with the backbone the ``toolrank eval`` flags after ``--`` describe, over every query of the set:
+scored with the backbone the ``callbus eval`` flags after ``--`` describe, over every query of the set:
 
 - ``describe``: a description for the search index (what the tool does, the requests and situations it serves, when
   another tool fits better; nothing the documentation does not state, no example call), appended to the tool's text;
@@ -9,7 +9,7 @@ scored with the backbone the ``toolrank eval`` flags after ``--`` describe, over
   them to the tool's text (doc2query); ``requests_rows`` embeds each as a row of its own on the document side, and a
   tool scores by its best row, its own text being one of them (the usage memory's ``max`` with written requests).
 
-Nothing is tuned: three rankings next to the first stage alone, with per-query rows for ``toolrank compare
+Nothing is tuned: three rankings next to the first stage alone, with per-query rows for ``callbus compare
 --paired``. The writer must not be the model that wrote the set's queries, or a written request matches a written
 query: gen-queries' sets and MCP-Zero's queries are Qwen3-8B's, ToolRet's and LiveMCPBench's are not. Appended text
 sits after the documentation, so a document longer than ``--truncate`` loses it.
@@ -35,13 +35,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from memory_sim import DEPTH, Ranker, evaluate, report, top  # noqa: E402
 
-from toolrank.build import build_scorer  # noqa: E402
-from toolrank.cli import build_parser  # noqa: E402
-from toolrank.datasets.genqueries import TOOL_CHARS, _text, clean, names_tool  # noqa: E402
-from toolrank.datasets.jsonl import load_queries, load_tools  # noqa: E402
-from toolrank.datasets.mcp_zero import generate  # noqa: E402
-from toolrank.domain import Tool  # noqa: E402
-from toolrank.eval.runner import _runs_row  # noqa: E402
+from callbus.build import build_scorer  # noqa: E402
+from callbus.cli import build_parser  # noqa: E402
+from callbus.datasets.genqueries import TOOL_CHARS, _text, clean, names_tool  # noqa: E402
+from callbus.datasets.jsonl import load_queries, load_tools  # noqa: E402
+from callbus.datasets.mcp_zero import generate  # noqa: E402
+from callbus.domain import Tool  # noqa: E402
+from callbus.eval.runner import _runs_row  # noqa: E402
 
 SYSTEM = (
     "You write the text a search index keeps for a software tool, so that the requests it serves find it. "
@@ -116,7 +116,7 @@ def rows_rank(
 
 
 def make_chat(a: argparse.Namespace) -> Any:
-    from toolrank.adapters.chat_api import OpenAIChat
+    from callbus.adapters.chat_api import OpenAIChat
 
     return OpenAIChat(a.gen_model, a.gen_url, max_tokens=a.gen_max_tokens, extra_body=json.loads(a.gen_extra))
 
@@ -124,7 +124,7 @@ def make_chat(a: argparse.Namespace) -> Any:
 def main() -> None:
     argv = sys.argv[1:]
     if "--" not in argv:
-        sys.exit("usage: enrich_sim.py --cache FILE [--out PREFIX] [chat flags] -- <toolrank eval flags>")
+        sys.exit("usage: enrich_sim.py --cache FILE [--out PREFIX] [chat flags] -- <callbus eval flags>")
     at = argv.index("--")
     ap = argparse.ArgumentParser()
     ap.add_argument("--cache", required=True, help="the chat model's answers (JSONL), reused on a rerun")

@@ -1,8 +1,8 @@
 # On a laptop or a Mac
 
-The default backbone, `toolrank-emb-v0.2`, is an 8B model, and [Docker](docker.md) serves it with vLLM
+The default backbone, `callbus-emb-v0.2`, is an 8B model, and [Docker](docker.md) serves it with vLLM
 on a GPU of 16 GB (8 GB in FP8). Without such a GPU, [Ollama](https://ollama.com) runs GGUF builds of
-the same model ([`yasinyaman/toolrank-emb-8b-GGUF`](https://huggingface.co/yasinyaman/toolrank-emb-8b-GGUF),
+the same model ([`yasinyaman/callbus-emb-8b-GGUF`](https://huggingface.co/yasinyaman/callbus-emb-8b-GGUF),
 [its card](../backbone/MODEL_CARD_GGUF.md)), at nearly the same quality and more slowly, and of smaller
 Qwen3-Embedding models, which are faster and score lower.
 
@@ -13,8 +13,8 @@ benchmarks run with instructions, as in the [README table](../benchmarks.md):
 
 | Model (Ollama name) | GGUF | LiveMCPBench NDCG@10 | MCP-Zero top-1 | ToolRet NDCG@10 (cat-macro) | One new search | 525 tools embedded in |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `toolrank-emb-v0.2-q4_k_m` | 5.0 GB | 56.22 | 87.07 | 59.51 (54.53) | 0.67 s | 5.4 min |
-| `toolrank-emb-v0.2-q8_0` | 8.7 GB | 55.41 | **88.72** | 58.94 (54.38) | 0.78 s | 8.8 min |
+| `callbus-emb-v0.2-q4_k_m` | 5.0 GB | 56.22 | 87.07 | 59.51 (54.53) | 0.67 s | 5.4 min |
+| `callbus-emb-v0.2-q8_0` | 8.7 GB | 55.41 | **88.72** | 58.94 (54.38) | 0.78 s | 8.8 min |
 | `qwen3-emb-4b-q4_k_m` | 2.5 GB | 48.71 | 79.19 | 50.41 (44.99) | 0.33 s | 2.8 min |
 | `qwen3-emb-0.6b-q8_0` | 0.6 GB | 49.21 | 79.98 | 48.54 (43.14) | 0.05 s | 29 s |
 | *vLLM, bf16, on a GPU* | | *55.74* | *88.57* | *58.90 (54.36)* | | |
@@ -27,8 +27,8 @@ benchmarks run with instructions, as in the [README table](../benchmarks.md):
   documentation, Q4_K_M is 0.6 points above bf16 (p 0.0001, level by category), and LiveMCPBench's 94
   tasks are too few to separate anything. Coarser weights cost most on short requests, which is what
   an agent writes.
-- The two `toolrank-emb-v0.2` rows' quality columns are the published files
-  ([`yasinyaman/toolrank-emb-8b-GGUF`](https://huggingface.co/yasinyaman/toolrank-emb-8b-GGUF)), scored
+- The two `callbus-emb-v0.2` rows' quality columns are the published files
+  ([`yasinyaman/callbus-emb-8b-GGUF`](https://huggingface.co/yasinyaman/callbus-emb-8b-GGUF)), scored
   through Ollama on the machine that built them; every timing column is this laptop. Quality does not
   depend on the hardware, timings do.
 - Qwen3-Embedding-0.6B and 4B are faster, and score about 7 points lower on LiveMCPBench, 9 to 11
@@ -49,14 +49,14 @@ benchmarks run with instructions, as in the [README table](../benchmarks.md):
 
 ```bash
 # the LoRA backbone as GGUF; hf: pip install huggingface_hub
-hf download yasinyaman/toolrank-emb-8b-GGUF toolrank-emb-8b-v0.2-Q4_K_M.gguf --revision v0.2 --local-dir models
+hf download yasinyaman/callbus-emb-8b-GGUF callbus-emb-8b-v0.2-Q4_K_M.gguf --revision v0.2 --local-dir models
 # ... -Q8_0.gguf instead (8.7 GB) where there is room: level with bf16 on MCP-Zero's short requests
-printf 'FROM ./models/toolrank-emb-8b-v0.2-Q4_K_M.gguf\nPARAMETER num_ctx 8192\n' > Modelfile
-ollama create toolrank-emb-v0.2-q4_k_m -f Modelfile
+printf 'FROM ./models/callbus-emb-8b-v0.2-Q4_K_M.gguf\nPARAMETER num_ctx 8192\n' > Modelfile
+ollama create callbus-emb-v0.2-q4_k_m -f Modelfile
 
-export TOOLRANK_EMB_URL=http://127.0.0.1:11434/v1 TOOLRANK_EMB_MODEL=toolrank-emb-v0.2-q4_k_m
-toolrank ingest mcp --server time="uvx mcp-server-time" --out tools/ --emb-url $TOOLRANK_EMB_URL
-toolrank serve --data tools/
+export CALLBUS_EMB_URL=http://127.0.0.1:11434/v1 CALLBUS_EMB_MODEL=callbus-emb-v0.2-q4_k_m
+callbus ingest mcp --server time="uvx mcp-server-time" --out tools/ --emb-url $CALLBUS_EMB_URL
+callbus serve --data tools/
 ```
 
 The small models come from Qwen's own GGUF repositories, in the same way:

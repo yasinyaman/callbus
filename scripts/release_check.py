@@ -31,7 +31,7 @@ def problems(
     tag: str | None = None,
     backbone: tuple[str, str, bool] | None = None,
 ) -> list[str]:
-    """``backbone``: the default backbone's (repo, revision, published) from ``toolrank.build``."""
+    """``backbone``: the default backbone's (repo, revision, published) from ``callbus.build``."""
     out = []
     for name in files:
         if name.startswith(SKIP):
@@ -46,7 +46,7 @@ def problems(
             if MARKER in line
         ]
     if not heads_url:
-        out.append("src/toolrank/adapters/heads_np.py: HEADS_URL is empty; host the heads and fill it in")
+        out.append("src/callbus/adapters/heads_np.py: HEADS_URL is empty; host the heads and fill it in")
     card = root / "docs" / "heads" / "MODEL_CARD.md"
     if card.exists() and NOT_HOSTED in card.read_text(encoding="utf-8"):
         out.append(
@@ -54,25 +54,25 @@ def problems(
         )
     if backbone is not None and not backbone[2]:
         out.append(
-            f"src/toolrank/build.py: the default backbone {backbone[0]}@{backbone[1]} is not on the Hub yet "
+            f"src/callbus/build.py: the default backbone {backbone[0]}@{backbone[1]} is not on the Hub yet "
             "(scripts/publish_backbone.py --upload, then BACKBONE_PUBLISHED = True)"
         )
     if Version(version).is_devrelease:
-        out.append(f"src/toolrank/__init__.py: {version} is a development version")
+        out.append(f"src/callbus/__init__.py: {version} is a development version")
     changelog = root / "CHANGELOG.md"
     dated = rf"^## \[{re.escape(version)}\] - \d{{4}}-\d{{2}}-\d{{2}}$"
     if not changelog.exists() or not re.search(dated, changelog.read_text(encoding="utf-8"), re.M):
         out.append(f"CHANGELOG.md: no dated entry for {version} (## [{version}] - YYYY-MM-DD)")
     if tag is not None and tag != f"v{version}":
         out.append(f"the tag {tag} does not match the version {version}")
-    chart = root / "deploy" / "helm" / "toolrank" / "Chart.yaml"
+    chart = root / "deploy" / "helm" / "callbus" / "Chart.yaml"
     if chart.exists():  # absent from the sdist
         text = chart.read_text(encoding="utf-8")
         app = re.search(r'^appVersion:\s*"?([^"\s]+)"?\s*$', text, re.M)
         if not app or app.group(1) != version:
             # the image tag defaults to appVersion: a stale one ships last release's image
             out.append(
-                f"deploy/helm/toolrank/Chart.yaml: appVersion "
+                f"deploy/helm/callbus/Chart.yaml: appVersion "
                 f"{app.group(1) if app else 'is missing'}, the release is {version}"
             )
     return out
@@ -83,16 +83,16 @@ def main() -> None:
     p.add_argument("--tag", default=None, help="the release tag, e.g. v0.1.0")
     a = p.parse_args()
     sys.path.insert(0, str(ROOT / "src"))
-    import toolrank
-    from toolrank.adapters.heads_np import HEADS_URL
-    from toolrank.build import BACKBONE_PUBLISHED, BACKBONE_REPO, BACKBONE_REVISION
+    import callbus
+    from callbus.adapters.heads_np import HEADS_URL
+    from callbus.build import BACKBONE_PUBLISHED, BACKBONE_REPO, BACKBONE_REVISION
 
     files = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True).stdout
     backbone = (BACKBONE_REPO, BACKBONE_REVISION, BACKBONE_PUBLISHED)
-    found = problems(ROOT, files.splitlines(), HEADS_URL, toolrank.__version__, a.tag, backbone)
+    found = problems(ROOT, files.splitlines(), HEADS_URL, callbus.__version__, a.tag, backbone)
     if found:
         sys.exit("not ready to release:\n" + "\n".join(f"  {f}" for f in found))
-    print(f"ready to release {toolrank.__version__}")
+    print(f"ready to release {callbus.__version__}")
 
 
 if __name__ == "__main__":

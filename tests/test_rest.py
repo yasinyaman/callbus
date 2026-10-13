@@ -14,16 +14,16 @@ import httpx2  # noqa: E402
 from starlette.applications import Starlette  # noqa: E402
 from starlette.testclient import TestClient  # noqa: E402
 
-from toolrank.adapters.backends import Backends  # noqa: E402
-from toolrank.adapters.bm25 import BM25Scorer  # noqa: E402
-from toolrank.adapters.dense import DenseScorer  # noqa: E402
-from toolrank.adapters.mcp_proxy import MAX_BODY, build_proxy, http_app  # noqa: E402
-from toolrank.adapters.rest import MAX_RANK, platform_record, rest_routes  # noqa: E402
-from toolrank.datasets.jsonl import write_tools  # noqa: E402
-from toolrank.domain import Tool  # noqa: E402
-from toolrank.ingest.mcp import ServerConfig  # noqa: E402
-from toolrank.retriever import Retriever  # noqa: E402
-from toolrank.usage import UsageLog  # noqa: E402
+from callbus.adapters.backends import Backends  # noqa: E402
+from callbus.adapters.bm25 import BM25Scorer  # noqa: E402
+from callbus.adapters.dense import DenseScorer  # noqa: E402
+from callbus.adapters.mcp_proxy import MAX_BODY, build_proxy, http_app  # noqa: E402
+from callbus.adapters.rest import MAX_RANK, platform_record, rest_routes  # noqa: E402
+from callbus.datasets.jsonl import write_tools  # noqa: E402
+from callbus.domain import Tool  # noqa: E402
+from callbus.ingest.mcp import ServerConfig  # noqa: E402
+from callbus.retriever import Retriever  # noqa: E402
+from callbus.usage import UsageLog  # noqa: E402
 
 BASE = "http://127.0.0.1:8765"
 FIXTURE = str(Path(__file__).parent / "fixtures" / "mcp_server.py")
@@ -225,8 +225,8 @@ def test_first_index_and_endpoint_failures_are_503(tmp_path):
 
 
 def test_a_failing_second_stage_is_a_note_a_counter_and_a_log_mark(tmp_path, caplog):
-    from toolrank.adapters.mcp_proxy import RERANK_NOTE
-    from toolrank.adapters.rerank import ScorerReranker
+    from callbus.adapters.mcp_proxy import RERANK_NOTE
+    from callbus.adapters.rerank import ScorerReranker
 
     class _Down(DenseScorer):
         def score_tools(self, query, tools):
@@ -237,19 +237,19 @@ def test_a_failing_second_stage_is_a_note_a_counter_and_a_log_mark(tmp_path, cap
 
     write_tools(tmp_path / "tools.jsonl", _tools())
     app, _ = _app(tmp_path, Retriever(tmp_path, make))
-    with TestClient(app, base_url=BASE) as c, caplog.at_level("WARNING", logger="toolrank.serve"):
+    with TestClient(app, base_url=BASE) as c, caplog.at_level("WARNING", logger="callbus.serve"):
         r = c.post("/v1/search", json={"query": "add two integers"})
         assert r.status_code == 200 and r.json()["note"] == RERANK_NOTE and len(r.json()["tools"]) == 3
         assert "8095" not in r.text  # the reason, with the reranker's address, stays in the server's log
-        assert "toolrank_search_rerank_failed_total 1" in c.get("/v1/metrics").text
+        assert "callbus_search_rerank_failed_total 1" in c.get("/v1/metrics").text
     assert "8095/v1 unreachable" in caplog.text
     (event,) = _events(tmp_path)
     assert event["rerank"] == "failed" and len(event["results"]) == 3
 
 
 def test_a_calibrated_search_carries_its_confidence_to_the_client_the_log_and_the_metrics(tmp_path):
-    from toolrank.calibration import FILE, Calibration, save
-    from toolrank.retriever import innermost
+    from callbus.calibration import FILE, Calibration, save
+    from callbus.retriever import innermost
 
     write_tools(tmp_path / "tools.jsonl", _tools())
     retriever = Retriever(
@@ -262,15 +262,15 @@ def test_a_calibrated_search_carries_its_confidence_to_the_client_the_log_and_th
         r = c.post("/v1/search", json={"query": "add two integers"})
         assert r.status_code == 200 and r.json()["confidence"] == 0.5 and "note" not in r.json()
         text = c.get("/v1/metrics").text
-        assert "toolrank_search_confidence_count 1" in text
-        assert 'toolrank_search_confidence_bucket{le="0.5"} 1' in text
-        assert 'toolrank_search_confidence_bucket{le="0.25"} 0' in text
+        assert "callbus_search_confidence_count 1" in text
+        assert 'callbus_search_confidence_bucket{le="0.5"} 1' in text
+        assert 'callbus_search_confidence_bucket{le="0.25"} 0' in text
     (event,) = _events(tmp_path)
     assert event["confidence"] == 0.5
 
 
 def test_a_schema_an_api_would_refuse_reaches_platform_clients_as_a_plain_object(tmp_path):
-    from toolrank.ingest.sync import checked
+    from callbus.ingest.sync import checked
 
     draft = {"type": "object", "properties": {"n": {"type": "number", "exclusiveMinimum": True}}}
     bad = checked(Tool(id="fx/odd", doc={"server": "fx", "name": "odd", "inputSchema": draft}, category="fx"))
@@ -314,8 +314,8 @@ def test_metrics_say_where_the_second_stages_scores_came_from(tmp_path):
     retriever.second = _Second()
     with TestClient(app, base_url=BASE) as c:
         text = c.get("/v1/metrics").text
-    assert 'toolrank_rerank_candidates_total{source="cache"} 7' in text
-    assert 'toolrank_rerank_candidates_total{source="model"} 13' in text
+    assert 'callbus_rerank_candidates_total{source="cache"} 7' in text
+    assert 'callbus_rerank_candidates_total{source="model"} 13' in text
 
 
 def test_keyword_matches_while_the_index_builds_and_named_keys(tmp_path):
@@ -484,7 +484,7 @@ def test_a_container_bind_answers_its_names_with_or_without_a_port(tmp_path):
     proxy = build_proxy(retriever, Backends(), usage)
     # docker: bound to 0.0.0.0, reached as the compose service name or through a proxy on 443
     app = http_app(
-        proxy, host="0.0.0.0", extra_hosts=["toolrank"], api_key="k", routes=rest_routes(retriever, usage)
+        proxy, host="0.0.0.0", extra_hosts=["callbus"], api_key="k", routes=rest_routes(retriever, usage)
     )
     init = {
         "jsonrpc": "2.0",
@@ -497,9 +497,9 @@ def test_a_container_bind_answers_its_names_with_or_without_a_port(tmp_path):
         },
     }
     auth = {"Authorization": "Bearer k", "Accept": "application/json, text/event-stream"}
-    with TestClient(app, base_url="http://toolrank:8765") as c:
+    with TestClient(app, base_url="http://callbus:8765") as c:
         # the compose service name, a proxy without a port, and the published port on the host
-        for host in ("toolrank:8765", "toolrank", "localhost:8765", "127.0.0.1:18765"):
+        for host in ("callbus:8765", "callbus", "localhost:8765", "127.0.0.1:18765"):
             assert c.get("/v1/tools", headers={**auth, "Host": host}).status_code == 200, host
             assert c.post("/mcp", json=init, headers={**auth, "Host": host}).status_code == 200, host
         assert c.get("/v1/tools", headers={**auth, "Host": "evil.example.com"}).status_code == 421
@@ -507,7 +507,7 @@ def test_a_container_bind_answers_its_names_with_or_without_a_port(tmp_path):
 
 
 def test_metrics_route_counts_searches_and_sits_behind_the_token(tmp_path):
-    from toolrank.metrics import tool_tokens
+    from callbus.metrics import tool_tokens
 
     app, retriever = _app(tmp_path, api_key="sekrit", named_keys={"acme": "acme-key"})
     auth = {"Authorization": "Bearer sekrit"}
@@ -517,10 +517,10 @@ def test_metrics_route_counts_searches_and_sits_behind_the_token(tmp_path):
         assert first.status_code == 200 and first.headers["content-type"].startswith(
             "text/plain; version=0.0.4"
         )
-        assert "toolrank_searches_total 0" in first.text and "toolrank_index_ready 1" in first.text
-        assert "toolrank_catalog_tools 3" in first.text and "toolrank_catalog_sources 2" in first.text
+        assert "callbus_searches_total 0" in first.text and "callbus_index_ready 1" in first.text
+        assert "callbus_catalog_tools 3" in first.text and "callbus_catalog_sources 2" in first.text
         whole = sum(tool_tokens(t) for t in _tools())
-        assert f"toolrank_catalog_tokens {whole}" in first.text
+        assert f"callbus_catalog_tokens {whole}" in first.text
         assert c.post("/v1/search", json={"query": "add", "k": 1}, headers=auth).status_code == 200
         assert (
             c.post(
@@ -540,21 +540,21 @@ def test_metrics_route_counts_searches_and_sits_behind_the_token(tmp_path):
         }
         retriever.status = lambda: {**status, "heads": heads}
         followed = c.get("/v1/metrics", headers=auth).text
-    assert 'toolrank_searches_total{arm="base",mode="semantic",via="rest"} 2' in text
-    assert "toolrank_search_tools_returned_sum 4" in text and "acme" not in text
+    assert 'callbus_searches_total{arm="base",mode="semantic",via="rest"} 2' in text
+    assert "callbus_search_tools_returned_sum 4" in text and "acme" not in text
     returned = float(
-        next(x for x in text.splitlines() if x.startswith("toolrank_search_returned_tokens_total")).split()[1]
+        next(x for x in text.splitlines() if x.startswith("callbus_search_returned_tokens_total")).split()[1]
     )
     saved = float(
-        next(x for x in text.splitlines() if x.startswith("toolrank_search_saved_tokens_total")).split()[1]
+        next(x for x in text.splitlines() if x.startswith("callbus_search_saved_tokens_total")).split()[1]
     )
     assert returned + saved == 2 * whole and 0 < returned <= whole + max(tool_tokens(t) for t in _tools())
-    assert f'toolrank_build_info{{version="{__import__("toolrank").__version__}"}} 1' in text
-    assert "toolrank_heads" not in text  # this server follows no heads directory
-    assert 'toolrank_heads{arm="base"} 1' in followed and 'toolrank_heads{arm="candidate"} 1' in followed
-    assert 'toolrank_heads{arm="tenant-candidate"} 0' in followed and "acme" not in followed
-    tenant_series = [x for x in followed.splitlines() if x.startswith('toolrank_heads{arm="tenant"}')]
-    assert tenant_series == ['toolrank_heads{arm="tenant"} 2']  # a second line would be a duplicate series
+    assert f'callbus_build_info{{version="{__import__("callbus").__version__}"}} 1' in text
+    assert "callbus_heads" not in text  # this server follows no heads directory
+    assert 'callbus_heads{arm="base"} 1' in followed and 'callbus_heads{arm="candidate"} 1' in followed
+    assert 'callbus_heads{arm="tenant-candidate"} 0' in followed and "acme" not in followed
+    tenant_series = [x for x in followed.splitlines() if x.startswith('callbus_heads{arm="tenant"}')]
+    assert tenant_series == ['callbus_heads{arm="tenant"} 2']  # a second line would be a duplicate series
 
 
 def test_a_key_limited_to_some_sources_sees_only_those_over_rest(tmp_path):
@@ -580,7 +580,7 @@ def test_a_key_limited_to_some_sources_sees_only_those_over_rest(tmp_path):
 
 
 def test_scopes_limit_a_key_and_feedback_logs_a_call_the_client_ran(tmp_path):
-    from toolrank.tenants import parse_tenants
+    from callbus.tenants import parse_tenants
 
     retriever, usage, backends = _callable(tmp_path)
     backends.tenants = parse_tenants(
@@ -621,7 +621,7 @@ def test_scopes_limit_a_key_and_feedback_logs_a_call_the_client_ran(tmp_path):
         )
         assert c.post("/v1/feedback", content="name=fx/add", headers=runner).status_code == 415
         text = c.get("/v1/metrics", headers=runner).text
-        assert 'toolrank_calls_total{kind="mcp",outcome="ok",via="client"} 1' in text
+        assert 'callbus_calls_total{kind="mcp",outcome="ok",via="client"} 1' in text
     refused, ran = [e for e in _events(tmp_path) if e["event"] == "call"]
     assert (refused["tool"], refused["outcome"], refused["tenant"]) == ("fx/add", "refused", "reader")
     assert "ran_by" not in refused  # it never ran

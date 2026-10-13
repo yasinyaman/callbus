@@ -1,27 +1,27 @@
-"""Simulated traffic for the learning loop (Faz 2 Hafta 4): does ``toolrank learn`` help?
+"""Simulated traffic for the learning loop (Faz 2 Hafta 4): does ``callbus learn`` help?
 
 A benchmark stands in for a served catalogue. ``split`` makes an ingest-shaped dir of it: every
 tool, a seeded share of the queries as the traffic to come (``traffic.jsonl``) and the rest held out
-in benchmark format (``heldout/``, what ``toolrank eval`` reads; ``heldout_new/`` is its harder
+in benchmark format (``heldout/``, what ``callbus eval`` reads; ``heldout_new/`` is its harder
 part: the queries none of whose gold tools is gold for a traffic query). ``traffic`` then answers queries
-the way ``toolrank serve`` does (the same retriever, cut rule, heads dir and usage log; the flags
+the way ``callbus serve`` does (the same retriever, cut rule, heads dir and usage log; the flags
 after ``--`` are serve's) and plays the agent: it calls the gold tools that were shown, each call
 linked to its search. A gold tool that was not shown is never called, so the log can only teach what
 the served ranking already surfaced, as in production. With ``--noise P`` the agent instead calls
 the first shown tool that is not gold, with probability P, and that call ends ``tool_error``.
 
-Run on the held-out queries after ``toolrank learn`` wrote a candidate, ``traffic`` is the A/B half:
-``--candidate-share 0.5`` sends half of the sessions to the candidate and ``toolrank ab`` reads the
+Run on the held-out queries after ``callbus learn`` wrote a candidate, ``traffic`` is the A/B half:
+``--candidate-share 0.5`` sends half of the sessions to the candidate and ``callbus ab`` reads the
 log back.
 
 uv run python scripts/learn_sim.py split --bench data/toolret --out data/sim/toolret
 uv run python scripts/learn_sim.py traffic --queries data/sim/toolret/traffic.jsonl -- \
-    --data data/sim/toolret --emb-url http://127.0.0.1:8091/v1 --cache-dir .cache/toolrank
-toolrank learn --data data/sim/toolret --cache-dir .cache/toolrank --dev data/mcp_zero_server
-toolrank eval --data data/sim/toolret/heldout --scorer clm --clm-ckpt data/sim/toolret/heads/candidate.npz ...
+    --data data/sim/toolret --emb-url http://127.0.0.1:8091/v1 --cache-dir .cache/callbus
+callbus learn --data data/sim/toolret --cache-dir .cache/callbus --dev data/mcp_zero_server
+callbus eval --data data/sim/toolret/heldout --scorer clm --clm-ckpt data/sim/toolret/heads/candidate.npz ...
 uv run python scripts/learn_sim.py traffic --queries data/sim/toolret/heldout/queries.jsonl --wait-candidate -- \
-    --data data/sim/toolret --emb-url http://127.0.0.1:8091/v1 --cache-dir .cache/toolrank --candidate-share 0.5
-toolrank ab --data data/sim/toolret --dry-run
+    --data data/sim/toolret --emb-url http://127.0.0.1:8091/v1 --cache-dir .cache/callbus --candidate-share 0.5
+callbus ab --data data/sim/toolret --dry-run
 """
 
 from __future__ import annotations
@@ -36,8 +36,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from toolrank.datasets.jsonl import load_queries, write_queries
-from toolrank.domain import Query
+from callbus.datasets.jsonl import load_queries, write_queries
+from callbus.domain import Query
 
 
 def split(bench: Path, out: Path, share: float, seed: int) -> dict[str, int]:
@@ -152,11 +152,11 @@ def main() -> None:
         print(json.dumps(split(Path(a.bench), Path(a.out), a.traffic_share, a.seed)))
         return
     if not rest:
-        sys.exit("usage: learn_sim.py traffic --queries FILE -- <toolrank serve flags>")
+        sys.exit("usage: learn_sim.py traffic --queries FILE -- <callbus serve flags>")
 
-    from toolrank.build import build_retriever
-    from toolrank.cli import _data_cache, build_parser
-    from toolrank.usage import UsageLog
+    from callbus.build import build_retriever
+    from callbus.cli import _data_cache, build_parser
+    from callbus.usage import UsageLog
 
     s = build_parser().parse_args(["serve", *rest])
     data = Path(s.data).resolve()

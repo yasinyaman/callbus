@@ -4,17 +4,33 @@ Notable changes, newest first. The format follows [Keep a Changelog](https://kee
 and versions follow [semantic versioning](https://semver.org/); before 1.0, a minor version may
 change behaviour.
 
+## [0.3.1] - 2026-10-13
+
+### Changed
+
+- **The project is now CallBus.** It was called toolrank until this release. The rename is complete
+  and there is no compatibility layer, because nothing had been announced: the package is `callbus`
+  (`pip install callbus`), the command is `callbus`, the environment variables are `CALLBUS_*`, the
+  caches live under `.cache/callbus` and `~/.cache/callbus`, the images are
+  `ghcr.io/yasinyaman/callbus` and `callbus-vllm`, the chart is `deploy/helm/callbus`, the repository
+  is `github.com/yasinyaman/callbus` and the documentation is at `yaman.dev/callbus`.
+- The served backbone and heads are renamed with it: `callbus-emb-v0.2` (and `-fp8`), the GGUF names
+  `callbus-emb-v0.2-q4_k_m` / `-q8_0`, the weights `yasinyaman/callbus-emb-8b` and
+  `yasinyaman/callbus-emb-8b-GGUF`, the heads `callbus-heads-qwen3-emb-8b-v0.1.npz`. **The embedding
+  cache is keyed by the served name, so the first run after upgrading re-embeds the catalogue once.**
+  Nothing about the weights themselves changed: same files, same numbers.
+
 ## [0.3.0] - 2026-10-13
 
 Everything below has been measured on the stack this version ships: the default backbone served the
 way the images serve it, both end to end and on the benchmarks (`docs/reports/` has the runs). Two
 parts have seen only simulated and scripted traffic and no pilot yet — the learning loop
-(`toolrank learn` / `ab`) and the confidence band (`toolrank calibrate`) — so their numbers say what
+(`callbus learn` / `ab`) and the confidence band (`callbus calibrate`) — so their numbers say what
 the mechanism does, not what your traffic will do.
 
 ### Added
 
-- `toolrank data split` divides a set's queries in two over the same tools: a selection half to
+- `callbus data split` divides a set's queries in two over the same tools: a selection half to
   pick on and a confirmation half to report. `scripts/lora_train.py --balance shape` draws the
   training pairs evenly over their tools' documentation shapes; ToolRet-train has four, and
   ToolBench's REST shapes make up 68% of it. `--fn-margin` masks the in-batch negatives a request
@@ -24,44 +40,44 @@ the mechanism does, not what your traffic will do.
   is that run's merge, bit for bit.
   `scripts/lora_train.py --cache-batch N` (GradCache) makes all N pairs of an optimizer step each
   other's negatives with the memory of one micro-batch, for one more forward pass.
-- `toolrank compare --paired` tests ToolRet's category averages too: a row per category and one for
+- `callbus compare --paired` tests ToolRet's category averages too: a row per category and one for
   `cat-macro`, each the paired permutation test on the queries weighted as those averages weigh
   them (1 / (task size × the category's task count)). Runs rows now carry each query's `task` and
   `category`; for older runs files, `--data DIR` reads them from the set's queries. `--subset DIR`
-  pairs only the queries of a dataset dir, such as one half of `toolrank data split`.
-- `toolrank.integrations.anthropic.Toolbox(inline=True)` (the example's `--inline`) sends no
+  pairs only the queries of a dataset dir, such as one half of `callbus data split`.
+- `callbus.integrations.anthropic.Toolbox(inline=True)` (the example's `--inline`) sends no
   catalogue. Under the `inline-tools-2026-09-15` beta, `tools` is `search_tools` alone, and the tools
   a search finds are added by value in a `role: "system"` message of `tool_addition` blocks, once
   per conversation. That removes the 3.7 MB of deferred definitions per request (1,862 tools) and
   the 10,000-tool limit. `prefetch=True` searches the task before the first request, so Claude can
   call a tool without a search turn. Checked against the SDK's types, not yet against the live API.
-- The LiteLLM tool filter warms known tool lists. `TOOLRANK_FILTER_WARM` (or `ToolFilter(warm=...)`)
+- The LiteLLM tool filter warms known tool lists. `CALLBUS_FILTER_WARM` (or `ToolFilter(warm=...)`)
   names the lists, in any of the three request shapes, and they are ranked once in the background
-  when the proxy starts. Their first request no longer goes unfiltered while toolrank embeds the
+  when the proxy starts. Their first request no longer goes unfiltered while callbus embeds the
   tools (120 tools: 11.5 s).
 - API key scopes: an `--api-keys` entry's `scopes` names what the key may do, among `search`,
   `call` and `feedback` (all three without it). A search-only key's MCP tool list has no `call_tool`,
   and a call it tries anyway is refused (REST 403) and logged as `refused`.
-- `POST /v1/feedback` (`ToolrankClient.feedback`): a client that runs the tools itself reports a
+- `POST /v1/feedback` (`CallBusClient.feedback`): a client that runs the tools itself reports a
   call (the tool, `ok` or `tool_error`, optionally the search and its duration). It goes to the
   usage log linked to that search, with `ran_by: client`, so `learn`, `ab` and co-use count it;
-  `toolrank_calls_total` counts it as `via="client"`.
+  `callbus_calls_total` counts it as `via="client"`.
 - Ingest checks every tool's input schema against JSON Schema 2020-12 (with `jsonschema`, which
   the `[mcp]` extra brings; by hand for the common draft-04/07 habits otherwise), and also flags
   roots that are not objects and `$ref`s that do not resolve. A failing tool is kept, counted in its
   source's line and marked (`doc["schema_problems"]`). The platform records (`/v1/tools?full=true`,
   `/v1/search`) give it `{"type": "object"}` and an `inputSchemaProblem`, since Claude's API refuses
   a whole request over one such schema.
-- `toolrank.client.AsyncToolrankClient`: the REST client's API as coroutines, each call in a
+- `callbus.client.AsyncCallBusClient`: the REST client's API as coroutines, each call in a
   worker thread, with nothing more to install.
-- `toolrank.integrations.openai.Toolbox(namespaces=True)` (and the example's `--namespaces`):
+- `callbus.integrations.openai.Toolbox(namespaces=True)` (and the example's `--namespaces`):
   the found tools load grouped by server, one Responses API `namespace` per server, each tool under
   its own name inside it. Checked against the SDK's types; not yet run against the live API.
-- `toolrank calibrate` and a `confidence` on every search. Requests that `toolrank data
+- `callbus calibrate` and a `confidence` on every search. Requests that `callbus data
   gen-queries` writes for the catalogue's own tools are ranked the way the server ranks, and their
   best scores go to `DATA/calibration.json`. A search's `confidence` is the share of those
   answerable requests that scored at or below it; it appears in the REST and MCP answers, the
-  usage log and `toolrank_search_confidence`. `search` / `serve --min-confidence Q` turns away the
+  usage log and `callbus_search_confidence`. `search` / `serve --min-confidence Q` turns away the
   requests below that share, an empty list with a note, so the share of answerable requests refused
   is chosen. `calibrate` reports how many unanswerable "twins" (each request with its tool's server
   hidden) a band catches. An entry holds for one first stage, set of heads and serving instruction;
@@ -71,36 +87,36 @@ the mechanism does, not what your traffic will do.
   from the embedding cache (the log keeps no request text) and twins measured by hiding the called
   tool's source. Prefer it once a server has run — a band only describes requests like its own, and
   generated requests score well above real traffic (`docs/guides/serve.md` has the measurement).
-- `toolrank.integrations.langchain.ToolrankToolSelector` (`[langchain]` extra): a LangChain 1.x
-  `create_agent` middleware that shows each model call only the tools toolrank finds for the last
+- `callbus.integrations.langchain.CallBusToolSelector` (`[langchain]` extra): a LangChain 1.x
+  `create_agent` middleware that shows each model call only the tools callbus finds for the last
   user message. It ranks the agent's own tools through `/v1/rank`, or, with a `Toolbox`, picks the
   catalogue's tools by a search whose calls are linked in the usage log. It keeps the tools already
   called, `tool_choice`, `always_include` and provider tools, and fails open.
-- `examples/skills/toolrank`: a skill for agents with only a shell (Claude Code skills, bash-only
+- `examples/skills/callbus`: a skill for agents with only a shell (Claude Code skills, bash-only
   harnesses). It has a short `SKILL.md` and two standard-library scripts, `search.py` and `call.py`,
   around `/v1/search` and `/v1/call`. They do not follow redirects and use exit codes that tell a
-  tool's error from toolrank's.
+  tool's error from callbus's.
 - A guide for running without a large GPU (`docs/guides/local.md`): the default backbone as GGUF in
   Ollama, at the same quality as vLLM (ToolRet NDCG@10 59.50 for Q4_K_M against 58.90), and the smaller
   Qwen3-Embedding models, measured on a 4 GB laptop GPU. `scripts/gguf_matrix.sh` runs those rows.
-- `toolrank eval --runs-out FILE` writes one row per query (the top-20 ids, P@1, hit@5, NDCG@10),
-  and `toolrank compare --paired A B` tests two such runs query by query: the exact sign test for
+- `callbus eval --runs-out FILE` writes one row per query (the top-20 ids, P@1, hit@5, NDCG@10),
+  and `callbus compare --paired A B` tests two such runs query by query: the exact sign test for
   P@1 and hit@5, a paired permutation test for NDCG@10.
-- `toolrank finetune --data-seed` seeds the train/val split apart from the training seed, and
-  `toolrank learn --data-seed` the replay sample, so the same pairs split alike across training
+- `callbus finetune --data-seed` seeds the train/val split apart from the training seed, and
+  `callbus learn --data-seed` the replay sample, so the same pairs split alike across training
   seeds. `docs/reports/TEMPLATE.md` gains a pre-registration section.
-- The frameworks guide covers Strands Agents: `toolrank serve` speaks streamable-HTTP MCP, so a
+- The frameworks guide covers Strands Agents: `callbus serve` speaks streamable-HTTP MCP, so a
   Strands agent connects with no adapter (its own environment — strands-agents pins `mcp<2.2`).
   Verified with strands-agents 1.57.2: the tool list, `search_tools`, and one MCP and one OpenAPI
   `call_tool`.
 
 ### Changed
 
-- `toolrank learn --replay-n` defaults to 10,000 instead of 1,000. A thousand general pairs mixed
+- `callbus learn --replay-n` defaults to 10,000 instead of 1,000. A thousand general pairs mixed
   into the batches changed nothing about what heads trained on one catalogue's traffic forget; ten
   thousand gave back the points a benchmark the traffic never covered had lost, with the
   catalogue's own gain intact, so `--replay` now belongs in the nightly command.
-- `toolrank ab` weighs the noise. A candidate is promoted or rolled back only when its `mrr`
+- `callbus ab` weighs the noise. A candidate is promoted or rolled back only when its `mrr`
   differs from the control's by more than one standard error of the difference (unpaired) and more
   than `--margin`. A tie within that is promoted only when the candidate hands over fewer tools:
   its mean K lower by more than K's standard error and 0.1. The table shows `mrr ± se` and K. A
@@ -115,7 +131,7 @@ the mechanism does, not what your traffic will do.
 - `search` / `serve` tidy a request (and a request's own instruction) before it is embedded,
   cached and logged: Unicode NFC, runs of spaces and tabs as one space, at most one blank line in a
   row, no surrounding whitespace. Requests that differ only in whitespace now share one cache entry
-  and one usage-log digest. `/v1/metrics` gains `toolrank_rerank_candidates_total{source}`: the
+  and one usage-log digest. `/v1/metrics` gains `callbus_rerank_candidates_total{source}`: the
   candidates the second stage scored from its cache (`cache`) and by its model (`model`), as
   cross-encoder pairs or Jev options. Eval is unchanged.
 - `search` / `serve --rerank`: a second stage that is down, slow or busy no longer holds a search
@@ -123,7 +139,7 @@ the mechanism does, not what your traffic will do.
   `--rerank-workers` calls (Jev: `--jev-workers`) are in flight at once. Waiting for a free slot
   counts against the timeout. When the second stage fails, the search answers with the first
   stage's order and a `note`, the reason goes to the server's log, and
-  `toolrank_search_rerank_failed_total` counts it; `search` prints a warning. The usage log marks
+  `callbus_search_rerank_failed_total` counts it; `search` prints a warning. The usage log marks
   such searches with `rerank: failed`. Eval keeps the patient defaults and still fails loudly. The
   score and Jev clients no longer sleep after their last attempt.
 - `/v1/rank` under `--rerank cross` scores with the first stage's cosines, as it already did under
@@ -150,7 +166,7 @@ the mechanism does, not what your traffic will do.
 
 - `examples/openai_client_tool_search.py` printed "None tools" at start since `/healthz` answers
   only `{ready, mode}`; it prints the mode.
-- `toolrank learn --replay`: the sample now covers the whole pairs file (a seeded reservoir; before,
+- `callbus learn --replay`: the sample now covers the whole pairs file (a seeded reservoir; before,
   the first `max(4N, 1000)` rows in file order stood in for it), replay rows bring their positives
   only (the mined negatives such files carry cost more than they taught in Phase 0), and pairs a
   `--dev` set asks about are dropped, as `finetune` already does. Until the simulation measures
@@ -183,7 +199,7 @@ the mechanism does, not what your traffic will do.
   again, and vLLM's scores are not bit-reproducible, so a number may move in its last digits),
   `JevScorer` never sends a one-option Choice, and the scorer names and serve's privacy line name
   the endpoint (`jev[<model>@<host>,...]`).
-- `toolrank learn` on the default (v0.2) backbone: it started from a random head, mixed the
+- `callbus learn` on the default (v0.2) backbone: it started from a random head, mixed the
   vectors of requests different models had answered, and never saw the promoted heads. Now a start
   without fitting heads is a fresh skip head (identity, so epoch 0 is the backbone's own score),
   the usage log records the serving model and `learn` uses only its requests (the rest are skipped
@@ -197,7 +213,7 @@ the mechanism does, not what your traffic will do.
 - `build.BACKBONES` knows the vLLM names of the small Qwen3-Embedding models, the GGUF names
   `scripts/gguf_matrix.sh` serves and `qwen3-emb-lora-fp8`: the packaged heads no longer count as
   fitting them.
-- `toolrank search` and `serve` take `--clm-ckpt none`: no packaged heads, whatever heads are cached.
+- `callbus search` and `serve` take `--clm-ckpt none`: no packaged heads, whatever heads are cached.
   Before, a backbone the cached heads do not fit (Qwen3-Embedding-0.6B or 4B, say) could not be
   served without deleting the heads; the width error now names the flag.
 - A running server picks up heads replaced under the same name (`learn` rewriting `candidate.npz`,
@@ -207,7 +223,7 @@ the mechanism does, not what your traffic will do.
   heads were loaded from.
 - Heads go only on the backbone their cfg names. Heads trained on Qwen3-Embedding-8B and the v0.2
   backbone have the same width, so `--clm-ckpt heads.npz` without `--emb-model` put them silently on
-  `toolrank-emb-v0.2`. `search` and `serve` now stop with the fix when the model was left to its
+  `callbus-emb-v0.2`. `search` and `serve` now stop with the fix when the model was left to its
   default (a learned `current.npz` from 0.1.x leaves an error on its variant and the base serves),
   and warn when the model was named and in `eval`. `learn`'s default start skips a promoted
   `current.npz` trained on another backbone, and `finetune --backbone` defaults to what `--emb-model`
@@ -234,8 +250,8 @@ the mechanism does, not what your traffic will do.
   before the 25,000-character cut); a spec's own `servers` can no longer send a call to a link-local or
   cloud-metadata address (a configured `base_url` still can); and a path parameter with a dot segment
   anywhere (`../admin`, which climbs once an upstream decodes the `%2F` quoting makes) is refused.
-- `/v1/metrics`: `toolrank_heads` has one series per kind of heads, counting the files answering (two
-  keys' heads gave two `toolrank_heads{arm="tenant"}` lines, which scrapers reject or drop).
+- `/v1/metrics`: `callbus_heads` has one series per kind of heads, counting the files answering (two
+  keys' heads gave two `callbus_heads{arm="tenant"}` lines, which scrapers reject or drop).
 - The usage log's key is written whole before anyone can read it (a temporary file linked into
   place), and a key shorter than 32 bytes is refused rather than used: an empty `.key` left by a cut
   write made every digest checkable by guessing. A name the agent called that is no tool is logged as
@@ -280,14 +296,14 @@ the mechanism does, not what your traffic will do.
   reaches them too.
 - `compare --paired` refuses a runs file that names a query twice (pairing by id kept one of them
   silently) and warns when the two runs are of different datasets.
-- The toolrank skill's scripts tell a server they could not reach from one that took the request and
+- The callbus skill's scripts tell a server they could not reach from one that took the request and
   sent no whole answer ("the request may have been carried out"), and no longer end in a traceback
   with exit status 1 (a tool's error) on a dropped or non-HTTP answer.
 - A connection the server drops (`RemoteDisconnected`, `ConnectionResetError`, `IncompleteRead`, which
   urllib does not wrap) is retried like any network error by the embeddings, chat, score and Jev
-  clients (one dropped keep-alive ended a long encode), and `ToolrankClient` reports it as a
-  `ToolrankError` ("connection lost before the answer"; a call is still never retried).
-- `toolrank eval` refuses a corpus with duplicate tool ids, and the metrics refuse a ranked list that
+  clients (one dropped keep-alive ended a long encode), and `CallBusClient` reports it as a
+  `CallBusError` ("connection lost before the answer"; a call is still never retried).
+- `callbus eval` refuses a corpus with duplicate tool ids, and the metrics refuse a ranked list that
   names a tool twice: such a list counted the tool twice (`['a', 'a']` with gold `{a}` gave Recall 2.0),
   where trec_eval reads a run as one score per doc. Valid runs score exactly as before.
 - `learn --replay` drops the pairs a `--dev` set asks about before it draws the sample, so the sample
@@ -295,8 +311,8 @@ the mechanism does, not what your traffic will do.
   key's Jev-served searches.
 - A `--jev-url` with `user:password@` in it no longer puts them into the scorer name (the usage log,
   result files) or the cache file's name.
-- `ToolrankToolSelector`: model calls that come while a selection is still being made wait for it
-  instead of asking toolrank again (each timed-out call had started another ranking, and with a
+- `CallBusToolSelector`: model calls that come while a selection is still being made wait for it
+  instead of asking callbus again (each timed-out call had started another ranking, and with a
   toolbox another logged search); an async timeout no longer cancels selections waiting for a worker;
   selections run in daemon threads, so one still running never holds up the interpreter's exit; and
   with a toolbox a failure shows the session's last selection rather than the whole catalogue.
@@ -305,7 +321,7 @@ the mechanism does, not what your traffic will do.
   `NumpyIndex` (and FAISS) rereads a snapshot another process replaced, and `apply` takes the rows
   the writer means to keep (`expect`) and raises `IndexChanged` when one was rewritten meanwhile, so
   `DenseScorer.index` embeds those rows again (pgvector checks the same under `SELECT … FOR UPDATE`).
-- A usage-log line no version of toolrank writes (a search without an id, a call without a tool) no
+- A usage-log line no version of callbus writes (a search without an id, a call without a tool) no
   longer stops `serve --co-use` from starting or the table from ever refreshing again (a `KeyError`
   killed the refresh thread), nor fails `learn` and `ab`: such lines are skipped (`learn` counts them
   as `searches_malformed`).
@@ -322,10 +338,10 @@ the mechanism does, not what your traffic will do.
 - pgvector: each heads variant (`current`, `candidate`, a tenant's) keeps its vectors in a table of its
   own (`<--pg-table>_<hash of the variant>`), as its numpy snapshot already did under `index/variants/`;
   before, a candidate's rows overwrote the control arm's in the one table. `eval --pg-table` defaults
-  to `toolrank_eval`, so an eval no longer deletes a served catalogue's rows, and a search skips ids a
+  to `callbus_eval`, so an eval no longer deletes a served catalogue's rows, and a search skips ids a
   shared table holds that the catalogue does not (it ended in a `KeyError`).
 - `scripts/serve_e2e.py --heads none` serves the backbone alone (`--clm-ckpt none`), as the other two
-  e2e scripts already did; it had set `TOOLRANK_HEADS` to a file named `none`.
+  e2e scripts already did; it had set `CALLBUS_HEADS` to a file named `none`.
 - `scripts/serve_e2e.py`, `platforms_e2e.py` and `frameworks_e2e.py` pass `--emb-model` (default
   `qwen3-emb`) to the server they start; since 0.2.0 the server's own default is the LoRA backbone's
   name, which port 8091 does not serve.
@@ -337,12 +353,12 @@ default backbone.
 
 ### Added
 
-- `toolrank eval --rerank jev`: TypeSafe AI's Jev reorders the top `--rerank-depth` tools of any
+- `callbus eval --rerank jev`: TypeSafe AI's Jev reorders the top `--rerank-depth` tools of any
   scorer with one Choice question per query; `--scorer jev` ranks a corpus with Jev alone (chunked
   Choice questions, the chunk winners re-ranked once). The key is read from `TYPESAFE_API_KEY`;
   answers are cached in `jev.sqlite` next to the embedding cache; `scripts/jev_compare.sh` runs the
   comparison rows.
-- `toolrank eval --rerank dense|clm|cross`: a second scorer over the first one's shortlist, with its
+- `callbus eval --rerank dense|clm|cross`: a second scorer over the first one's shortlist, with its
   own `--rerank-*` endpoint, formats, heads and text cut (`--rerank-max-chars`); `--scorer cross` and
   `--rerank cross` run a cross-encoder behind vLLM's score API (Qwen3-Reranker and
   bge-reranker-v2-gemma prompt formats, scores cached in `scores.sqlite`); compose profile `rerank`
@@ -350,31 +366,31 @@ default backbone.
 - `scripts/lora_train.py` (`[lora]` extra): LoRA fine-tuning of Qwen3-Embedding-8B on the
   fine-tuning data path, a parity check against the served vectors, the best adapter picked on a dev
   set and merged into weights that compose profile `lora` serves as `qwen3-emb-lora`.
-- `toolrank learn`: heads trained from what `toolrank serve` logged (calls that ended `ok` as
+- `callbus learn`: heads trained from what `callbus serve` logged (calls that ended `ok` as
   positives, `tool_error` as weak positives, tools shown but not called as hard negatives), with the
   requests' vectors found through the log's key and never their text; the newest requests are the
   dev set, and the heads are written only when they beat the served ones there.
-- Heads that change while serving: `toolrank serve` follows `DATA/heads` (`current.npz` replaces the
+- Heads that change while serving: `callbus serve` follows `DATA/heads` (`current.npz` replaces the
   served heads, `candidate.npz` answers a sticky `--candidate-share` of the requests, `tenants/<name>/`
-  the same per API key), and the usage log records which arm answered. `toolrank learn` writes its
-  result as the candidate and takes `--replay pairs.jsonl` against forgetting; `toolrank ab` compares
+  the same per API key), and the usage log records which arm answered. `callbus learn` writes its
+  result as the candidate and takes `--replay pairs.jsonl` against forgetting; `callbus ab` compares
   the arms on the log and promotes the candidate, sets it aside, or waits.
-- `toolrank serve --mask-pii`: with `--log-text`, e-mail addresses, phone, card and IBAN numbers are
+- `callbus serve --mask-pii`: with `--log-text`, e-mail addresses, phone, card and IBAN numbers are
   replaced by tags before the request or error text is written.
 - `--server-weight W` (`eval`, `search`, `serve`): each server is embedded as a summary of its tools
   and a tool's score gains W times the request's cosine with its server. Off by default; 0.2 lifts
   the first hit on catalogues of many servers (MCP-Zero top-1 79.9 → 81.0) and does nothing for a
   catalogue of a few huge groups.
-- `toolrank search` / `serve --co-use N`: a result gains up to N tools that the usage log shows were
+- `callbus search` / `serve --co-use N`: a result gains up to N tools that the usage log shows were
   called together with one of its tools; hits carry `used_with`, the log's search events `added`.
 - `search_tools` says so when a threshold (`--cut-threshold T --cut-min 0`) turned every tool away,
   instead of returning an empty list without a word.
 - `scripts/routing_sweep.py` and `scripts/couse_sweep.py`: the measurements behind the two options
   and the no-tool gate.
-- `toolrank search` / `serve --rerank cross | jev`: a second stage reorders the top 20 tools with the
+- `callbus search` / `serve --rerank cross | jev`: a second stage reorders the top 20 tools with the
   request (a local cross-encoder behind vLLM's score API, or TypeSafe AI's hosted Jev); the number of
   tools returned still comes from the first stage's cosines.
-- `toolrank data gen-queries`: a selection set of your own. A chat model writes one request per
+- `callbus data gen-queries`: a selection set of your own. A chat model writes one request per
   sampled tool of any catalogue (four styles; tools sampled evenly over the sources), giving a
   benchmark-format directory for `eval`, `finetune --dev` and `learn --dev` that shares no query
   with a benchmark. `scripts/lora_train.py --keep-all` keeps every evaluated adapter, so another
@@ -382,7 +398,7 @@ default backbone.
 - Tenants: an `--api-keys` entry can be `{key, sources, headers, env}`. `sources` limits the key to
   those sources' tools (search, catalogue and calls); `headers` and `env` are its own credentials
   for a source, sent only with its calls over a connection of its own. Co-use tables are per key.
-- A Helm chart (`deploy/helm/toolrank`): toolrank with its backbone as a vLLM pod, an external
+- A Helm chart (`deploy/helm/callbus`): callbus with its backbone as a vLLM pod, an external
   endpoint or the bundled image, FP8 or bf16 profiles, MCP sources ingested by an init container,
   keys and tenants from values or Secrets; `scripts/helm_smoke.py` installs it on a cluster without
   a GPU.
@@ -391,21 +407,21 @@ default backbone.
   the tokens searching saved over loading the whole catalogue).
 - `scripts/learn_sim.py` and `scripts/learn_sim.sh`: the learning loop measured on simulated traffic.
   A benchmark is served as a catalogue, a share of its queries is logged by an agent that calls the
-  gold tools it is shown, `toolrank learn` trains on that log and the queries never served are the
+  gold tools it is shown, `callbus learn` trains on that log and the queries never served are the
   test; the learn guide's "What to expect" carries the numbers.
 
 ### Changed
 
 - The default backbone is Qwen3-Embedding-8B with a LoRA trained on ToolRet's training pairs
-  (`yasinyaman/toolrank-emb-8b` at `v0.2`, served as `toolrank-emb-v0.2`, `-fp8` in FP8): ToolRet
+  (`yasinyaman/callbus-emb-8b` at `v0.2`, served as `callbus-emb-v0.2`, `-fp8` in FP8): ToolRet
   NDCG@10 58.90 against 54.03 for the base model with heads, in one stage and without heads. On an API
   catalogue of our own it gains on tasks that need several tools and ties with the base model on
   requests for one tool (see its model card). The
   packaged heads are applied only on the base model they were trained on (`qwen3-emb`,
-  `qwen3-emb-fp8`; `TOOLRANK_HEADS` still forces them); `toolrank learn` starts from no heads on the
-  new backbone. Docker, compose and the Helm chart serve it by default; `TOOLRANK_BACKBONE` /
+  `qwen3-emb-fp8`; `CALLBUS_HEADS` still forces them); `callbus learn` starts from no heads on the
+  new backbone. Docker, compose and the Helm chart serve it by default; `CALLBUS_BACKBONE` /
   `embedding.backbone` select the base model again.
-- The documentation lives at <https://yaman.dev/toolrank/> (the old address redirects there).
+- The documentation lives at <https://yaman.dev/callbus/> (the old address redirects there).
 
 ### Fixed
 
@@ -420,21 +436,21 @@ The first public release.
 
 ### Added
 
-- `toolrank ingest mcp | openapi | drop`: MCP servers (stdio and streamable HTTP) and OpenAPI 3.x
+- `callbus ingest mcp | openapi | drop`: MCP servers (stdio and streamable HTTP) and OpenAPI 3.x
   specs into an ingest directory; a re-run syncs only what changed and embeds only new or changed
   tools.
-- `toolrank search`: Qwen3-Embedding-8B with the packaged heads, adaptive K, and a persistent
+- `callbus search`: Qwen3-Embedding-8B with the packaged heads, adaptive K, and a persistent
   vector index (numpy, FAISS HNSW or pgvector).
-- `toolrank serve`: an MCP proxy with two tools, `search_tools` and `call_tool`, in front of every
+- `callbus serve`: an MCP proxy with two tools, `search_tools` and `call_tool`, in front of every
   ingested tool; a REST API (`/v1/search`, `/v1/rank`, `/v1/call`, `/v1/tools`); API keys; a usage
   log that ties each call to the search that found the tool.
 - Tool search for Claude's Messages API (`tool_reference`) and OpenAI's Responses API (client-side
   `tool_search`).
 - Framework adapters: LangGraph (langgraph-bigtool retrieval), LlamaIndex (a tool retriever) and
   the LiteLLM proxy (a tool filter).
-- `toolrank finetune`: heads trained on your own request-to-tool pairs, the epoch picked on a
+- `callbus finetune`: heads trained on your own request-to-tool pairs, the epoch picked on a
   dev set.
-- `toolrank eval` and `toolrank compare`: ToolRet, LiveMCPBench and MCP-Zero under ToolRet's
+- `callbus eval` and `callbus compare`: ToolRet, LiveMCPBench and MCP-Zero under ToolRet's
   protocol.
-- `toolrank heads pull`; the `toolrank` Docker image (amd64, arm64), a Dockerfile that bundles vLLM,
+- `callbus heads pull`; the `callbus` Docker image (amd64, arm64), a Dockerfile that bundles vLLM,
   and compose examples for both.

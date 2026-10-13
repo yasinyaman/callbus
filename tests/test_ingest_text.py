@@ -1,6 +1,6 @@
 import json
 
-from toolrank.ingest.text import fit_text, tool_text
+from callbus.ingest.text import fit_text, tool_text
 
 
 def test_tool_text_is_the_faz0_ablation_shape():

@@ -16,14 +16,14 @@ Kalibrasyon ölçeği kendi istek dağılımı içinde doğru taşıyor (MCP-Zer
 yarının %5,3'ünü geri çeviriyor, kural ≤ %7) ama dağılımlar arasında taşımıyor: model yazımı isteklerden
 kurulan band LiveMCPBench'in insan yazımı 94 görevinin **%54,3'ünü** geri çeviriyor (`--styles situation` ile
 %21,3), yani **kabul ölçütü gerçek testte tutmadı** ve `--min-confidence` varsayılansız kalıyor; sıradaki
-yol kalibrasyonu kurulumun kendi günlüğünden kurmak (`toolrank calibrate --from-log`, bu oturumda yazıldı).
+yol kalibrasyonu kurulumun kendi günlüğünden kurmak (`callbus calibrate --from-log`, bu oturumda yazıldı).
 İkinci aşamanın kapıyı kurması da (D2.1) kuralı geçmedi: MCP-Zero'da çok iyi (reranker AUROC 0,976, kosinüs
 0,944) ama LiveMCPBench'te hiç (0,760 / 0,772), yani kapı kataloğa bağlı ve `--cut-threshold` varsayılansız
 kalıyor.
 
 ## 1. MCP-Zero: aynı katalog, görülmemiş istekler
 
-`toolrank data split data/mcp_zero_server` ile istekler iki eşit yarıya ayrıldı (seed 0, aynı tool'lar): a
+`callbus data split data/mcp_zero_server` ile istekler iki eşit yarıya ayrıldı (seed 0, aynı tool'lar): a
 kalibrasyon, b doğrulama. İlk aşama `v0.2` bf16 (8097, head'siz), servis talimatı, `documentation` +
 `instruct_query`.
 
@@ -73,7 +73,7 @@ Kural ≤ %7 istiyordu; en iyi kol %21,3'te kaldı, yani **D2.14'ün kabulü Liv
   birlikte.
 - **Sıradaki öneri:** kalibrasyonu kurulumun kendi trafiğinden kurmak. Kullanım günlüğü istek metnini tutmuyor
   ama vektörünü embedding cache'inden geri getirebiliyoruz (`learn.state_vectors` bunu zaten yapıyor), yani
-  `toolrank calibrate --from-log` gerçek isteklerin dağılımını ölçebilir. Üretilmiş istekler o zaman yalnız
+  `callbus calibrate --from-log` gerçek isteklerin dağılımını ölçebilir. Üretilmiş istekler o zaman yalnız
   soğuk başlangıç için kalır — ve bandın anlamı kurulumun kendi trafiğine bağlanır.
 
 ## 3. D2.1: ikinci aşama "tool yok"u daha iyi görüyor mu? — kataloğa bağlı
@@ -113,10 +113,10 @@ Yine de iki şey öğrenildi:
 ## Komutlar
 
 ```bash
-# GB10, ~/toolrank; v0.2 bf16 on 8097, vectors from the embedding cache
+# GB10, ~/callbus; v0.2 bf16 on 8097, vectors from the embedding cache
 FLAGS="--emb-url http://127.0.0.1:8097/v1 --emb-model qwen3-emb-lora --truncate 8192 --tool-format documentation"
-uv run toolrank data split data/mcp_zero_server --out-a data/mz_calib_a --out-b data/mz_calib_b
-uv run toolrank calibrate --data data/mcp_zero_server --requests data/mz_calib_a $FLAGS   # --dry-run to look first
+uv run callbus data split data/mcp_zero_server --out-a data/mz_calib_a --out-b data/mz_calib_b
+uv run callbus calibrate --data data/mcp_zero_server --requests data/mz_calib_a $FLAGS   # --dry-run to look first
 uv run python scripts/confidence_accept.py --check data/mz_calib_b --out results/confaccept_mcpzero_b.json -- \
   --data data/mcp_zero_server --scorer dense $FLAGS --query-format instruct_query --with-inst
 
@@ -127,14 +127,14 @@ uv run python scripts/gate_second_stage.py --rerank-url http://127.0.0.1:8095/v1
 # ... and --data data/livemcpbench_server (94 tasks, no --limit) into results/gate_livemcp.json
 
 # a calibration from the traffic a server answered, instead of generated requests (this session)
-uv run toolrank calibrate --data data/mytools --from-log [--since 2026-10-01] [--tenant NAME] $FLAGS
+uv run callbus calibrate --data data/mytools --from-log [--since 2026-10-01] [--tenant NAME] $FLAGS
 
 # the LiveMCPBench arms (data/d214_chain.sh and data/d214_styles.sh, untracked): the chat model up and down
 docker compose -f deploy/spark/compose.yaml --profile gen up -d qwen3-8b-chat   # 8093
-uv run toolrank data gen-queries --data data/livemcpbench_server --out data/calib_livemcp --n 200 \
+uv run callbus data gen-queries --data data/livemcpbench_server --out data/calib_livemcp --n 200 \
   --exclude data/livemcpbench_server --gen-workers 32        # and --styles situation / --tools-per-request 2
 docker compose -f deploy/spark/compose.yaml --profile gen stop qwen3-8b-chat
-uv run toolrank calibrate --data data/livemcpbench_server --requests data/calib_livemcp $FLAGS
+uv run callbus calibrate --data data/livemcpbench_server --requests data/calib_livemcp $FLAGS
 uv run python scripts/confidence_accept.py --check data/livemcpbench_server \
   --out results/confaccept_livemcp.json -- --data data/livemcpbench_server --scorer dense $FLAGS \
   --query-format instruct_query --with-inst

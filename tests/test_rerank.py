@@ -11,14 +11,14 @@ import threading
 import numpy as np
 import pytest
 
+from callbus.adapters.dense import DenseScorer
+from callbus.adapters.rerank import ScorerReranker, Slots, pool_map
+from callbus.build import rerank_args
+from callbus.cli import main
+from callbus.domain import Query, RankedList, Tool
+from callbus.formats import TOOL_FORMATS
+from callbus.ports import cache_scope, rerank_failures
 from test_bm25_runner import _ToyEncoder
-from toolrank.adapters.dense import DenseScorer
-from toolrank.adapters.rerank import ScorerReranker, Slots, pool_map
-from toolrank.build import rerank_args
-from toolrank.cli import main
-from toolrank.domain import Query, RankedList, Tool
-from toolrank.formats import TOOL_FORMATS
-from toolrank.ports import cache_scope, rerank_failures
 
 
 class _Fixed:
@@ -167,7 +167,7 @@ def test_rerank_args_take_the_rerank_flags_over_the_main_ones():
 
 
 def test_eval_cli_reranks_bm25_with_a_dense_scorer_and_records_it(tmp_path, monkeypatch):
-    from toolrank.adapters.embeddings_api import OpenAIEmbeddings
+    from callbus.adapters.embeddings_api import OpenAIEmbeddings
 
     def fake_post(self, texts, **kw):
         enc = _ToyEncoder().encode(texts)
@@ -210,9 +210,9 @@ def test_rank_pairs_leaves_no_shared_state_and_returns_the_first_stages_cosines(
 
 
 def test_a_served_search_cuts_on_first_stage_cosines_and_shows_the_reranked_order(tmp_path):
-    from toolrank.cut import AdaptiveK
-    from toolrank.datasets.jsonl import write_tools
-    from toolrank.retriever import Retriever
+    from callbus.cut import AdaptiveK
+    from callbus.datasets.jsonl import write_tools
+    from callbus.retriever import Retriever
 
     write_tools(tmp_path / "tools.jsonl", _tools())
     # first stage: weather first; within 0.15 of it are three tools; the second stage prefers e-mail
@@ -230,7 +230,7 @@ def test_a_served_search_cuts_on_first_stage_cosines_and_shows_the_reranked_orde
 
 
 def test_search_and_serve_check_the_second_stage_flags(tmp_path, monkeypatch):
-    from toolrank.datasets.jsonl import write_tools
+    from callbus.datasets.jsonl import write_tools
 
     write_tools(tmp_path / "d" / "tools.jsonl", _tools())
     base = ["search", "email", "--data", str(tmp_path / "d"), "--cache-dir", str(tmp_path / "c")]
@@ -246,7 +246,7 @@ def test_search_and_serve_check_the_second_stage_flags(tmp_path, monkeypatch):
 
 
 def test_search_and_serve_keep_the_second_stage_on_a_short_leash():
-    from toolrank.build import second_limits
+    from callbus.build import second_limits
 
     a = argparse.Namespace(rerank="cross", rerank_timeout=10.0, rerank_workers=2, jev_workers=8)
     assert second_limits(a) == {"timeout": 10.0, "max_retries": 2, "slots": 2}
@@ -259,10 +259,10 @@ def test_search_and_serve_keep_the_second_stage_on_a_short_leash():
 def test_search_reranks_with_a_cross_encoder_end_to_end(tmp_path, monkeypatch, capsys):
     import hashlib
 
+    from callbus.adapters.cross_encoder import ScoreClient
+    from callbus.adapters.embeddings_api import OpenAIEmbeddings
+    from callbus.datasets.jsonl import write_tools
     from test_cross_encoder import _overlap_post
-    from toolrank.adapters.cross_encoder import ScoreClient
-    from toolrank.adapters.embeddings_api import OpenAIEmbeddings
-    from toolrank.datasets.jsonl import write_tools
 
     def fake_post(self, texts, **kw):
         rows = [
@@ -274,8 +274,8 @@ def test_search_reranks_with_a_cross_encoder_end_to_end(tmp_path, monkeypatch, c
     monkeypatch.setattr(OpenAIEmbeddings, "_post", fake_post)
     monkeypatch.setattr(ScoreClient, "_post", _overlap_post)
     monkeypatch.setattr(ScoreClient, "posted", [], raising=False)
-    monkeypatch.delenv("TOOLRANK_HEADS", raising=False)
-    monkeypatch.setenv("TOOLRANK_CACHE", str(tmp_path / "no-heads"))
+    monkeypatch.delenv("CALLBUS_HEADS", raising=False)
+    monkeypatch.setenv("CALLBUS_CACHE", str(tmp_path / "no-heads"))
     write_tools(tmp_path / "d" / "tools.jsonl", _tools())
     args = [
         "search",
@@ -305,8 +305,8 @@ def test_search_reranks_with_a_cross_encoder_end_to_end(tmp_path, monkeypatch, c
     assert [t["id"] for t in json.loads(got.out)["tools"]] == plain  # the first stage's order
     assert "warning: second stage failed, first-stage order: RuntimeError: score endpoint" in got.err
 
-    from toolrank.build import build_retriever
-    from toolrank.cli import build_parser
+    from callbus.build import build_retriever
+    from callbus.cli import build_parser
 
     a = build_parser().parse_args([*args, "--rerank", "cross", "--rerank-emb-url", "http://reranker/v1"])
     second = build_retriever(a).second  # what /v1/metrics reads, on the leash search and serve give it
@@ -320,10 +320,10 @@ def test_search_reranks_with_a_cross_encoder_end_to_end(tmp_path, monkeypatch, c
 def test_search_reranks_with_jev_end_to_end(tmp_path, monkeypatch, capsys):
     import hashlib
 
+    from callbus.adapters.embeddings_api import OpenAIEmbeddings
+    from callbus.adapters.jev import JevClient
+    from callbus.datasets.jsonl import write_tools
     from test_jev import _overlap_post as jev_post
-    from toolrank.adapters.embeddings_api import OpenAIEmbeddings
-    from toolrank.adapters.jev import JevClient
-    from toolrank.datasets.jsonl import write_tools
 
     def fake_post(self, texts, **kw):
         rows = [
@@ -337,8 +337,8 @@ def test_search_reranks_with_jev_end_to_end(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(JevClient, "posted", [], raising=False)
     monkeypatch.setattr(JevClient, "answered", [], raising=False)
     monkeypatch.setenv("TYPESAFE_API_KEY", "test-key")
-    monkeypatch.delenv("TOOLRANK_HEADS", raising=False)
-    monkeypatch.setenv("TOOLRANK_CACHE", str(tmp_path / "no-heads"))
+    monkeypatch.delenv("CALLBUS_HEADS", raising=False)
+    monkeypatch.setenv("CALLBUS_CACHE", str(tmp_path / "no-heads"))
     write_tools(tmp_path / "d" / "tools.jsonl", _tools())
     args = [
         "search",

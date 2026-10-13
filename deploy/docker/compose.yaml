@@ -1,26 +1,26 @@
-# toolrank and its embedding backbone on one GPU host: vLLM serves toolrank's LoRA-trained
-# Qwen3-Embedding-8B (yasinyaman/toolrank-emb-8b at v0.2; no heads needed on it), toolrank serves
+# callbus and its embedding backbone on one GPU host: vLLM serves callbus's LoRA-trained
+# Qwen3-Embedding-8B (yasinyaman/callbus-emb-8b at v0.2; no heads needed on it), callbus serves
 # your tools in front of it on 127.0.0.1:8765 (MCP at /mcp, REST at /v1). From this directory:
 #
-#   cp .env.example .env                  # set TOOLRANK_API_KEY
-#   docker compose run --rm toolrank ingest mcp --config /config/toolrank.json --out /data
+#   cp .env.example .env                  # set CALLBUS_API_KEY
+#   docker compose run --rm callbus ingest mcp --config /config/callbus.json --out /data
 #   docker compose up -d
 #
-# List your MCP servers in toolrank.json (OpenAPI specs: `ingest openapi SPEC --name NAME --out /data`)
+# List your MCP servers in callbus.json (OpenAPI specs: `ingest openapi SPEC --name NAME --out /data`)
 # and re-run the ingest line after a change: the running server picks the new catalogue up.
 # compose.bundle.yaml runs both in one container instead.
-name: toolrank-stack
+name: callbus-stack
 
 services:
   embedding:
     image: vllm/vllm-openai:v0.30.0
     # FP8 weights, quantized at load: within a point of bf16 in our runs, half the memory. For bf16,
-    # drop --quantization and serve as toolrank-emb-v0.2 (and set TOOLRANK_EMB_MODEL to match). For
+    # drop --quantization and serve as callbus-emb-v0.2 (and set CALLBUS_EMB_MODEL to match). For
     # the base model with the packaged heads: Qwen/Qwen3-Embedding-8B, no --revision, qwen3-emb-fp8.
     command:
-      - yasinyaman/toolrank-emb-8b
+      - yasinyaman/callbus-emb-8b
       - --revision=v0.2
-      - --served-model-name=toolrank-emb-v0.2-fp8
+      - --served-model-name=callbus-emb-v0.2-fp8
       - --quantization=fp8
       - --runner=pooling
       - --max-model-len=8192
@@ -46,23 +46,23 @@ services:
       start_interval: 10s
     restart: unless-stopped
 
-  toolrank:
-    image: ghcr.io/yasinyaman/toolrank:${TOOLRANK_VERSION:-latest}
+  callbus:
+    image: ghcr.io/yasinyaman/callbus:${CALLBUS_VERSION:-latest}
     build:
       context: ../..
       dockerfile: deploy/docker/Dockerfile
     environment:
-      TOOLRANK_API_KEY: ${TOOLRANK_API_KEY:?set TOOLRANK_API_KEY in .env}
-      TOOLRANK_EMB_URL: http://embedding:8000/v1
-      TOOLRANK_EMB_MODEL: toolrank-emb-v0.2-fp8
-      TOOLRANK_ALLOWED_HOSTS: toolrank
+      CALLBUS_API_KEY: ${CALLBUS_API_KEY:?set CALLBUS_API_KEY in .env}
+      CALLBUS_EMB_URL: http://embedding:8000/v1
+      CALLBUS_EMB_MODEL: callbus-emb-v0.2-fp8
+      CALLBUS_ALLOWED_HOSTS: callbus
     volumes:
       - data:/data
-      - home:/home/toolrank # uvx and npx caches, so stdio servers start without a download
-      - ./toolrank.json:/config/toolrank.json:ro
-    command: [serve, --data, /data, --config, /config/toolrank.json, --host, 0.0.0.0]
+      - home:/home/callbus # uvx and npx caches, so stdio servers start without a download
+      - ./callbus.json:/config/callbus.json:ro
+    command: [serve, --data, /data, --config, /config/callbus.json, --host, 0.0.0.0]
     ports:
-      - "127.0.0.1:${TOOLRANK_PORT:-8765}:8765"
+      - "127.0.0.1:${CALLBUS_PORT:-8765}:8765"
     depends_on:
       embedding:
         condition: service_healthy

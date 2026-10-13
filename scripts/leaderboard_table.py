@@ -1,13 +1,13 @@
-"""Rows for the ToolRet leaderboard, from ``toolrank eval`` reports on the whole of ToolRet.
+"""Rows for the ToolRet leaderboard, from ``callbus eval`` reports on the whole of ToolRet.
 
 The leaderboard (the Hugging Face Space ``mangopy/ToolRet-leaderboard``) keeps one sheet per setting
 and type: "w/ meta w/ inst" and "w/ meta w/o inst" (w/ meta = the full tool documentation, the
 ``documentation`` format), and Avg (the mean of the three categories), Code, API (the web category)
 and Customized. Results are submitted as an issue on ``mangopy/tool-retrieval-benchmark``. Each
-report is checked against the protocol first (``toolrank.eval.table``).
+report is checked against the protocol first (``callbus.eval.table``).
 
     uv run python scripts/leaderboard_table.py \\
-      --row "toolrank heads v0.1 + Qwen3-Embedding-8B" docs/results/readme_toolret_heads.json \\
+      --row "callbus heads v0.1 + Qwen3-Embedding-8B" docs/results/readme_toolret_heads.json \\
             docs/results/readme_toolret_heads_noinst.json "7.6B + 29.9M" "embedding model" \\
       --row "Qwen/Qwen3-Embedding-8B" docs/results/readme_toolret_qwen3emb.json \\
             docs/results/readme_toolret_qwen3emb_noinst.json 7.6B "embedding model" [--latex]
@@ -20,7 +20,7 @@ import json
 import sys
 from pathlib import Path
 
-from toolrank.eval.table import LeaderboardRow, TableError, leaderboard, leaderboard_latex
+from callbus.eval.table import LeaderboardRow, TableError, leaderboard, leaderboard_latex
 
 
 def main() -> None:

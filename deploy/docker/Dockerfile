@@ -1,11 +1,11 @@
 # syntax=docker/dockerfile:1
-# toolrank without a model: the MCP proxy and REST API (`toolrank serve`) and ingestion, talking to
+# callbus without a model: the MCP proxy and REST API (`callbus serve`) and ingestion, talking to
 # any OpenAI-compatible endpoint that serves Qwen3-Embedding-8B (compose.yaml pairs it with vLLM).
 # Node.js and uv come along, so MCP servers started with npx or uvx run inside the container.
 #
 # From the repo root; `--build-context heads=DIR` bakes in the released heads found in DIR
-# (toolrank-heads-*.npz; without it the image serves the backbone alone until `toolrank heads pull`):
-#   docker build -f deploy/docker/Dockerfile --build-context heads=dist/heads -t toolrank .
+# (callbus-heads-*.npz; without it the image serves the backbone alone until `callbus heads pull`):
+#   docker build -f deploy/docker/Dockerfile --build-context heads=dist/heads -t callbus .
 
 # The base images, each named once by tag and digest: a tag can be moved to other content, a digest
 # cannot. They sit on FROM lines because Dependabot reads nothing else (it moves tag and digest).
@@ -30,7 +30,7 @@ FROM base AS released-heads
 # a bind mount, not COPY: BuildKit hands a cached COPY from the empty stage to a build with the
 # heads context and the other way round; a bind mount's cache follows what is mounted
 RUN --mount=type=bind,from=heads,target=/context \
-    mkdir /heads && find /context -maxdepth 1 -name 'toolrank-heads-*.npz' -exec cp {} /heads/ \;
+    mkdir /heads && find /context -maxdepth 1 -name 'callbus-heads-*.npz' -exec cp {} /heads/ \;
 
 FROM base AS build
 COPY --from=uv /uv /usr/local/bin/uv
@@ -39,13 +39,13 @@ WORKDIR /src
 COPY pyproject.toml uv.lock README.md LICENSE NOTICE ./
 COPY src ./src
 # the versions locked in uv.lock (the ones THIRD_PARTY_NOTICES.md lists), each checked against the
-# lock's hashes, then toolrank itself;
+# lock's hashes, then callbus itself;
 # compiled here, since the non-root user cannot write __pycache__ next to them
 RUN uv export --frozen --no-emit-project --no-default-groups --extra mcp --extra openapi --extra stem -o /requirements.txt \
     && uv build --wheel -o /wheels \
-    && uv venv --python /usr/local/bin/python3 /opt/toolrank/venv \
-    && uv pip install --python /opt/toolrank/venv/bin/python --compile-bytecode --require-hashes -r /requirements.txt \
-    && uv pip install --python /opt/toolrank/venv/bin/python --compile-bytecode --no-deps /wheels/toolrank-*.whl
+    && uv venv --python /usr/local/bin/python3 /opt/callbus/venv \
+    && uv pip install --python /opt/callbus/venv/bin/python --compile-bytecode --require-hashes -r /requirements.txt \
+    && uv pip install --python /opt/callbus/venv/bin/python --compile-bytecode --no-deps /wheels/callbus-*.whl
 
 FROM base
 RUN apt-get update && apt-get install -y --no-install-recommends tini && rm -rf /var/lib/apt/lists/*
@@ -54,20 +54,20 @@ COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
 RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
-    && useradd --create-home --uid 1000 toolrank \
-    && mkdir -p /data /opt/toolrank/heads \
-    && chown toolrank /data /opt/toolrank /opt/toolrank/heads
-COPY --from=build /opt/toolrank/venv /opt/toolrank/venv
-COPY --from=released-heads --chown=toolrank /heads/ /opt/toolrank/heads/
-COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md /usr/share/doc/toolrank/
+    && useradd --create-home --uid 1000 callbus \
+    && mkdir -p /data /opt/callbus/heads \
+    && chown callbus /data /opt/callbus /opt/callbus/heads
+COPY --from=build /opt/callbus/venv /opt/callbus/venv
+COPY --from=released-heads --chown=callbus /heads/ /opt/callbus/heads/
+COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md /usr/share/doc/callbus/
 
-# TOOLRANK_CACHE: the heads' home (baked in, or `toolrank heads pull`); the data dir keeps the
-# catalogue, embedding cache, index and usage log. Set TOOLRANK_API_KEY and TOOLRANK_EMB_URL, and
-# TOOLRANK_ALLOWED_HOSTS for names other than localhost (a compose service, a proxy's host).
-ENV PATH=/opt/toolrank/venv/bin:$PATH \
-    TOOLRANK_CACHE=/opt/toolrank \
+# CALLBUS_CACHE: the heads' home (baked in, or `callbus heads pull`); the data dir keeps the
+# catalogue, embedding cache, index and usage log. Set CALLBUS_API_KEY and CALLBUS_EMB_URL, and
+# CALLBUS_ALLOWED_HOSTS for names other than localhost (a compose service, a proxy's host).
+ENV PATH=/opt/callbus/venv/bin:$PATH \
+    CALLBUS_CACHE=/opt/callbus \
     PYTHONUNBUFFERED=1
-USER toolrank
+USER callbus
 WORKDIR /data
 VOLUME /data
 EXPOSE 8765
@@ -75,5 +75,5 @@ EXPOSE 8765
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15m --start-interval=5s --retries=3 \
     CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/healthz', timeout=4)"]
 # tini reaps what stdio MCP servers (npx, uvx) leave behind
-ENTRYPOINT ["tini", "--", "toolrank"]
+ENTRYPOINT ["tini", "--", "callbus"]
 CMD ["serve", "--data", "/data", "--host", "0.0.0.0"]

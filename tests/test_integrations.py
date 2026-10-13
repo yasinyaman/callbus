@@ -1,5 +1,5 @@
 """The platform integrations against the vendors' real SDKs, whose HTTP goes to scripted answers,
-and a real toolrank (the served app in process, the stdio fixture MCP server behind it)."""
+and a real callbus (the served app in process, the stdio fixture MCP server behind it)."""
 
 import json
 
@@ -12,11 +12,11 @@ openai = pytest.importorskip("openai")
 import httpx2  # noqa: E402
 from pydantic import TypeAdapter  # noqa: E402
 
-from test_client import _toolrank  # noqa: E402
+from callbus.integrations import anthropic as claude  # noqa: E402
+from callbus.integrations import openai as gpt  # noqa: E402
+from callbus.integrations._common import read_only  # noqa: E402
+from test_client import _callbus  # noqa: E402
 from test_rest import _events  # noqa: E402
-from toolrank.integrations import anthropic as claude  # noqa: E402
-from toolrank.integrations import openai as gpt  # noqa: E402
-from toolrank.integrations._common import read_only  # noqa: E402
 
 
 class _Script:
@@ -58,7 +58,7 @@ def _calls(tmp_path):
     return [e for e in _events(tmp_path) if e["event"] == "call"]
 
 
-def test_claude_searches_gets_references_and_calls_through_toolrank(tmp_path):
+def test_claude_searches_gets_references_and_calls_through_callbus(tmp_path):
     script = _Script(
         _message(
             "tool_use",
@@ -69,7 +69,7 @@ def test_claude_searches_gets_references_and_calls_through_toolrank(tmp_path):
         _message("end_turn", {"type": "text", "text": "2 + 3 = 5"}),
     )
     events = []
-    with _toolrank(tmp_path) as tr:
+    with _callbus(tmp_path) as tr:
         box = claude.Toolbox(tr, on_event=lambda kind, details: events.append(kind))
         result = claude.run(_claude(script), box, "What is 2 + 3?", model="claude-test")
     assert (result.text, result.stop_reason, result.turns) == ("2 + 3 = 5", "end_turn", 3)
@@ -109,7 +109,7 @@ def test_claude_inline_sends_no_catalogue_and_adds_the_found_tools_by_value(tmp_
         _message("tool_use", _tool_use("tu_3", "search_tools", {"query": "add numbers", "limit": 3})),
         _message("end_turn", {"type": "text", "text": "5"}),
     )
-    with _toolrank(tmp_path) as tr:
+    with _callbus(tmp_path) as tr:
         box = claude.Toolbox(tr, inline=True)
         result = claude.run(_claude(script), box, "What is 2 + 3?", model="claude-test")
     assert result.text == "5" and result.turns == 4
@@ -139,7 +139,7 @@ def test_claude_prefetch_adds_the_tasks_tools_before_the_first_turn(tmp_path):
         _message("tool_use", _tool_use("tu_1", "fx__add", {"a": 2, "b": 3})),
         _message("end_turn", {"type": "text", "text": "5"}),
     )
-    with _toolrank(tmp_path) as tr:
+    with _callbus(tmp_path) as tr:
         result = claude.run(
             _claude(script), claude.Toolbox(tr, inline=True, prefetch=True), "2 + 3?", model="m"
         )
@@ -159,7 +159,7 @@ def test_nothing_runs_after_max_tokens_and_pause_turn_is_sent_back(tmp_path):
         _message("pause_turn", {"type": "text", "text": "Still working."}),
         _message("max_tokens", _tool_use("tu_1", "fx__add", {"a": 1})),  # its input may be cut off
     )
-    with _toolrank(tmp_path) as tr:
+    with _callbus(tmp_path) as tr:
         result = claude.run(_claude(script), tr, "Add 1 and 2.", model="claude-test")
     assert (result.stop_reason, result.turns) == ("max_tokens", 2)
     assert [m["role"] for m in script.sent[1]["messages"]] == ["user", "assistant"]  # no new user message
@@ -176,7 +176,7 @@ def test_declined_and_unknown_calls_are_errors_claude_reads(tmp_path):
         ),
         _message("end_turn", {"type": "text", "text": "Done."}),
     )
-    with _toolrank(tmp_path) as tr:
+    with _callbus(tmp_path) as tr:
         box = claude.Toolbox(tr, approve=lambda entry, arguments: read_only(entry))
         claude.run(_claude(script), box, "Make a thing, then show thing 7.", model="claude-test")
     results = script.sent[1]["messages"][-1]["content"]
@@ -190,7 +190,7 @@ def test_declined_and_unknown_calls_are_errors_claude_reads(tmp_path):
 
 
 def test_builtin_bm25_search_is_reported_and_blocks_are_what_the_api_takes(tmp_path):
-    with _toolrank(tmp_path) as tr:
+    with _callbus(tmp_path) as tr:
         box = claude.Toolbox(tr, builtin="bm25")
     assert box.tools[0] == {"type": "tool_search_tool_bm25_20251119", "name": "tool_search_tool_bm25"}
     seen = []
@@ -281,7 +281,7 @@ def _gpt(script):
     )
 
 
-def test_gpt_searches_loads_tools_and_calls_through_toolrank(tmp_path):
+def test_gpt_searches_loads_tools_and_calls_through_callbus(tmp_path):
     reasoning = {"type": "reasoning", "id": "rs_1", "summary": [], "encrypted_content": "opaque"}
     script = _Script(
         _response("completed", reasoning, _search_call("call_s1", "add two integers")),
@@ -290,7 +290,7 @@ def test_gpt_searches_loads_tools_and_calls_through_toolrank(tmp_path):
         _response("completed", _said("2 + 3 = 5")),
     )
     events = []
-    with _toolrank(tmp_path) as tr:
+    with _callbus(tmp_path) as tr:
         box = gpt.Toolbox(tr, on_event=lambda kind, details: events.append(kind))
         result = gpt.run(_gpt(script), box, "What is 2 + 3?", model="gpt-test")
     assert (result.text, result.status, result.turns) == ("2 + 3 = 5", "completed", 4)
@@ -331,7 +331,7 @@ def test_gpt_gets_the_found_tools_in_one_namespace_per_server(tmp_path):
         _response("completed", _function_call("call_f2", "fx__add", "{}")),  # the flat name is not loaded
         _response("completed", _said("5")),
     )
-    with _toolrank(tmp_path) as tr:
+    with _callbus(tmp_path) as tr:
         result = gpt.run(_gpt(script), gpt.Toolbox(tr, namespaces=True), "What is 2 + 3?", model="gpt-test")
     assert result.text == "5"
     output = script.sent[1]["input"][-1]
@@ -386,7 +386,7 @@ def test_gpt_bad_calls_are_outputs_and_incomplete_runs_nothing(tmp_path):
         ),
         _response("incomplete", _function_call("call_4", "api__getThing", '{"id": 7}')),
     )
-    with _toolrank(tmp_path) as tr:
+    with _callbus(tmp_path) as tr:
         box = gpt.Toolbox(tr, approve=lambda entry, arguments: read_only(entry))
         result = gpt.run(_gpt(script), box, "Make a thing.", model="gpt-test")
     assert (result.status, result.turns) == ("incomplete", 3)

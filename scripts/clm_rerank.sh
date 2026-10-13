@@ -3,18 +3,18 @@
 # CLM_v0.1-8B (Qwen3-8B pooling on 8090, example_call text, the `clm` query format: the setting of
 # Faz 0's best CLM row) and by Faz 0's fine-tuned CLM heads; BM25's top 30 the same way. Local, free,
 # and all cache hits once the Faz 0 matrix has run. Restartable: a run whose results file exists is
-# skipped. On the GB10, from ~/toolrank, 8090 and 8091 up:
+# skipped. On the GB10, from ~/callbus, 8090 and 8091 up:
 #
 #   PYTHONUNBUFFERED=1 nohup bash scripts/clm_rerank.sh > data/logs/clm_rerank.log 2>&1 &
 #   # the cut text (name_desc cut to 1000; the top 20 with documentation cut to 3000):
 #   CLM_FORMAT=name_desc CLM_MAX_CHARS=1000 ROWS="heads_clm100 heads_clm20doc bm25_clm30" TAG=clmj \
 #     bash scripts/clm_rerank.sh
-#   # then, on the Mac: scp 'gb10:toolrank/results/clm_*.json' results/
+#   # then, on the Mac: scp 'gb10:callbus/results/clm_*.json' results/
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
 UV=${UV:-$HOME/.local/bin/uv}
-HEADS=${HEADS:-dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz}
+HEADS=${HEADS:-dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz}
 CLM_CKPT=${CLM_CKPT:-$HOME/.cache/clm/CLM_v0.1-8B.pt}
 CLM_FT=${CLM_FT:-data/heads/clm_60k_lr1e-2.pt}
 CLM_FORMAT=${CLM_FORMAT:-example_call}
@@ -34,7 +34,7 @@ CLM="$CLM --rerank-tool-format $CLM_FORMAT --rerank-query-format clm"
 LIM=()
 [[ $LIMIT -gt 0 ]] && LIM=(--limit "$LIMIT")
 
-run() { # run <row> <set> <toolrank eval args...> -> results/<TAG>_<set>_<row>.json
+run() { # run <row> <set> <callbus eval args...> -> results/<TAG>_<set>_<row>.json
   local row=$1 out="results/${TAG}_$2_$1.json"
   shift 2
   [[ " $ROWS " == *" $row "* ]] || return 0
@@ -43,7 +43,7 @@ run() { # run <row> <set> <toolrank eval args...> -> results/<TAG>_<set>_<row>.j
     return
   fi
   echo "== $(date -Is) $out"
-  "$UV" run toolrank eval "$@" "${LIM[@]}" --out "$out" || echo "FAILED $out"
+  "$UV" run callbus eval "$@" "${LIM[@]}" --out "$out" || echo "FAILED $out"
 }
 
 for d in $SETS; do

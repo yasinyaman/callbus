@@ -10,7 +10,7 @@ adını eklemek: MCP-Zero'da top-1 +8 puan (BM25'te +24), LiveMCPBench'te Recall
 
 ## MCP-Zero
 
-Kurulum (`toolrank data pull mcp-zero`, `src/toolrank/datasets/mcp_zero.py`):
+Kurulum (`callbus data pull mcp-zero`, `src/callbus/datasets/mcp_zero.py`):
 
 - **Veri.** MCP-tools'ta 308 sunucu ve 2.797 tool var (`mcp_tools_with_embedding.json`, 333 MB,
   yalnız Google Drive'da, sha256 `ba517c00…0842`). 14 sunucu adı tekrar ediyor (ör. resmi ve
@@ -106,12 +106,12 @@ MCP-Zero'daki etkiyle birlikte okunmalı.
 ## Komutlar
 
 ```bash
-# GB10, ~/toolrank (kod: 4ebe966)
+# GB10, ~/callbus (kod: 4ebe966)
 docker compose -f deploy/spark/compose.yaml --profile gen up -d qwen3-8b-chat
-~/.local/bin/uv run toolrank data pull mcp-zero --gen-workers 64
+~/.local/bin/uv run callbus data pull mcp-zero --gen-workers 64
 docker compose -f deploy/spark/compose.yaml stop qwen3-8b-chat
 
-E="$HOME/.local/bin/uv run toolrank eval"
+E="$HOME/.local/bin/uv run callbus eval"
 M="--data data/mcp_zero --ks 1,5,10,20"
 L="--data data/livemcpbench"
 Q="--emb-url http://127.0.0.1:8091/v1 --emb-model qwen3-emb --truncate 8192 --tool-format documentation"
@@ -154,9 +154,9 @@ for d in mcp_zero livemcpbench; do
 done
 
 # Mac
-toolrank compare results/mcpzero_{bm25,bm25_noinst,qwen3emb_noinst,qwen3emb,qwen3emb_heads,qwen3emb_headsfull,clm,clm_ft}.json \
+callbus compare results/mcpzero_{bm25,bm25_noinst,qwen3emb_noinst,qwen3emb,qwen3emb_heads,qwen3emb_headsfull,clm,clm_ft}.json \
   --metrics Precision@1,Recall@5,NDCG@10,Recall@10 --cat-macro ''
-toolrank compare results/livemcp_*.json --metrics Recall@5,NDCG@10,Comprehensiveness@10 --cat-macro Recall@5
+callbus compare results/livemcp_*.json --metrics Recall@5,NDCG@10,Comprehensiveness@10 --cat-macro Recall@5
 ```
 
 ## Ortam

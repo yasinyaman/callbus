@@ -1,4 +1,4 @@
-# The documentation site on GitHub Pages, by hand. Off until the repository variable TOOLRANK_PAGES
+# The documentation site on GitHub Pages, by hand. Off until the repository variable CALLBUS_PAGES
 # is "enabled" (and Pages is set to "GitHub Actions" in the repository settings).
 name: docs
 
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    if: vars.TOOLRANK_PAGES == 'enabled'
+    if: vars.CALLBUS_PAGES == 'enabled'
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

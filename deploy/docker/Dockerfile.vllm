@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1
-# toolrank and its embedding backbone in one container: vLLM serves Qwen3-Embedding-8B on
-# 127.0.0.1:8091 and toolrank serves your tools in front of it (entrypoint-vllm.sh). Needs an NVIDIA
+# callbus and its embedding backbone in one container: vLLM serves Qwen3-Embedding-8B on
+# 127.0.0.1:8091 and callbus serves your tools in front of it (entrypoint-vllm.sh). Needs an NVIDIA
 # GPU; the weights download on first start into HF_HOME=/models (mount a volume there).
 #
 # From the repo root (compose.bundle.yaml builds it too; the image is not published). The released
 # heads come from `--build-context heads=DIR` if DIR holds them, else the build downloads them
 # (sha256-checked; --build-arg HEADS_PULL=0 skips that):
-#   docker build -f deploy/docker/Dockerfile.vllm -t toolrank-vllm .
+#   docker build -f deploy/docker/Dockerfile.vllm -t callbus-vllm .
 # NVIDIA's NGC vLLM image works as the base too (local use only; it is not published):
 #   --build-arg BASE_IMAGE=nvcr.io/nvidia/vllm:26.01-py3
 
@@ -32,7 +32,7 @@ FROM node AS released-heads
 # a bind mount, not COPY: BuildKit hands a cached COPY from the empty stage to a build with the
 # heads context and the other way round; a bind mount's cache follows what is mounted
 RUN --mount=type=bind,from=heads,target=/context \
-    mkdir /heads && find /context -maxdepth 1 -name 'toolrank-heads-*.npz' -exec cp {} /heads/ \;
+    mkdir /heads && find /context -maxdepth 1 -name 'callbus-heads-*.npz' -exec cp {} /heads/ \;
 
 FROM ${BASE_IMAGE}
 RUN apt-get update && apt-get install -y --no-install-recommends tini && rm -rf /var/lib/apt/lists/*
@@ -41,38 +41,38 @@ COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
 RUN ln -sf ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -sf ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
-WORKDIR /src/toolrank
+WORKDIR /src/callbus
 COPY pyproject.toml uv.lock README.md LICENSE NOTICE ./
 COPY src ./src
-# toolrank in a venv of its own, so its dependencies never meet vLLM's: the locked versions, each
+# callbus in a venv of its own, so its dependencies never meet vLLM's: the locked versions, each
 # checked against the lock's hashes. vLLM's image sets UV_OVERRIDE (an unhashed pin for its own
 # environment, which a hash-checked install refuses) and a lax index strategy; neither is for this venv
 RUN unset UV_OVERRIDE UV_INDEX_STRATEGY \
     && uv export --frozen --no-emit-project --no-default-groups --extra mcp --extra openapi --extra stem -o /tmp/requirements.txt \
     && uv build --wheel -o /tmp/wheels \
-    && uv venv --python "$(command -v python3)" /opt/toolrank/venv \
-    && uv pip install --python /opt/toolrank/venv/bin/python --compile-bytecode --require-hashes -r /tmp/requirements.txt \
-    && uv pip install --python /opt/toolrank/venv/bin/python --compile-bytecode --no-deps /tmp/wheels/toolrank-*.whl \
-    && rm -rf /tmp/wheels /tmp/requirements.txt /src/toolrank
-# `toolrank` on the PATH is the real command behind as-toolrank: toolrank and the stdio MCP servers it
+    && uv venv --python "$(command -v python3)" /opt/callbus/venv \
+    && uv pip install --python /opt/callbus/venv/bin/python --compile-bytecode --require-hashes -r /tmp/requirements.txt \
+    && uv pip install --python /opt/callbus/venv/bin/python --compile-bytecode --no-deps /tmp/wheels/callbus-*.whl \
+    && rm -rf /tmp/wheels /tmp/requirements.txt /src/callbus
+# `callbus` on the PATH is the real command behind as-callbus: callbus and the stdio MCP servers it
 # starts (npx, uvx: other people's code) never run as root, from the entrypoint or from `docker exec`,
 # while vLLM keeps root for the GPU and /models
-COPY deploy/docker/as-toolrank.sh /usr/local/bin/as-toolrank
-RUN useradd --create-home --user-group toolrank \
-    && mkdir -p /data /opt/toolrank/heads \
-    && chown toolrank: /data /opt/toolrank/heads \
-    && printf '#!/bin/sh\nexec as-toolrank /opt/toolrank/venv/bin/toolrank "$@"\n' > /usr/local/bin/toolrank \
-    && chmod 755 /usr/local/bin/toolrank /usr/local/bin/as-toolrank
-COPY --from=released-heads --chown=toolrank /heads/ /opt/toolrank/heads/
+COPY deploy/docker/as-callbus.sh /usr/local/bin/as-callbus
+RUN useradd --create-home --user-group callbus \
+    && mkdir -p /data /opt/callbus/heads \
+    && chown callbus: /data /opt/callbus/heads \
+    && printf '#!/bin/sh\nexec as-callbus /opt/callbus/venv/bin/callbus "$@"\n' > /usr/local/bin/callbus \
+    && chmod 755 /usr/local/bin/callbus /usr/local/bin/as-callbus
+COPY --from=released-heads --chown=callbus /heads/ /opt/callbus/heads/
 ARG HEADS_PULL=1
-RUN if [ "$HEADS_PULL" = 1 ] && ! ls /opt/toolrank/heads/toolrank-heads-*.npz > /dev/null 2>&1; then \
-        TOOLRANK_CACHE=/opt/toolrank toolrank heads pull \
-        || echo "toolrank-vllm: no heads baked in (toolrank heads pull failed); serve ranks with the backbone alone" >&2; \
+RUN if [ "$HEADS_PULL" = 1 ] && ! ls /opt/callbus/heads/callbus-heads-*.npz > /dev/null 2>&1; then \
+        CALLBUS_CACHE=/opt/callbus callbus heads pull \
+        || echo "callbus-vllm: no heads baked in (callbus heads pull failed); serve ranks with the backbone alone" >&2; \
     fi
-COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md /usr/share/doc/toolrank/
-COPY deploy/docker/entrypoint-vllm.sh /usr/local/bin/toolrank-vllm
+COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md /usr/share/doc/callbus/
+COPY deploy/docker/entrypoint-vllm.sh /usr/local/bin/callbus-vllm
 
-ENV TOOLRANK_CACHE=/opt/toolrank \
+ENV CALLBUS_CACHE=/opt/callbus \
     HF_HOME=/models \
     UV_PYTHON_DOWNLOADS=never \
     PYTHONUNBUFFERED=1
@@ -81,5 +81,5 @@ VOLUME ["/data", "/models"]
 EXPOSE 8765
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30m --start-interval=10s --retries=3 \
     CMD ["python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/healthz', timeout=4)"]
-ENTRYPOINT ["tini", "--", "toolrank-vllm"]
+ENTRYPOINT ["tini", "--", "callbus-vllm"]
 CMD ["serve", "--data", "/data", "--host", "0.0.0.0"]

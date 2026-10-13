@@ -1,6 +1,6 @@
 """Confidence (backlog D2.14): a calibration's distribution of answerable requests' best scores, the
 file a server reads while it runs, ``measure`` and its twins, the retriever's field and gate, and
-``toolrank calibrate`` end to end against a fake endpoint."""
+``callbus calibrate`` end to end against a fake endpoint."""
 
 from __future__ import annotations
 
@@ -11,15 +11,15 @@ import os
 import numpy as np
 import pytest
 
-from toolrank.adapters.embeddings_api import OpenAIEmbeddings
-from toolrank.calibration import FILE, Calibration, Calibrations, band_score, load, measure, save
-from toolrank.cli import build_parser, main
-from toolrank.cut import AdaptiveK
-from toolrank.datasets.jsonl import write_queries, write_tools
-from toolrank.domain import Query, RankedList, Tool
-from toolrank.ingest.text import tool_text
-from toolrank.retriever import Retriever, innermost
-from toolrank.usage import UsageLog
+from callbus.adapters.embeddings_api import OpenAIEmbeddings
+from callbus.calibration import FILE, Calibration, Calibrations, band_score, load, measure, save
+from callbus.cli import build_parser, main
+from callbus.cut import AdaptiveK
+from callbus.datasets.jsonl import write_queries, write_tools
+from callbus.domain import Query, RankedList, Tool
+from callbus.ingest.text import tool_text
+from callbus.retriever import Retriever, innermost
+from callbus.usage import UsageLog
 
 
 def _cal(best, **kw):
@@ -111,7 +111,7 @@ class _Hash:
 
 
 def _catalogue(tmp_path):
-    from toolrank.adapters.dense import DenseScorer
+    from callbus.adapters.dense import DenseScorer
 
     tools = [
         Tool(id=f"s/t{i}", doc={"name": f"t{i}", "description": f"tool {i}"}, category="s") for i in range(12)
@@ -152,11 +152,11 @@ def fake_endpoint(monkeypatch):
     monkeypatch.setattr(
         OpenAIEmbeddings, "_post", lambda self, texts, **kw: (_hash_rows(texts), 5 * len(texts))
     )
-    monkeypatch.delenv("TOOLRANK_HEADS", raising=False)
+    monkeypatch.delenv("CALLBUS_HEADS", raising=False)
 
 
 def test_calibrate_writes_what_search_and_serve_read(tmp_path, fake_endpoint, monkeypatch, capsys):
-    monkeypatch.setenv("TOOLRANK_CACHE", str(tmp_path / "no-heads"))
+    monkeypatch.setenv("CALLBUS_CACHE", str(tmp_path / "no-heads"))
     tools = [
         Tool(id=f"{src}/{n}", doc={"server": src, "name": n, "description": f"{n} on {src}"},
              documentation=tool_text(src, n, f"{n} on {src}"), category=src)
@@ -171,7 +171,7 @@ def test_calibrate_writes_what_search_and_serve_read(tmp_path, fake_endpoint, mo
 
     assert main(["calibrate", "--requests", str(gen), "--dry-run", *base]) == 0
     out = capsys.readouterr().out
-    assert "60 requests; first stage dense/emb/toolrank-emb-v0.2/" in out and "(base heads)" in out
+    assert "60 requests; first stage dense/emb/callbus-emb-v0.2/" in out and "(base heads)" in out
     assert "--min-confidence 0.05: turns away requests below" in out and "of the twins" in out
     assert not (data / FILE).exists()
 
@@ -191,7 +191,7 @@ def test_calibrate_writes_what_search_and_serve_read(tmp_path, fake_endpoint, mo
     write_queries(gen / "queries.jsonl", queries[:10])
     with pytest.raises(SystemExit, match="10 requests: a calibration needs at least 50"):
         main(["calibrate", "--requests", str(gen), *base])
-    with pytest.raises(SystemExit, match="--requests is a dir from toolrank data gen-queries"):
+    with pytest.raises(SystemExit, match="--requests is a dir from callbus data gen-queries"):
         main(["calibrate", "--requests", str(tmp_path / "nowhere"), *base])
     with pytest.raises(SystemExit, match="between 0 and 1"):
         main(["search", "x", "--min-confidence", "5", *base])
@@ -203,7 +203,7 @@ def test_calibrate_from_log_measures_the_requests_a_server_answered(
     """``--from-log``: a band from generated requests describes generated requests (the LiveMCPBench
     measurement in docs/reports/backlog-d214.md), so a calibration can be built from the traffic the
     server already answered instead — its vectors come back from the embedding cache."""
-    monkeypatch.setenv("TOOLRANK_CACHE", str(tmp_path / "no-heads"))
+    monkeypatch.setenv("CALLBUS_CACHE", str(tmp_path / "no-heads"))
     tools = [
         Tool(id=f"{src}/{n}", doc={"server": src, "name": n, "description": f"{n} on {src}"},
              documentation=tool_text(src, n, f"{n} on {src}"), category=src)

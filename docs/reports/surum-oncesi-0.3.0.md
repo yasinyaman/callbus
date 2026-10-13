@@ -2,10 +2,10 @@
 
 Sürümden önce sorulan şey: **kullanıcının kuracağı yığın, bizim ölçtüğümüz yığın gibi çalışıyor mu?** Bugüne
 kadarki uçtan uca koşular v0.1 head'leriyle ve temel modelle yapılmıştı; 0.3.0'ın varsayılanı head'siz
-`toolrank-emb-v0.2`. Altı test o yığınla koşuldu: sunucu (MCP + REST + günlük + soğuk başlangıç), gerçek HTTP
+`callbus-emb-v0.2`. Altı test o yığınla koşuldu: sunucu (MCP + REST + günlük + soğuk başlangıç), gerçek HTTP
 trafiğiyle öğrenme döngüsü, çerçeve entegrasyonları, platform kancaları, **yayımlanmış** imaj ve canlı Claude.
 
-Ortam: Mac'te `toolrank serve` ve istemciler, embedding'ler GB10'un 8097'sinden (`v0.2` bf16, head'siz),
+Ortam: Mac'te `callbus serve` ve istemciler, embedding'ler GB10'un 8097'sinden (`v0.2` bf16, head'siz),
 katalog `data/w3` (1.862 tool, 5 kaynak: time, everything, swagger-petstore, stripe, github).
 
 ## Sonuç (tek cümle)
@@ -17,7 +17,7 @@ ve sonraki aramalar `confidence` taşıdı, dört çerçeve ve iki platform kanc
 imaj sekiz kontrolden geçti, ve canlı Claude koşusunda `inline` beta'sı ilk kez denenip klasik yola göre bir tur
 ve 3,7 MB katalog tasarruf ettiği ölçüldü. Helm chart'ı da gerçek kümede 10/10 geçti. Tek açık: OpenAI tarafının canlı koşusu.
 
-## 1. `toolrank serve`, uçtan uca (`scripts/serve_e2e.py`)
+## 1. `callbus serve`, uçtan uca (`scripts/serve_e2e.py`)
 
 | ölçü | değer |
 | --- | ---: |
@@ -64,8 +64,8 @@ Sunucu ayakta tutuldu, `data/dev_w3`'ün 120 isteği `POST /v1/search`'e oynatı
 | entegrasyon | sonuç |
 | --- | --- |
 | langgraph-bigtool | 1.862 tool'luk registry 0,01 sn'de kuruldu, görevde doğru tool'lar getirildi ve çağrıldı |
-| LangChain middleware (`ToolrankToolSelector`) | ajanın 1.862 tool'u daraltıldı (0,57 sn), doğru tool gösterildi |
-| LlamaIndex (`ToolrankToolRetriever`) | 4 tool önerildi, `time/get_current_time` çağrıldı, 1 arama |
+| LangChain middleware (`CallBusToolSelector`) | ajanın 1.862 tool'u daraltıldı (0,57 sn), doğru tool gösterildi |
+| LlamaIndex (`CallBusToolRetriever`) | 4 tool önerildi, `time/get_current_time` çağrıldı, 1 arama |
 | LiteLLM filtresi | istek başına 120 tool süzüldü, `stripe__GetAccount` kullanıldı; MCP gateway yolu da çalıştı |
 
 Dokuz çağrının yedisi aramasına bağlı (`link: search_id`), ikisi istemci bağıyla.
@@ -78,8 +78,8 @@ petstore çağrısı yerel vekilden `ok`, Stripe'ın POST'u `refused`.
 
 ## 5. Yayımlanan imaj (`scripts/container_smoke.py`, GB10/arm64)
 
-`ghcr.io/yasinyaman/toolrank:0.2.0` — kullanıcının gerçekten çektiği imaj, GPU'suz, sahte embedding sunucusuyla:
-sürüm `toolrank 0.2.0`, ingest + ısıtma, `/healthz`, localhost'ta arama, yabancı Host 421, MCP `initialize` 200,
+`ghcr.io/yasinyaman/callbus:0.2.0` — kullanıcının gerçekten çektiği imaj, GPU'suz, sahte embedding sunucusuyla:
+sürüm `callbus 0.2.0`, ingest + ısıtma, `/healthz`, localhost'ta arama, yabancı Host 421, MCP `initialize` 200,
 `node/npx/uvx` yerinde, scorer hazır. Sekiz kontrolün hepsi `ok`.
 
 ## 6. Canlı Claude koşusu (13 Eki, kullanıcının anahtarıyla)
@@ -140,11 +140,11 @@ Yayımlanan `0.2.0` imajı iki değişikliği taşımıyor: Dependabot'un uv 0.1
 `dev` ekstrasının PEP 735 grubuna taşınması. İkisi de imajın kurulum satırlarına dokunuyor, o yüzden ikisi de
 güncel ağaçtan yeniden kuruldu ve duman testine girdi (GB10/arm64, GPU'suz):
 
-- `toolrank:dev` — sekiz kontrol `ok` (sürüm, ingest + ısıtma, sağlık, arama, yabancı Host 421, MCP, node/npx/uvx
+- `callbus:dev` — sekiz kontrol `ok` (sürüm, ingest + ısıtma, sağlık, arama, yabancı Host 421, MCP, node/npx/uvx
   — `uvx 0.12.23` görüldü, scorer).
-- `toolrank-vllm:dev` (paket imajı, sahte vLLM içinde) — on iki kontrol `ok`: **servis edilen ad
-  `toolrank-emb-v0.2-fp8`**, yani FP8 varsayılanı imajın kendisinde teyit edildi; ayrıca vLLM root, toolrank
-  kendi kullanıcısıyla, bind mount sahibini koruyor, `/data` toolrank'e geçiyor.
+- `callbus-vllm:dev` (paket imajı, sahte vLLM içinde) — on iki kontrol `ok`: **servis edilen ad
+  `callbus-emb-v0.2-fp8`**, yani FP8 varsayılanı imajın kendisinde teyit edildi; ayrıca vLLM root, callbus
+  kendi kullanıcısıyla, bind mount sahibini koruyor, `/data` callbus'e geçiyor.
 
 Yirmi kontrolün hepsi geçti, sıfır hata. Bu, sürüm öncesi paketin asıl keşfiydi: imajların yeniden kurulması
 gerektiği ancak bu kontrolle görüldü.
@@ -183,28 +183,28 @@ uv run python scripts/serve_e2e.py --data data/w3 --emb-url http://$GB10:8097/v1
   --emb-model qwen3-emb-lora --heads none --out results/serve_e2e_release.json
 uv run python scripts/loop_e2e.py --data data/w3 --requests data/dev_w3 --n 120 \
   --emb-url http://$GB10:8097/v1 --emb-model qwen3-emb-lora --out results/loop_e2e.json
-uv run toolrank learn --data data/w3 --emb-url http://$GB10:8097/v1 --emb-model qwen3-emb-lora \
+uv run callbus learn --data data/w3 --emb-url http://$GB10:8097/v1 --emb-model qwen3-emb-lora \
   --init none --device cpu            # the loop's own learn, with the gate
 uv run python scripts/frameworks_e2e.py --data data/w3 --emb-url http://$GB10:8097/v1 \
   --emb-model qwen3-emb-lora --heads none --out results/frameworks_e2e_release.json
 uv run python scripts/platforms_e2e.py --data data/w3 --emb-url http://$GB10:8097/v1 \
   --emb-model qwen3-emb-lora --heads none --out results/platforms_e2e_release.json
-ssh gb10 'cd ~/toolrank && uv run python scripts/container_smoke.py ghcr.io/yasinyaman/toolrank:0.2.0 --version 0.2.0'
+ssh gb10 'cd ~/callbus && uv run python scripts/container_smoke.py ghcr.io/yasinyaman/callbus:0.2.0 --version 0.2.0'
 
 # the live Claude runs: serve with a config that can start the MCP servers, then the example
 printf '{"mcpServers":{"time":{"command":"uvx","args":["mcp-server-time"]},"everything":{"command":"npx","args":["-y","@modelcontextprotocol/server-everything"]}}}' > /tmp/w3_config.json
-TOOLRANK_API_KEY=$(python3 -c 'import secrets;print(secrets.token_urlsafe(16))') toolrank serve --data data/w3 \
+CALLBUS_API_KEY=$(python3 -c 'import secrets;print(secrets.token_urlsafe(16))') callbus serve --data data/w3 \
   --config /tmp/w3_config.json --emb-url http://$GB10:8097/v1 --emb-model qwen3-emb-lora --clm-ckpt none --port 8765
 uv run --extra anthropic python examples/anthropic_tool_reference.py "What time is it in Tokyo right now?" \
   --inline --prefetch --yes          # the beta; drop --inline --prefetch for the deferred path
 
 # the shipped stack: the same six against FP8 (GB10; the reranker and Ollama stopped to make room)
-TOOLRANK_LORA=$HOME/toolrank/data/lora/qwen3-emb-lora-20k/merged \
+CALLBUS_LORA=$HOME/callbus/data/lora/qwen3-emb-lora-20k/merged \
   docker compose -f deploy/spark/compose.yaml --profile lora-fp8 up -d qwen3-emb-lora-fp8   # 8098
 #   then every command above with --emb-url http://$GB10:8098/v1 --emb-model qwen3-emb-lora-fp8
 # both images from the current tree, with their smoke tests (data/image_rebuild.sh, untracked)
-docker build -f deploy/docker/Dockerfile --build-context heads=dist/heads -t toolrank:dev .
-uv run python scripts/container_smoke.py toolrank:dev --version 0.2.0
-docker build -f deploy/docker/Dockerfile.vllm --build-context heads=dist/heads -t toolrank-vllm:dev .
-uv run python scripts/container_smoke.py toolrank-vllm:dev --bundle
+docker build -f deploy/docker/Dockerfile --build-context heads=dist/heads -t callbus:dev .
+uv run python scripts/container_smoke.py callbus:dev --version 0.2.0
+docker build -f deploy/docker/Dockerfile.vllm --build-context heads=dist/heads -t callbus-vllm:dev .
+uv run python scripts/container_smoke.py callbus-vllm:dev --bundle
 ```

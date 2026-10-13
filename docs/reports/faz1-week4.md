@@ -4,7 +4,7 @@ Takvimde 23–27 Kasım; erken yapıldı.
 
 ## Sonuç (tek cümle)
 
-toolrank artık iki büyük ajan API'sinin tool arama kancasının arkasında çalışıyor: Claude'un
+callbus artık iki büyük ajan API'sinin tool arama kancasının arkasında çalışıyor: Claude'un
 Messages API'si (`defer_loading` + `tool_reference`) ve OpenAI'ın Responses API'si (`tool_search`,
 istemci tarafında). İkisi de canlı denendi:
 
@@ -38,11 +38,11 @@ istemci tarafında). İkisi de canlı denendi:
   `search`, `call`):
   - Yönlendirme izlemiyor, böylece token başka host'a gitmiyor.
   - Çağrıyı asla tekrar denemiyor.
-  - Hatalar durum koduyla `ToolrankError` olarak geliyor.
+  - Hatalar durum koduyla `CallBusError` olarak geliyor.
 - **Entegrasyonlar (`integrations/`).** İkisi de vendor SDK'larını import etmiyor: SDK nesnelerini
   de dict'leri de okuyor, geri düz dict gönderiyor.
   - **Anthropic** (`Toolbox`, `run`):
-    - Bütün katalog `defer_loading` ile gidiyor; görünen tek tool `search_tools`, toolrank onu
+    - Bütün katalog `defer_loading` ile gidiyor; görünen tek tool `search_tools`, callbus onu
       yalnız `tool_reference` bloklarıyla cevaplıyor.
     - Referanslar yalnız gönderilen kataloğun adlarını içeriyor; bilinmeyen bir ad bütün isteği
       400 ile düşürür.
@@ -63,7 +63,7 @@ istemci tarafında). İkisi de canlı denendi:
   - Yazma yapabilecek çağrılar `--yes` verilmedikçe soruluyor (`readOnlyHint` olmayan tool ya da
     GET/HEAD dışı işlem): bir tool çıktısı modeli yönlendirebilir.
 - **Testler.** Gerçek `anthropic` 1.9.0 ve `openai` 3.22.1 SDK'ları `httpx2.MockTransport`
-  üzerinden, toolrank da süreç içinde (stdio fixture MCP sunucusu arkada) koşuyor. Kontrol edilenler:
+  üzerinden, callbus da süreç içinde (stdio fixture MCP sunucusu arkada) koşuyor. Kontrol edilenler:
   - SDK'nın gerçekte gönderdiği JSON;
   - bizim dict'lerin SDK'nın kendi tiplerine uyması (`pydantic.TypeAdapter`);
   - değişmezler: geçmiş yalnız büyüyor, her turda aynı tool listesi, her çağrıya tek cevap.
@@ -91,19 +91,19 @@ arama farklıydı.
 
 | Görev | Arama | Tur | Süre | Girdi / çıktı token | Aramalar → çağrılar | Cevap |
 | --- | --- | ---: | ---: | ---: | --- | --- |
-| Tokyo'da saat kaç? | toolrank | 3 | 16,2 sn | 3.592 / 211 | 1 arama (3 tool) → `time/get_current_time` | doğru (13:51 JST) |
+| Tokyo'da saat kaç? | callbus | 3 | 16,2 sn | 3.592 / 211 | 1 arama (3 tool) → `time/get_current_time` | doğru (13:51 JST) |
 | | API BM25 | 2 | 9,6 sn | 5.833 / 197 | 1 arama (5 tool; 3'ü Stripe) → aynı çağrı | doğru |
-| Köpek etiketli hayvanlar | toolrank | 3 | 12,6 sn | 4.216 / 186 | 1 arama (3 petstore tool'u) → `findPets` | doğru (Rex, Ace) |
+| Köpek etiketli hayvanlar | callbus | 3 | 12,6 sn | 4.216 / 186 | 1 arama (3 petstore tool'u) → `findPets` | doğru (Rex, Ace) |
 | | API BM25 | 2 | 9,2 sn | 6.645 / 186 | 1 arama (4 petstore + `github/git/create-tag`) → `findPets` | doğru |
-| cus_123'ün son ödemesini iade et | toolrank | 7 | 38,2 sn | 92.747 / 1.163 | 4 arama → 5 GET (hepsi taklitten 404) | "ödeme bulunamadı, hiçbir şey iade edilmedi" |
+| cus_123'ün son ödemesini iade et | callbus | 7 | 38,2 sn | 92.747 / 1.163 | 4 arama → 5 GET (hepsi taklitten 404) | "ödeme bulunamadı, hiçbir şey iade edilmedi" |
 | | API BM25 | 4 | 34,7 sn | 231.134 / 1.178 | 5 arama → 3 GET (404) | aynı sonuç |
 
-- **Token.** toolrank'ın aramasıyla girdi token'ı %37 (Tokyo), %37 (köpekler) ve %60 (iade) daha
+- **Token.** callbus'ın aramasıyla girdi token'ı %37 (Tokyo), %37 (köpekler) ve %60 (iade) daha
   az. Fark yüklenen tanımlardan geliyor: BM25 alakasız Stripe işlemleri de yüklüyor (Stripe
-  şemaları 56 KB'a kadar çıkıyor). toolrank'ın uyarlanabilir K'sı net isteklerde 3 tool döndürüyor.
+  şemaları 56 KB'a kadar çıkıyor). callbus'ın uyarlanabilir K'sı net isteklerde 3 tool döndürüyor.
 - **Tur ve süre.** İstemci tarafı aramanın bedeli, her arama için bir API turu daha. API'nin kendi
   araması aynı istek içinde sunucuda çalışıyor. Basit görevlerde bu, 3'e karşı 2 tur ve 16,2'ye
-  karşı 9,6 sn demek. İade görevinde toolrank daha çok tur attı (7'ye 4) ama süre yakın kaldı
+  karşı 9,6 sn demek. İade görevinde callbus daha çok tur attı (7'ye 4) ama süre yakın kaldı
   (38,2'ye 34,7 sn).
 - **İade görevi.** Bu kurulumda başarılı olamazdı (Stripe GET'leri 404, POST'lar reddediliyor);
   modelin davranışını ölçüyor. İki kurulumda da model ödeme kimliğini bulamayınca körlemesine iade
@@ -113,7 +113,7 @@ arama farklıydı.
 ## Canlı: OpenAI (`gpt-5.5`)
 
 İlk denemede üç görev de 429 `insufficient_quota` ile döndü: hesapta kredi yoktu. Kredi
-eklendikten sonra yalnız OpenAI kısmı yeniden koşuldu (`--setups gpt+toolrank`).
+eklendikten sonra yalnız OpenAI kısmı yeniden koşuldu (`--setups gpt+callbus`).
 
 | Görev | Tur | Süre | Girdi / çıktı token | Aramalar → çağrılar | Cevap |
 | --- | ---: | ---: | ---: | --- | --- |
@@ -138,11 +138,11 @@ Canlı koşunun 14 çağrısı günlüğe düştü:
 
 | Bağ | Sayı | Açıklama |
 | --- | ---: | --- |
-| `search_id` | 7 | toolrank aramalı koşular `search_id`'yi geri veriyor |
+| `search_id` | 7 | callbus aramalı koşular `search_id`'yi geri veriyor |
 | `client` | 7 | BM25 koşularının çağrıları |
 
-`client` ile bağlanan 7 çağrıda aramayı toolrank yapmamıştı. Bu çağrılar aynı istemci anahtarı
-üzerinden başka konuşmaların toolrank aramalarına bağlandı; bu yanlıştı ve düzeltildi. Artık oturumu
+`client` ile bağlanan 7 çağrıda aramayı callbus yapmamıştı. Bu çağrılar aynı istemci anahtarı
+üzerinden başka konuşmaların callbus aramalarına bağlandı; bu yanlıştı ve düzeltildi. Artık oturumu
 olan bir çağrı başka bir oturumun aramasına hiç bağlanmıyor; `client` bağı yalnız oturumsuz çağrılar
 için. Düzeltmeden sonra bu 7 çağrı `none` olurdu.
 
@@ -156,15 +156,15 @@ Düzeltmeden sonraki OpenAI koşusunda 4 çağrı var:
 ## Komutlar
 
 ```bash
-# Mac, repo kökü; toolrank serve'ü betik kendisi başlatıyor (data/w3, GB10 embedding'leri)
+# Mac, repo kökü; callbus serve'ü betik kendisi başlatıyor (data/w3, GB10 embedding'leri)
 # $GB10: GB10'un Tailscale adresi (depoda tutulmuyor). Embedding cache'i URL'in yazımıyla anahtarlı: hep aynı adres.
 uv run python scripts/platforms_e2e.py --data data/w3 --emb-url http://$GB10:8091/v1 \
-  --heads dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz --out results/platforms_e2e_offline.json
-# canlı (anahtarlar .env'den): üç görev x Claude+toolrank, Claude+BM25, OpenAI+toolrank
+  --heads dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz --out results/platforms_e2e_offline.json
+# canlı (anahtarlar .env'den): üç görev x Claude+callbus, Claude+BM25, OpenAI+callbus
 uv run python scripts/platforms_e2e.py --data data/w3 --emb-url http://$GB10:8091/v1 \
-  --heads dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz --live --out results/platforms_e2e_live.json
+  --heads dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz --live --out results/platforms_e2e_live.json
 # yalnız OpenAI (kredi eklenince)
-uv run python scripts/platforms_e2e.py ... --live --setups gpt+toolrank --out results/platforms_e2e_gpt.json
+uv run python scripts/platforms_e2e.py ... --live --setups gpt+callbus --out results/platforms_e2e_gpt.json
 ```
 
 ## Ortam
@@ -182,7 +182,7 @@ uv run python scripts/platforms_e2e.py ... --live --setups gpt+toolrank --out re
   bant genişliğine yansıyor. Yeni `inline-tools-2026-09-15` beta'sı (`tool_addition` blokları) tool'ları
   konuşmanın içinde, değerle tanımlıyor; kataloğun gönderilmesine gerek kalmıyor. Backlog'da.
 - **Fazladan tur.** İstemci tarafı arama her arama için bir tur ekliyor. Aynı beta'yla ilk kullanıcı
-  mesajına, toolrank'ın göreve göre bulduğu tool'lar baştan eklenebilir; basit görevlerde tur farkı
+  mesajına, callbus'ın göreve göre bulduğu tool'lar baştan eklenebilir; basit görevlerde tur farkı
   kapanır. Backlog'da.
 - **Düzeltilen.** Oturumu olan çağrıların başka konuşmaların aramasına `client` üzerinden bağlanması.
 
@@ -191,6 +191,6 @@ uv run python scripts/platforms_e2e.py ... --live --setups gpt+toolrank --out re
 Faz 1 Hafta 5, framework adapter'ları ve fine-tune CLI:
 
 - langgraph-bigtool `retrieve_tools_function`, LlamaIndex `ObjectRetriever`, LiteLLM MCP filtresi
-  (`ToolrankClient` bunların tabanı);
-- `toolrank finetune`;
-- `toolrank eval` çıktısından README tablosu.
+  (`CallBusClient` bunların tabanı);
+- `callbus finetune`;
+- `callbus eval` çıktısından README tablosu.

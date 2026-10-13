@@ -5,10 +5,10 @@ import zlib
 import numpy as np
 import pytest
 
-from toolrank.adapters.bm25 import BM25Scorer
-from toolrank.adapters.dense import DenseScorer, topk_dot
-from toolrank.cli import main
-from toolrank.datasets.jsonl import (
+from callbus.adapters.bm25 import BM25Scorer
+from callbus.adapters.dense import DenseScorer, topk_dot
+from callbus.cli import main
+from callbus.datasets.jsonl import (
     load_pairs,
     load_queries,
     load_tools,
@@ -16,9 +16,9 @@ from toolrank.datasets.jsonl import (
     write_queries,
     write_tools,
 )
-from toolrank.datasets.synthetic import make_queries, make_tools
-from toolrank.domain import Query, RankedList, Tool, TrainPair
-from toolrank.eval.runner import format_table, run_eval, save_report
+from callbus.datasets.synthetic import make_queries, make_tools
+from callbus.domain import Query, RankedList, Tool, TrainPair
+from callbus.eval.runner import format_table, run_eval, save_report
 
 
 def test_pairs_roundtrip(tmp_path):
@@ -184,7 +184,7 @@ def test_topk_dot_is_sorted_and_exact():
 
 
 def test_summarize_is_the_reports_aggregation_with_and_without_categories():
-    from toolrank.eval.runner import summarize
+    from callbus.eval.runner import summarize
 
     report = _categorized_report()
     rows = [(Query(id="a", text="x", qrels={}, task="a", category="web"), {"NDCG@1": 1.0})]
@@ -202,8 +202,8 @@ def test_summarize_is_the_reports_aggregation_with_and_without_categories():
 def test_a_ranked_list_or_a_corpus_that_repeats_an_id_is_refused():
     """trec_eval reads a run as a doc -> score map: a doc named twice would count twice here
     (['a', 'a'] with gold {a}: Recall 2.0), so it is an error, not a number."""
-    from toolrank.eval.metrics import evaluate_cut, evaluate_query
-    from toolrank.eval.runner import run_eval
+    from callbus.eval.metrics import evaluate_cut, evaluate_query
+    from callbus.eval.runner import run_eval
 
     assert evaluate_query(["a", "b"], {"a": 1, "c": 1}, ks=(5,))["Recall@5"] == 0.5
     with pytest.raises(ValueError, match="more than once"):

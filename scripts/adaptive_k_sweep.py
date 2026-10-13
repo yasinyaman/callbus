@@ -1,6 +1,6 @@
 """Adaptive-K sweep: rank once, cut many ways (Faz 1 Hafta 2).
 
-Ranks every query of a data dir once (k = 100) with the scorer the ``toolrank eval`` flags after
+Ranks every query of a data dir once (k = 100) with the scorer the ``callbus eval`` flags after
 ``--`` describe, then applies fixed top-k baselines and a grid of ``AdaptiveK`` rules, and prints
 per rule: the mean number of tools handed over (K), Recall, Precision and Comprehensiveness of the
 cut list, and the share of the catalogue that K is.
@@ -18,11 +18,11 @@ import sys
 from dataclasses import replace
 from pathlib import Path
 
-from toolrank.build import build_scorer
-from toolrank.cli import build_parser
-from toolrank.cut import AdaptiveK
-from toolrank.datasets.jsonl import load_queries, load_tools
-from toolrank.eval.metrics import aggregate, evaluate_cut
+from callbus.build import build_scorer
+from callbus.cli import build_parser
+from callbus.cut import AdaptiveK
+from callbus.datasets.jsonl import load_queries, load_tools
+from callbus.eval.metrics import aggregate, evaluate_cut
 
 
 def _floats(s: str) -> list[float]:
@@ -32,7 +32,7 @@ def _floats(s: str) -> list[float]:
 def main() -> None:
     argv = sys.argv[1:]
     if "--" not in argv:
-        sys.exit("usage: adaptive_k_sweep.py [grid flags] -- <toolrank eval flags>")
+        sys.exit("usage: adaptive_k_sweep.py [grid flags] -- <callbus eval flags>")
     split = argv.index("--")
     ap = argparse.ArgumentParser()
     ap.add_argument("--fixed", default="1,3,5,10", help="fixed top-k baselines")

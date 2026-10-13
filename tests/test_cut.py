@@ -2,12 +2,12 @@ import json
 
 import pytest
 
-from toolrank.adapters.bm25 import BM25Scorer
-from toolrank.cli import main
-from toolrank.cut import AdaptiveK, cutter
-from toolrank.domain import Query, RankedList, Tool
-from toolrank.eval.metrics import evaluate_cut
-from toolrank.eval.runner import run_eval
+from callbus.adapters.bm25 import BM25Scorer
+from callbus.cli import main
+from callbus.cut import AdaptiveK, cutter
+from callbus.domain import Query, RankedList, Tool
+from callbus.eval.metrics import evaluate_cut
+from callbus.eval.runner import run_eval
 
 
 def _r(scores, qid="q"):

@@ -1,8 +1,8 @@
 # Serve them to agents
 
 ```bash
-toolrank serve --data tools/ --config toolrank.json            # http://127.0.0.1:8765/mcp and /v1
-toolrank serve --data tools/ --config toolrank.json --stdio    # for desktop clients
+callbus serve --data tools/ --config callbus.json            # http://127.0.0.1:8765/mcp and /v1
+callbus serve --data tools/ --config callbus.json --stdio    # for desktop clients
 ```
 
 Needs the `[mcp]` extra. The agent sees two tools instead of hundreds:
@@ -33,7 +33,7 @@ calls are GET and HEAD only unless you pass `--allow-write`.
 
 On `127.0.0.1` (the default) no key is needed. Any other address needs one:
 
-- `--api-key` or `TOOLRANK_API_KEY`: one bearer token for everyone;
+- `--api-key` or `CALLBUS_API_KEY`: one bearer token for everyone;
 - `--api-keys keys.json`: one named token per client or team (`{"ci-agent": "${CI_AGENT_KEY}"}`);
   the name goes into the usage log as the tenant. A name is 1–64 letters, digits, `_`, `-` and `.`.
 
@@ -80,7 +80,7 @@ in whitespace are therefore one cache entry.
 The server checks the `Host` header, so a web page cannot reach it through a rebound domain. It
 answers to its bind address and, when bound to `0.0.0.0`, to `localhost`. Add the names it is
 reached by, such as a compose service or a proxy's host, with `--allowed-host NAME` or
-`TOOLRANK_ALLOWED_HOSTS=a,b`. A name without a port also matches requests with no port, as a
+`CALLBUS_ALLOWED_HOSTS=a,b`. A name without a port also matches requests with no port, as a
 reverse proxy on 80 or 443 sends them.
 
 The server speaks plain HTTP. To reach it from another machine, put a reverse proxy that terminates
@@ -105,17 +105,17 @@ See the [REST reference](../reference/rest.md).
 ## Agents with only a shell
 
 Some agents run commands but speak neither MCP nor REST. For them, the repository has a skill:
-[`examples/skills/toolrank`](https://github.com/yasinyaman/toolrank/tree/main/examples/skills/toolrank)
+[`examples/skills/callbus`](https://github.com/yasinyaman/callbus/tree/main/examples/skills/callbus)
 holds a `SKILL.md` and two standard-library scripts that wrap `/v1/search` and `/v1/call`. Copy the
-folder to where your agent loads skills (for Claude Code, `~/.claude/skills/toolrank`):
+folder to where your agent loads skills (for Claude Code, `~/.claude/skills/callbus`):
 
 ```bash
-export TOOLRANK_URL=http://127.0.0.1:8765 TOOLRANK_API_KEY=...   # the running serve
+export CALLBUS_URL=http://127.0.0.1:8765 CALLBUS_API_KEY=...   # the running serve
 python3 scripts/search.py "what time is it in Tokyo"              # JSON: search_id, tools
 python3 scripts/call.py time/get_current_time '{"timezone": "Asia/Tokyo"}' --search-id <id>
 ```
 
-- `call.py` exits with 1 when the tool reports an error and 2 when toolrank refuses the call or is
+- `call.py` exits with 1 when the tool reports an error and 2 when callbus refuses the call or is
   down. The agent reads the output either way.
 - The `SKILL.md` stays short, since some harnesses put every skill's card into the system prompt.
   The tools' schemas come from the search.
@@ -155,7 +155,7 @@ comes from the first stage's cosines (adaptive K); the order comes from the seco
 the largest single gain on catalogues the models never saw. Over the default v0.2 backbone, with the
 local reranker: LiveMCPBench NDCG@10 55.7 → 61.2, MCP-Zero top-1 88.6 → 91.9, ToolRet 58.9 → 59.4.
 Over the base model with the v0.1 heads: LiveMCPBench 54.0 → 62.7, MCP-Zero top-1 79.9 → 91.3,
-ToolRet 54.0 → 58.1 ([the comparison](https://github.com/yasinyaman/toolrank/blob/main/docs/reports/faz2-rerank.md)).
+ToolRet 54.0 → 58.1 ([the comparison](https://github.com/yasinyaman/callbus/blob/main/docs/reports/faz2-rerank.md)).
 
 - `--rerank cross --rerank-emb-url http://HOST:PORT/v1`: Qwen3-Reranker-8B behind vLLM's score API
   (about 16 GB more GPU memory). One search is one call of 20 pairs: 1.7–2.5 s at p50 on a GB10
@@ -175,7 +175,7 @@ A reranker that is down, slow or busy does not cost a search its answer. Each ca
 with one worker; raise it for a vLLM reranker that serves several clients. Waiting for a free slot
 counts against the timeout. When the second stage fails, the search returns the first stage's order
 with a note saying so. The reason goes to the server's log, and
-`toolrank_search_rerank_failed_total` counts these searches. `/v1/rank` always scores with the first
+`callbus_search_rerank_failed_total` counts these searches. `/v1/rank` always scores with the first
 stage's cosines.
 
 **`--cut-threshold T --cut-min 0`: say so when nothing fits.** By default a search returns at least
@@ -187,15 +187,15 @@ way requests are written. At a T that turns away 1% of answerable requests, MCP-
 quarter of the unanswerable ones; on LiveMCPBench no threshold is that cheap. The log keeps what a
 turned-away search would have shown (`results`, with `shown: 0`), which is what to calibrate on.
 
-**`toolrank calibrate`, `confidence` and `--min-confidence`: a threshold that means the same
+**`callbus calibrate`, `confidence` and `--min-confidence`: a threshold that means the same
 everywhere.** A raw score has a different scale on every catalogue. A calibration measures that
 scale on your own catalogue. A chat model writes requests for your tools, each one answerable by
 construction, and `calibrate` ranks them the way the server does. It keeps their best scores in
 `DATA/calibration.json`:
 
 ```bash
-toolrank data gen-queries --data tools/ --out tools-requests/ --n 200
-toolrank calibrate --data tools/ --requests tools-requests/      # the same flags as search and serve
+callbus data gen-queries --data tools/ --out tools-requests/ --n 200
+callbus calibrate --data tools/ --requests tools-requests/      # the same flags as search and serve
 ```
 
 From then on, every search answered by that first stage carries a `confidence`. It is the share of
@@ -216,24 +216,24 @@ states a problem instead of naming the operation, narrowed it to 21%; tasks of t
 help. Within one style the band is exact: calibrated on half of a set's requests, it turned away
 5.3% of the other half. So treat `confidence` as "compared with the requests I was calibrated on",
 keep `--min-confidence` off until you have requests that resemble what your agents send, and
-re-calibrate when that changes ([the measurement](https://github.com/yasinyaman/toolrank/blob/main/docs/reports/backlog-d214.md)).
+re-calibrate when that changes ([the measurement](https://github.com/yasinyaman/callbus/blob/main/docs/reports/backlog-d214.md)).
 
 **`--from-log`: calibrate on the traffic the server answered.** Once a server has run for a while,
 its own log is the representative set:
 
 ```bash
-toolrank calibrate --data tools/ --from-log [--since 2026-10-01] [--tenant NAME]
+callbus calibrate --data tools/ --from-log [--since 2026-10-01] [--tenant NAME]
 ```
 
 It takes the searches whose call landed on a tool — the evidence that the request was answerable —
-and recovers each request's vector from the embedding cache, the way `toolrank learn` does; the log
+and recovers each request's vector from the embedding cache, the way `callbus learn` does; the log
 itself keeps no request text. There is no Recall@5 to report (a log has no gold list, only the tool
 the agent chose), and the twins are measured by hiding the called tool's source. It needs at least
 50 such requests, so generated requests remain the way to start; swap to the log when the traffic is
 there, and the band then means what it says.
 
 A calibration holds for one backbone, set of heads and serving instruction. After any of them
-changes (a new backbone, heads promoted by `toolrank ab`, `--instruction`), run `calibrate` again.
+changes (a new backbone, heads promoted by `callbus ab`, `--instruction`), run `calibrate` again.
 Until then searches carry no confidence and nothing is turned away, and the server says so at
 start. Adding a few tools does not move the distribution much.
 
@@ -244,24 +244,24 @@ start. Adding a few tools does not move the distribution much.
 
 ```yaml
 scrape_configs:
-  - job_name: toolrank
+  - job_name: callbus
     metrics_path: /v1/metrics
-    authorization: {credentials: "<TOOLRANK_API_KEY>"}
+    authorization: {credentials: "<CALLBUS_API_KEY>"}
     static_configs: [{targets: ["127.0.0.1:8765"]}]
 ```
 
 | Metric | What it tells you |
 | --- | --- |
-| `toolrank_searches_total{via,mode,arm}`, `toolrank_search_duration_seconds` | traffic and ranking latency (the request's embedding included) |
-| `toolrank_search_tools_returned`, `toolrank_search_empty_total`, `toolrank_search_co_use_added_total` | how many tools a search hands over |
-| `toolrank_search_rerank_failed_total` | searches whose second stage failed or timed out (the first stage's order answered) |
-| `toolrank_search_confidence` | with a calibration: how sure searches are (a falling median: traffic the catalogue does not answer) |
-| `toolrank_search_returned_tokens_total`, `toolrank_search_saved_tokens_total`, `toolrank_catalog_tokens` | the token estimate (below) |
-| `toolrank_calls_total{kind,outcome,via}`, `toolrank_call_duration_seconds` | calls forwarded and how they ended |
-| `toolrank_calls_linked_total{link}`, `toolrank_called_tool_rank` | whether calls can be tied to a search, and where the called tool stood in it |
-| `toolrank_embedding_texts_total{kind,source}`, `toolrank_embedding_tokens_total` | embedding-cache hits (`source="cache"`) against texts sent to the endpoint |
-| `toolrank_rerank_candidates_total{source}` | with `--rerank`: candidates the second stage scored from its cache against those its model scored |
-| `toolrank_catalog_tools`, `toolrank_catalog_sources`, `toolrank_index_ready`, `toolrank_heads{arm}`, `toolrank_build_info` | what is being served |
+| `callbus_searches_total{via,mode,arm}`, `callbus_search_duration_seconds` | traffic and ranking latency (the request's embedding included) |
+| `callbus_search_tools_returned`, `callbus_search_empty_total`, `callbus_search_co_use_added_total` | how many tools a search hands over |
+| `callbus_search_rerank_failed_total` | searches whose second stage failed or timed out (the first stage's order answered) |
+| `callbus_search_confidence` | with a calibration: how sure searches are (a falling median: traffic the catalogue does not answer) |
+| `callbus_search_returned_tokens_total`, `callbus_search_saved_tokens_total`, `callbus_catalog_tokens` | the token estimate (below) |
+| `callbus_calls_total{kind,outcome,via}`, `callbus_call_duration_seconds` | calls forwarded and how they ended |
+| `callbus_calls_linked_total{link}`, `callbus_called_tool_rank` | whether calls can be tied to a search, and where the called tool stood in it |
+| `callbus_embedding_texts_total{kind,source}`, `callbus_embedding_tokens_total` | embedding-cache hits (`source="cache"`) against texts sent to the endpoint |
+| `callbus_rerank_candidates_total{source}` | with `--rerank`: candidates the second stage scored from its cache against those its model scored |
+| `callbus_catalog_tools`, `callbus_catalog_sources`, `callbus_index_ready`, `callbus_heads{arm}`, `callbus_build_info` | what is being served |
 
 The token estimate answers "what did searching save over loading every tool?". A tool counts as
 its name, description and input schema in JSON at four characters a token; a search *returned* the
@@ -270,7 +270,7 @@ tokens of the tools it handed over and *saved* the catalogue's total minus that.
 returns about 5k, a reduction above 99%. It is an estimate and a floor: schemas are counted in full
 although later hits are shortened, and the first searches after a catalogue change claim nothing
 while the new catalogue is being sized. The share of calls in the top five of their search is
-`toolrank_called_tool_rank_bucket{le="5"} / toolrank_called_tool_rank_count`.
+`callbus_called_tool_rank_bucket{le="5"} / callbus_called_tool_rank_count`.
 
 Labels never carry request text, tool arguments or API key names (`arm` says `tenant` for any
 key's own heads), and the counters are server-wide: any valid key can read them. They count what
@@ -280,7 +280,7 @@ the usage log sees and keep counting under `--no-usage-log`; they start at zero 
 
 Every search and call goes to `DATA/usage/` (or `--usage-log DIR`), one JSON line per event in a
 file per day, each call tied to the search that found its tool. It is what
-[`toolrank learn`](learn.md) trains the heads on.
+[`callbus learn`](learn.md) trains the heads on.
 
 The server also follows `DATA/heads` while it runs: `current.npz` there replaces the served heads,
 `candidate.npz` takes `--candidate-share` of the requests, and `tenants/<name>/` holds the same for one

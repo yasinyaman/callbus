@@ -5,14 +5,14 @@ import time
 import numpy as np
 import pytest
 
-from toolrank.adapters.bm25 import BM25Scorer
-from toolrank.adapters.dense import DenseScorer
-from toolrank.adapters.embeddings_api import OpenAIEmbeddings
-from toolrank.adapters.hybrid import HybridScorer
-from toolrank.cut import AdaptiveK
-from toolrank.datasets.jsonl import write_tools
-from toolrank.domain import Query, Tool
-from toolrank.retriever import IndexNotReady, Retriever, tidy
+from callbus.adapters.bm25 import BM25Scorer
+from callbus.adapters.dense import DenseScorer
+from callbus.adapters.embeddings_api import OpenAIEmbeddings
+from callbus.adapters.hybrid import HybridScorer
+from callbus.cut import AdaptiveK
+from callbus.datasets.jsonl import write_tools
+from callbus.domain import Query, Tool
+from callbus.retriever import IndexNotReady, Retriever, tidy
 
 
 class _HashEncoder:
@@ -245,8 +245,8 @@ def _npz_heads(path, seed, hidden=16, width=8, backbone=None):
 
 
 def _with_heads(tmp_path, **kw):
-    from toolrank.adapters.clm import CLMScorer
-    from toolrank.adapters.heads_np import NumpyHeads
+    from callbus.adapters.clm import CLMScorer
+    from callbus.adapters.heads_np import NumpyHeads
 
     built = []
 
@@ -271,7 +271,7 @@ def _ready(r, name, timeout=10.0):
 
 
 def test_heads_files_are_picked_up_while_serving(tmp_path):
-    from toolrank.retriever import bucket
+    from callbus.retriever import bucket
 
     r, built = _with_heads(tmp_path, candidate_share=0.5)
     first = r.search("tool 3")
@@ -343,7 +343,7 @@ def test_a_broken_heads_file_or_an_explicit_checkpoint_leaves_the_base_in_place(
 def test_a_second_stage_search_logs_the_first_stages_model(tmp_path):
     """learn keeps only the served backbone's requests: a search behind a second stage (and a hybrid)
     must still name the model that embedded the request, and keep its embedding-cache key."""
-    from toolrank.adapters.rerank import ScorerReranker
+    from callbus.adapters.rerank import ScorerReranker
 
     class _First(_HashEncoder):
         model = "first"
@@ -366,7 +366,7 @@ def test_a_second_stage_search_logs_the_first_stages_model(tmp_path):
 def test_a_failing_second_stage_answers_with_the_first_stages_order(tmp_path):
     """A reranker that is down or slow must not cost a search its answer: the first stage's list
     comes back, the reason for the server's log; eval still raises."""
-    from toolrank.adapters.rerank import ScorerReranker
+    from callbus.adapters.rerank import ScorerReranker
 
     class _Down(DenseScorer):
         def score_tools(self, query, tools):
@@ -397,7 +397,7 @@ def test_rows_of_another_catalogue_in_a_shared_index_are_skipped(tmp_path):
             self.ids = [t.id for t in tools]
 
         def rank(self, queries, k):
-            from toolrank.domain import RankedList
+            from callbus.domain import RankedList
 
             ids = ["elsewhere/x", *self.ids][:k]
             return [RankedList(q.id, ids, [1.0 - n / 100 for n in range(len(ids))]) for q in queries]
@@ -428,7 +428,7 @@ def test_a_key_limited_to_some_sources_ranks_as_if_the_catalogue_were_its_own(tm
     """Ranking the whole catalogue and filtering afterwards left traces: RRF scores 1/(60 + global
     rank), a second stage's tail scores counting hidden tools, and hidden tools' text sent to the
     second stage. Ranked within the key's sources, its results equal those of a catalogue of them."""
-    from toolrank.adapters.rerank import ScorerReranker
+    from callbus.adapters.rerank import ScorerReranker
 
     mine = [
         Tool(id=f"a/t{i}", doc={"name": f"t{i}", "description": f"tool {i}"}, category="a") for i in range(6)
@@ -467,7 +467,7 @@ def test_a_key_limited_to_some_sources_ranks_as_if_the_catalogue_were_its_own(tm
 def test_a_key_without_heads_of_its_own_takes_part_in_the_shared_experiment(tmp_path):
     """Every keyed request was control: a key never got the shared candidate, so a server whose
     clients all have keys never tried it (ab waited forever) while its control arm grew."""
-    from toolrank.retriever import bucket
+    from callbus.retriever import bucket
 
     r, _ = _with_heads(tmp_path, candidate_share=0.5)
     heads = tmp_path / "heads"

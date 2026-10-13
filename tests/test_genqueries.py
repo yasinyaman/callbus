@@ -1,11 +1,11 @@
-"""``toolrank data gen-queries``: a selection set written by a chat model for one's own catalogue."""
+"""``callbus data gen-queries``: a selection set written by a chat model for one's own catalogue."""
 
 import json
 
 import pytest
 
-from toolrank.cli import main
-from toolrank.datasets.genqueries import (
+from callbus.cli import main
+from callbus.datasets.genqueries import (
     INSTRUCTION,
     MAX_CHARS,
     STYLES,
@@ -17,8 +17,8 @@ from toolrank.datasets.genqueries import (
     sample,
     user_prompt,
 )
-from toolrank.datasets.jsonl import load_queries, load_tools, write_queries, write_tools
-from toolrank.domain import Query, Tool
+from callbus.datasets.jsonl import load_queries, load_tools, write_queries, write_tools
+from callbus.domain import Query, Tool
 
 
 def _tools(sizes):
@@ -139,7 +139,7 @@ def test_gen_queries_writes_a_benchmark_dir_and_resumes(tmp_path):
 
 
 def test_the_cli_command_and_the_set_scores(tmp_path, monkeypatch, capsys):
-    from toolrank.adapters.chat_api import OpenAIChat
+    from callbus.adapters.chat_api import OpenAIChat
 
     write_tools(tmp_path / "cat" / "tools.jsonl", _tools({"big": 20, "tiny": 2}))
     monkeypatch.setattr(OpenAIChat, "complete", lambda self, system, user: _Chat().complete(system, user))
@@ -171,7 +171,7 @@ def _named(source, name, description):
 
 
 def test_neighbours_are_related_tools_of_the_same_source():
-    from toolrank.datasets.genqueries import neighbours
+    from callbus.datasets.genqueries import neighbours
 
     tools = [
         _named("git", "create_issue", "Create an issue in a repository"),
@@ -190,7 +190,7 @@ def test_neighbours_are_related_tools_of_the_same_source():
 
 
 def test_multi_tool_tasks_have_every_tool_as_gold(tmp_path):
-    from toolrank.datasets.genqueries import MULTI, multi_prompt
+    from callbus.datasets.genqueries import MULTI, multi_prompt
 
     tools = [
         _named("git", f"{verb}_issue", f"{verb} an issue in a repository")

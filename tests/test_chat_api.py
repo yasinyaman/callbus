@@ -1,8 +1,8 @@
 import io
 import json
 
-from toolrank.adapters.chat_api import OpenAIChat
-from toolrank.ports import ChatModel
+from callbus.adapters.chat_api import OpenAIChat
+from callbus.ports import ChatModel
 
 
 def test_complete_posts_both_messages_and_the_extra_body(monkeypatch):
@@ -27,9 +27,9 @@ def test_complete_posts_both_messages_and_the_extra_body(monkeypatch):
 
 
 def test_the_openai_key_goes_to_openai_only(monkeypatch):
-    monkeypatch.delenv("TOOLRANK_CHAT_API_KEY", raising=False)
+    monkeypatch.delenv("CALLBUS_CHAT_API_KEY", raising=False)
     monkeypatch.setenv("OPENAI_API_KEY", "sk-agent")
     assert OpenAIChat("m", "http://127.0.0.1:8093/v1").api_key is None
     assert OpenAIChat("m", "https://api.openai.com/v1").api_key == "sk-agent"
-    monkeypatch.setenv("TOOLRANK_CHAT_API_KEY", "own")
+    monkeypatch.setenv("CALLBUS_CHAT_API_KEY", "own")
     assert OpenAIChat("m", "http://127.0.0.1:8093/v1").api_key == "own"

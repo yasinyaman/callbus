@@ -1,10 +1,10 @@
 import pytest
 
-from toolrank.adapters.bm25 import BM25Scorer
-from toolrank.adapters.hybrid import HybridScorer
-from toolrank.cli import main
-from toolrank.domain import Query, RankedList
-from toolrank.formats import TOOL_FORMATS
+from callbus.adapters.bm25 import BM25Scorer
+from callbus.adapters.hybrid import HybridScorer
+from callbus.cli import main
+from callbus.domain import Query, RankedList
+from callbus.formats import TOOL_FORMATS
 
 
 class _Fixed:
@@ -55,13 +55,13 @@ def test_zero_score_bm25_padding_is_ignored():
 
 
 def test_hybrid_end_to_end_on_the_synthetic_set(tmp_path, capsys):
-    from toolrank.datasets.synthetic import write_synthetic
+    from callbus.datasets.synthetic import write_synthetic
 
     write_synthetic(tmp_path, n_tools=60, n_queries=20, seed=3)
     sem = BM25Scorer("name_desc", "plain")  # stands in for a cosine scorer: any list will do here
     sem.score_kind = "cosine"
     h = HybridScorer(sem, BM25Scorer("documentation", "plain"), depth=20)
-    from toolrank.datasets.jsonl import load_queries, load_tools
+    from callbus.datasets.jsonl import load_queries, load_tools
 
     h.index(load_tools(tmp_path / "tools.jsonl"))
     ranked = h.rank(load_queries(tmp_path / "queries.jsonl"), k=10)

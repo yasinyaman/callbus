@@ -12,14 +12,14 @@ import argparse
 import sys
 from pathlib import Path
 
-from toolrank.cli import build_parser
+from callbus.cli import build_parser
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs" / "reference" / "cli.md"
 
 HEAD = """# CLI reference
 
-Generated from `toolrank`'s argument parser by `scripts/cli_reference.py`; `toolrank <command>
+Generated from `callbus`'s argument parser by `scripts/cli_reference.py`; `callbus <command>
 --help` shows the same. Every command also takes `-h` / `--help`.
 """
 
@@ -95,7 +95,7 @@ def render() -> str:
         for name, sub in subs.items():
             walk([*path, name], sub, _help(sub, name, parser))
 
-    walk(["toolrank"], root, "")
+    walk(["callbus"], root, "")
     return "\n".join(lines).rstrip() + "\n"
 
 

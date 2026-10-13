@@ -10,10 +10,10 @@ pytest.importorskip("mcp")
 
 from starlette.testclient import TestClient  # noqa: E402
 
+from callbus.adapters.mcp_proxy import build_proxy, http_app  # noqa: E402
+from callbus.adapters.rest import rest_routes  # noqa: E402
+from callbus.client import AsyncCallBusClient, CallBusClient, CallBusError  # noqa: E402
 from test_rest import BASE, _callable, _events  # noqa: E402
-from toolrank.adapters.mcp_proxy import build_proxy, http_app  # noqa: E402
-from toolrank.adapters.rest import rest_routes  # noqa: E402
-from toolrank.client import AsyncToolrankClient, ToolrankClient, ToolrankError  # noqa: E402
 
 
 def _through(tc):
@@ -27,12 +27,12 @@ def _through(tc):
 
 
 @contextmanager
-def _toolrank(tmp_path):
+def _callbus(tmp_path):
     """A client of the served app (MCP proxy + REST) over ``_callable``'s catalogue."""
     retriever, usage, backends = _callable(tmp_path)
     app = http_app(build_proxy(retriever, backends, usage), routes=rest_routes(retriever, usage, backends))
     with TestClient(app, base_url=BASE) as tc:
-        yield ToolrankClient(BASE, transport=_through(tc))
+        yield CallBusClient(BASE, transport=_through(tc))
 
 
 def test_client_against_the_served_app(tmp_path):
@@ -40,7 +40,7 @@ def test_client_against_the_served_app(tmp_path):
     proxy = build_proxy(retriever, backends, usage)
     app = http_app(proxy, api_key="k", routes=rest_routes(retriever, usage, backends))
     with TestClient(app, base_url=BASE) as tc:
-        tr = ToolrankClient(BASE, api_key="k", session="conv-1", transport=_through(tc))
+        tr = CallBusClient(BASE, api_key="k", session="conv-1", transport=_through(tc))
         assert tr.health()["ready"] is True
         catalog = tr.catalog()
         assert {t["api_name"] for t in catalog["tools"]} == {"fx__add", "api__getThing", "api__createThing"}
@@ -49,11 +49,11 @@ def test_client_against_the_served_app(tmp_path):
         assert len(found["tools"]) == 2 and found["mode"] == "semantic"
         out = tr.call("fx/add", {"a": 1, "b": 2}, search_id=found["search_id"])
         assert (out["outcome"], out["content"]) == ("ok", [{"type": "text", "text": "3"}])
-        with pytest.raises(ToolrankError) as e:
+        with pytest.raises(CallBusError) as e:
             tr.call("fx/nope")
         assert e.value.status == 404 and "no tool named" in e.value.message
-        with pytest.raises(ToolrankError) as e:
-            ToolrankClient(BASE, api_key="wrong", transport=_through(tc)).search("x")
+        with pytest.raises(CallBusError) as e:
+            CallBusClient(BASE, api_key="wrong", transport=_through(tc)).search("x")
         assert e.value.status == 401
         mine = [{"name": f"t{n}", "description": f"tool number {n}", "inputSchema": {}} for n in range(450)]
         ranked = tr.rank("tool number 7", mine)  # three requests: 200 + 200 + 50 tools
@@ -104,8 +104,8 @@ class _Quiet(ThreadingHTTPServer):
 def test_the_async_client_is_the_same_api_without_blocking_the_loop(tmp_path):
     import asyncio
 
-    with _toolrank(tmp_path) as tr:
-        atr = AsyncToolrankClient(client=tr)
+    with _callbus(tmp_path) as tr:
+        atr = AsyncCallBusClient(client=tr)
 
         async def main():
             health, found, again = await asyncio.gather(
@@ -115,15 +115,15 @@ def test_the_async_client_is_the_same_api_without_blocking_the_loop(tmp_path):
             assert found["search_id"] != again["search_id"]  # the hash encoder ranks at random
             out = await atr.call("fx/add", {"a": 2, "b": 5}, search_id=found["search_id"])
             ranked = await atr.rank("add", [{"name": "add", "description": "Add two integers."}])
-            with pytest.raises(ToolrankError, match="no tool named"):
+            with pytest.raises(CallBusError, match="no tool named"):
                 await atr.call("fx/nothing", {})
             return out, ranked, (await atr.catalog(server="fx"))["count"]
 
         out, ranked, count = asyncio.run(main())
     assert out["outcome"] == "ok" and ranked[0]["index"] == 0 and count == 1
-    assert AsyncToolrankClient("http://h:1", api_key="k").sync.base_url == "http://h:1"
+    assert AsyncCallBusClient("http://h:1", api_key="k").sync.base_url == "http://h:1"
     with pytest.raises(TypeError, match="not both"):
-        AsyncToolrankClient("http://h:1", client=tr)
+        AsyncCallBusClient("http://h:1", client=tr)
 
 
 def test_urllib_transport_headers_errors_redirects_and_timeouts():
@@ -132,15 +132,15 @@ def test_urllib_transport_headers_errors_redirects_and_timeouts():
     threading.Thread(target=server.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{server.server_address[1]}"
     try:
-        tr = ToolrankClient(base, api_key="k", session="s1", call_timeout=0.2)
+        tr = CallBusClient(base, api_key="k", session="s1", call_timeout=0.2)
         assert tr.health() == {"ready": False}  # a server still building its index is an answer
-        with pytest.raises(ToolrankError) as e:
+        with pytest.raises(CallBusError) as e:
             tr.catalog()
         assert e.value.status == 302  # not followed: the token stays on this host
-        with pytest.raises(ToolrankError) as e:
+        with pytest.raises(CallBusError) as e:
             tr.search("x")
         assert (e.value.status, e.value.message) == (502, "upstream exploded")
-        with pytest.raises(ToolrankError, match="timed out"):
+        with pytest.raises(CallBusError, match="timed out"):
             tr.call("a/b")
         path, headers, body = _Stub.seen[2]
         assert path == "/v1/search" and json.loads(body) == {"query": "x"}
@@ -149,17 +149,17 @@ def test_urllib_transport_headers_errors_redirects_and_timeouts():
             "s1",
             "application/json",
         )
-        assert headers["user-agent"].startswith("toolrank-client/") and len(_Stub.seen) == 4
+        assert headers["user-agent"].startswith("callbus-client/") and len(_Stub.seen) == 4
     finally:
         server.shutdown()
         server.server_close()
-    with pytest.raises(ToolrankError) as e:
-        ToolrankClient(base, timeout=2).health()
+    with pytest.raises(CallBusError) as e:
+        CallBusClient(base, timeout=2).health()
     assert e.value.status == 0 and "unreachable" in e.value.message
 
 
 def test_rank_chunks_respect_the_tool_count_and_the_body_size():
-    from toolrank.client import RANK_BYTES, RANK_CHUNK, _chunks
+    from callbus.client import RANK_BYTES, RANK_CHUNK, _chunks
 
     big = [{"name": f"b{n}", "description": "x" * 400_000} for n in range(5)]  # ~400 KB each
     assert [(start, len(c)) for start, c in _chunks(big)] == [(0, 2), (2, 2), (4, 1)]

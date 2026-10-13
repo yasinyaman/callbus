@@ -19,12 +19,12 @@ Hafta 6'nın üç maddesi bitti. Herkese açık hiçbir şey yayımlanmadı; yay
 
 ## 1. Paket (PyPI'a hazır, yayımlanmadı)
 
-- **Sürüm tek yerde.** Sürüm artık yalnız `toolrank/__init__.py`'de duruyor (`0.1.0.dev0`); hatch
+- **Sürüm tek yerde.** Sürüm artık yalnız `callbus/__init__.py`'de duruyor (`0.1.0.dev0`); hatch
   oradan okuyor.
 - **Metadata.**
   - PEP 639 biçiminde lisans: `License-Expression: Apache-2.0`; wheel'de LICENSE ve NOTICE var.
   - Python 3.13 classifier'ı eklendi.
-  - Adresler `yasinyaman/toolrank`.
+  - Adresler `yasinyaman/callbus`.
 - **İçerik.**
   - sdist yalnız `src/`, `tests/`, README, LICENSE, NOTICE ve CHANGELOG'u taşıyor.
   - wheel 155 KB, sdist 198 KB.
@@ -34,12 +34,12 @@ Hafta 6'nın üç maddesi bitti. Herkese açık hiçbir şey yayımlanmadı; yay
   - `[faiss]`/`[pgvector]`'süz indeks;
   - torch'suz `.pt` head.
 
-  Olmayan bir dosyayı gösteren `TOOLRANK_HEADS` artık sessizce head'siz çalışmıyor, hata veriyor.
-- **`toolrank heads pull`.** Paketlenmiş head'leri indirip sha256'sını kontrol ediyor ve önbelleğe
+  Olmayan bir dosyayı gösteren `CALLBUS_HEADS` artık sessizce head'siz çalışmıyor, hata veriyor.
+- **`callbus heads pull`.** Paketlenmiş head'leri indirip sha256'sını kontrol ediyor ve önbelleğe
   koyuyor. Head'ler barındırılana kadar anlaşılır bir hata veriyor.
 - **Konteyner ve ters proxy ayarları.** `serve`, `0.0.0.0`'a bağlanınca loopback adlarını da kabul
   ediyor. Portsuz bir Host başlığı `/mcp`'de de geçiyor. Yeni ortam değişkenleri:
-  `TOOLRANK_ALLOWED_HOSTS`, `TOOLRANK_EMB_URL`, `TOOLRANK_EMB_MODEL`. Eval bunları okumuyor.
+  `CALLBUS_ALLOWED_HOSTS`, `CALLBUS_EMB_URL`, `CALLBUS_EMB_MODEL`. Eval bunları okumuyor.
 - **Temiz ortam denemesi.**
   - Yalın kurulumda yalnız numpy ve bm25s var; BM25 eval çalıştı, `serve` kurulum satırını verdi.
   - `[mcp]` kurulumunda `data/w3` (1.862 tool) GB10 embedding'leriyle servis edildi. İndeks 0,2
@@ -104,23 +104,23 @@ NVIDIA'nın NGC imajı yeniden dağıtılamıyor.
 
 ## 4. Docker imajları ve compose
 
-- **`toolrank` imajı** (`deploy/docker/Dockerfile`):
-  - `python:3.12-slim` üzerinde `toolrank[mcp,openapi,stem]`; sürümler `uv.lock`'tan geliyor, yani
+- **`callbus` imajı** (`deploy/docker/Dockerfile`):
+  - `python:3.12-slim` üzerinde `callbus[mcp,openapi,stem]`; sürümler `uv.lock`'tan geliyor, yani
     THIRD_PARTY'dekilerle aynı.
   - stdio MCP sunucuları için Node.js 24 ve uv; alt süreçleri toplamak için tini.
   - Root olmayan kullanıcı (uid 1000); bytecode önceden derlenmiş.
   - Head'ler isteğe bağlı bir `heads` build context'inden geliyor. Bu bağlamdan yalnız
-    `toolrank-heads-*.npz` dosyaları alınıyor; GB10'daki Hafta 5 deneme head'i imaja girmedi.
+    `callbus-heads-*.npz` dosyaları alınıyor; GB10'daki Hafta 5 deneme head'i imaja girmedi.
   - arm64'te 505 MB.
-- **`toolrank-vllm` imajı** (`deploy/docker/Dockerfile.vllm`):
-  - Resmi vLLM imajı üzerinde, toolrank kendi venv'inde, vLLM'in bağımlılıklarıyla çakışmadan.
-  - Giriş betiği vLLM'i loopback'te başlatıyor ve bekliyor, sonra toolrank'ı çalıştırıyor. Biri
+- **`callbus-vllm` imajı** (`deploy/docker/Dockerfile.vllm`):
+  - Resmi vLLM imajı üzerinde, callbus kendi venv'inde, vLLM'in bağımlılıklarıyla çakışmadan.
+  - Giriş betiği vLLM'i loopback'te başlatıyor ve bekliyor, sonra callbus'ı çalıştırıyor. Biri
     düşerse konteyner çıkıyor.
-  - FP8 varsayılan (`TOOLRANK_FP8=0` ile bf16).
+  - FP8 varsayılan (`CALLBUS_FP8=0` ile bf16).
   - 22.6 GB; bunun 22.1 GB'ı vLLM tabanı.
 - **Compose:** `compose.yaml` resmi vLLM ile ince imajı iki servis olarak, `compose.bundle.yaml`
-  tek imajı çalıştırıyor. Proje adları `toolrank-stack` ve `toolrank-bundled`: GB10'daki
-  `deploy/spark` compose'u `toolrank` adını kullanıyor ve `down --remove-orphans` benchmark
+  tek imajı çalıştırıyor. Proje adları `callbus-stack` ve `callbus-bundled`: GB10'daki
+  `deploy/spark` compose'u `callbus` adını kullanıyor ve `down --remove-orphans` benchmark
   sunucularını silebilirdi. Veri, model ve uvx/npx önbelleği adlandırılmış volume'lerde; bind
   mount'ta dizini Docker root sahipliğiyle oluşturur ve uid 1000 yazamazdı.
 - **Duman testi** (`scripts/container_smoke.py`, GPU'suz, sahte embedding sunucusuyla): ince imaj
@@ -145,7 +145,7 @@ eklenmemişti. Duman testi aynı kodla, doğru başlıkla 200 alıyor.
 
 ## 5. Docs sitesi
 
-- **Kurulum:** mkdocs 1.6 ve Material 9.7, `https://yasinyaman.github.io/toolrank/` için. Araçlar bir
+- **Kurulum:** mkdocs 1.6 ve Material 9.7, `https://yasinyaman.github.io/callbus/` için. Araçlar bir
   PEP 735 grubunda: `uv run --group docs mkdocs serve`.
 - **Sayfalar:**
   - genel bakış;
@@ -204,7 +204,7 @@ eklenmemişti. Duman testi aynı kodla, doğru başlıkla 200 alıyor.
   - iki imaj GHCR'a, amd64 + arm64, sha256'sı kontrol edilmiş head'lerle;
   - CHANGELOG'dan GitHub release.
 - **`docs.yml`:** Pages'e elle dağıtım.
-- **Güvenceler:** Yayın ve docs iş akışları, `TOOLRANK_RELEASE` / `TOOLRANK_PAGES` depo
+- **Güvenceler:** Yayın ve docs iş akışları, `CALLBUS_RELEASE` / `CALLBUS_PAGES` depo
   değişkenleri açılmadıkça hiçbir şey yapmıyor. PyPI ve GHCR adımları onay isteyen ortamlardan
   (`pypi`, `ghcr`) geçiyor.
 - **Denetim:** `actionlint` hata bulmadı, giriş betiği `shellcheck` temiz. CI'ın paket job'ı yerelde
@@ -216,9 +216,9 @@ eklenmemişti. Duman testi aynı kodla, doğru başlıkla 200 alıyor.
 2. Head'lerin barındırılması: `hf auth login`, ardından `scripts/publish_heads.py --upload`. Sonra
    `HEADS_URL` doldurulacak; model kartındaki "barındırılmıyor" cümlesini betik değiştiriyor.
 3. Sürüm `0.1.0`, CHANGELOG'da tarihli `## [0.1.0] - YYYY-MM-DD` girdisi.
-4. GitHub'da depo (`yasinyaman/toolrank`), `pypi` / `ghcr` ortamları (onaylı) ve PyPI'da trusted
+4. GitHub'da depo (`yasinyaman/callbus`), `pypi` / `ghcr` ortamları (onaylı) ve PyPI'da trusted
    publisher.
-5. Depo değişkenleri `TOOLRANK_RELEASE`, `TOOLRANK_PAGES`.
+5. Depo değişkenleri `CALLBUS_RELEASE`, `CALLBUS_PAGES`.
 
 Hepsi 19:00'dan sonra ve her adım ayrı onayla.
 
@@ -231,27 +231,27 @@ uv build --out-dir dist/pypi && uvx twine check --strict dist/pypi/*
 uv run --group docs mkdocs build --strict
 uv run python scripts/release_check.py            # Hafta 7'nin listesi
 
-# GB10, ~/toolrank: FP8 (profil fp8, 8094) ve karşılaştırma
+# GB10, ~/callbus: FP8 (profil fp8, 8094) ve karşılaştırma
 docker compose -f deploy/spark/compose.yaml --profile fp8 up -d qwen3-embedding-8b-fp8
 EMB_URL=http://127.0.0.1:8094/v1 EMB_MODEL=qwen3-emb-fp8 TAG=fp8 ROWS="qwen3emb heads" \
   PYTHONUNBUFFERED=1 nohup bash scripts/readme_results.sh > data/logs/readme_fp8.log 2>&1 &
 uv run python scripts/fp8_agreement.py --a http://127.0.0.1:8091/v1=qwen3-emb --b http://127.0.0.1:8094/v1=qwen3-emb-fp8 \
-  --truncate 8192 --tool-format documentation --query-format instruct_query --heads dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz
-uv run python scripts/latency.py --scorer clm --clm-ckpt dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz \
+  --truncate 8192 --tool-format documentation --query-format instruct_query --heads dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz
+uv run python scripts/latency.py --scorer clm --clm-ckpt dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz \
   --emb-url http://127.0.0.1:8094/v1 --emb-model qwen3-emb-fp8 --truncate 8192 --tool-format documentation --query-format instruct_query
 
 # GB10: resmi vLLM v0.30.0 (bf16, 8095) ve MCP setlerinde parite
-docker run -d --name toolrank-vllm030-test --gpus all --ipc host -v $HOME/.cache/huggingface:/root/.cache/huggingface \
+docker run -d --name callbus-vllm030-test --gpus all --ipc host -v $HOME/.cache/huggingface:/root/.cache/huggingface \
   -p 8095:8000 vllm/vllm-openai:v0.30.0 Qwen/Qwen3-Embedding-8B --served-model-name qwen3-emb --runner pooling \
   --max-model-len 8192 --dtype bfloat16 --gpu-memory-utilization 0.2 --no-enable-chunked-prefill --max-num-batched-tokens 8192
-toolrank eval --data data/mcp_zero_server --scorer clm --clm-ckpt dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz \
+callbus eval --data data/mcp_zero_server --scorer clm --clm-ckpt dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz \
   --emb-url http://127.0.0.1:8095/v1 --emb-model qwen3-emb --truncate 8192 --tool-format documentation \
   --query-format instruct_query --with-inst --ks 1,5,10,20 --out results/readme_v030_mcp_zero_server_heads.json
 
 # GB10: imajlar ve duman testi
-docker build -f deploy/docker/Dockerfile --build-context heads=dist/heads -t toolrank:dev .
-docker build -f deploy/docker/Dockerfile.vllm --build-context heads=dist/heads -t toolrank-vllm:dev .
-uv run python scripts/container_smoke.py toolrank:dev --version 0.1.0.dev0
+docker build -f deploy/docker/Dockerfile --build-context heads=dist/heads -t callbus:dev .
+docker build -f deploy/docker/Dockerfile.vllm --build-context heads=dist/heads -t callbus-vllm:dev .
+uv run python scripts/container_smoke.py callbus:dev --version 0.1.0.dev0
 ```
 
 ## Ortam
@@ -278,7 +278,7 @@ uv run python scripts/container_smoke.py toolrank:dev --version 0.1.0.dev0
   - yayın kontrolüne CHANGELOG ve model kartı;
   - CI'da Python 3.13 ve kilitli sürümler;
   - yayın iş akışlarının depo değişkenleriyle kapalı tutulması.
-- **İmaj adları:** İki imaj ayrı adlarla yayımlanacak (`toolrank`, `toolrank-vllm`); plandaki
+- **İmaj adları:** İki imaj ayrı adlarla yayımlanacak (`callbus`, `callbus-vllm`); plandaki
   `:<sürüm>-vllm` etiketi yerine.
 - **NGC imajı:** NGC tabanlı tek imaj yalnız yerel kullanım içindir; dağıtım koşulları izin vermiyor.
 - **amd64:** amd64 imajlar yalnız CI'da build edilecek. Mac'te Docker daemon kapalıydı.

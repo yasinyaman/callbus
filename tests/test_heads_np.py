@@ -4,9 +4,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from toolrank.adapters.heads_np import NumpyHeads, default_heads, download, load_heads, sha256_file
-from toolrank.build import build_scorer
-from toolrank.cli import build_parser
+from callbus.adapters.heads_np import NumpyHeads, default_heads, download, load_heads, sha256_file
+from callbus.build import build_scorer
+from callbus.cli import build_parser
 
 GOLDEN = Path(__file__).parent / "fixtures" / "heads_golden.npz"
 CASES = ("gelu_layernorm_skip", "relu_residual_deep", "silu_shallow")
@@ -51,9 +51,9 @@ def test_float16_storage_and_strict_keys(tmp_path):
 
 def test_export_from_torch_round_trips(tmp_path):
     pytest.importorskip("torch")
+    from callbus.adapters.clm import CLMHeads
+    from callbus.adapters.heads_np import export_npz
     from test_clm_heads import _fake_checkpoint
-    from toolrank.adapters.clm import CLMHeads
-    from toolrank.adapters.heads_np import export_npz
 
     _fake_checkpoint(tmp_path / "h.pt")
     digest = export_npz(tmp_path / "h.pt", tmp_path / "h.npz", dtype="float32", serving={"truncate": 8192})
@@ -72,19 +72,19 @@ def test_download_checks_sha256_and_default_heads(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="sha256"):
         download(src.as_uri(), tmp_path / "cache" / "bad.npz", "0" * 64)
     assert not (tmp_path / "cache" / "bad.npz").exists() and len(list((tmp_path / "cache").iterdir())) == 1
-    monkeypatch.setenv("TOOLRANK_CACHE", str(tmp_path / "empty"))
-    monkeypatch.delenv("TOOLRANK_HEADS", raising=False)
+    monkeypatch.setenv("CALLBUS_CACHE", str(tmp_path / "empty"))
+    monkeypatch.delenv("CALLBUS_HEADS", raising=False)
     with pytest.raises(FileNotFoundError, match="not hosted yet"):
         default_heads(url="")
     got = default_heads(url=src.as_uri(), sha256=digest)
     assert got.parent == tmp_path / "empty" / "heads" and sha256_file(got) == digest
     got.unlink()
-    monkeypatch.setenv("TOOLRANK_HEADS_URL", src.as_uri())  # a mirror; the sha256 is still checked
+    monkeypatch.setenv("CALLBUS_HEADS_URL", src.as_uri())  # a mirror; the sha256 is still checked
     assert sha256_file(default_heads(sha256=digest)) == digest
     got.unlink()
     with pytest.raises(ValueError, match="sha256"):
         default_heads()  # the real file's sha256, not this one's
-    monkeypatch.setenv("TOOLRANK_HEADS", str(src))
+    monkeypatch.setenv("CALLBUS_HEADS", str(src))
     assert default_heads() == src
 
 
@@ -100,8 +100,8 @@ def test_packaged_heads_bring_their_serving_defaults(tmp_path):
 
 
 def test_eval_records_the_heads_file_it_ran_with(tmp_path, monkeypatch):
-    from toolrank.adapters.embeddings_api import OpenAIEmbeddings
-    from toolrank.cli import main
+    from callbus.adapters.embeddings_api import OpenAIEmbeddings
+    from callbus.cli import main
 
     def fake_post(self, texts, **kw):  # 16-d vectors, the golden heads' input width
         rng = np.random.default_rng(len(texts))

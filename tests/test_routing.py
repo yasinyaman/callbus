@@ -7,12 +7,12 @@ import json
 import numpy as np
 import pytest
 
-from toolrank.adapters.dense import DenseScorer
-from toolrank.adapters.embeddings_api import OpenAIEmbeddings, l2_normalize
-from toolrank.cli import main
-from toolrank.datasets.jsonl import write_queries, write_tools
-from toolrank.domain import Query, Tool
-from toolrank.formats import SERVER_SUMMARY_CHARS, server_summary
+from callbus.adapters.dense import DenseScorer
+from callbus.adapters.embeddings_api import OpenAIEmbeddings, l2_normalize
+from callbus.cli import main
+from callbus.datasets.jsonl import write_queries, write_tools
+from callbus.domain import Query, Tool
+from callbus.formats import SERVER_SUMMARY_CHARS, server_summary
 
 
 class _HashEncoder:

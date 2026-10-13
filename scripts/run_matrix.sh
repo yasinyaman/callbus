@@ -5,7 +5,7 @@
 # without heads, same text) and Qwen3-Embedding-8B (plain, `instruct_query` w/ inst). Runs are
 # sequential and restartable: a run whose results file exists is skipped, a failed run is retried
 # on the next start. Formats go shortest first; each format's first run encodes the 44k-tool
-# corpus into the embedding cache, the runs after it reuse it. On the GB10, from ~/toolrank, with
+# corpus into the embedding cache, the runs after it reuse it. On the GB10, from ~/callbus, with
 # both pooling servers up (deploy/spark/compose.yaml):
 #
 #   tmux new -d -s matrix 'bash scripts/run_matrix.sh 2>&1 | tee -a data/logs/matrix.log'
@@ -19,7 +19,7 @@ FORMATS=${FORMATS:-"name_desc schema example_call documentation"}
 CLM="--emb-url http://127.0.0.1:8090/v1 --emb-model qwen3-8b --truncate 2048 --emb-batch 128"
 EMB="--emb-url http://127.0.0.1:8091/v1 --emb-model qwen3-emb --truncate 8192 --emb-batch 128"
 
-run() { # run <name> <toolrank eval args...> -> results/toolret_<name>.json
+run() { # run <name> <callbus eval args...> -> results/toolret_<name>.json
   local out="results/toolret_$1.json"
   shift
   if [[ -s "$out" ]]; then
@@ -28,7 +28,7 @@ run() { # run <name> <toolrank eval args...> -> results/toolret_<name>.json
   fi
   echo "== $(date -Is) $out"
   local start=$SECONDS
-  if "$UV" run toolrank eval --data "$DATA" "$@" --out "$out" | grep -E '\*\*(Avg|Cat-macro)\*\*|latency|saved'; then
+  if "$UV" run callbus eval --data "$DATA" "$@" --out "$out" | grep -E '\*\*(Avg|Cat-macro)\*\*|latency|saved'; then
     echo "   took $((SECONDS - start)) s"
   else
     echo "   FAILED after $((SECONDS - start)) s: $out"

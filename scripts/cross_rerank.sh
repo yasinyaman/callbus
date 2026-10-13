@@ -3,16 +3,16 @@
 # bge-reranker-v2-gemma (8096), served by vLLM's score API (compose profile rerank), reorder the
 # packaged heads' top 20 (documentation cut to 3000) and top 100 (name_desc cut to 1000) and BM25's
 # top 30, the same cut texts as the CLM rows. On LiveMCPBench the cross-encoder also runs alone
-# (every pair). Scores are cached in .cache/toolrank/scores.sqlite. Restartable. On the GB10:
+# (every pair). Scores are cached in .cache/callbus/scores.sqlite. Restartable. On the GB10:
 #
 #   docker compose -f deploy/spark/compose.yaml --profile rerank up -d qwen3-reranker bge-reranker
 #   PYTHONUNBUFFERED=1 nohup bash scripts/cross_rerank.sh > data/logs/cross_rerank.log 2>&1 &
-#   # then, on the Mac: scp 'gb10:toolrank/results/cross_*.json' results/
+#   # then, on the Mac: scp 'gb10:callbus/results/cross_*.json' results/
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
 UV=${UV:-$HOME/.local/bin/uv}
-HEADS=${HEADS:-dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz}
+HEADS=${HEADS:-dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz}
 EMB_URL=${EMB_URL:-http://127.0.0.1:8091/v1}
 EMB_MODEL=${EMB_MODEL:-qwen3-emb}
 TAG=${TAG:-cross}
@@ -36,7 +36,7 @@ url() { # url <model> -> the score endpoint
 served() { [[ $1 == qwen3 ]] && echo qwen3-reranker || echo bge-reranker; }
 endpoint() { echo "--rerank-emb-url $(url $1) --rerank-emb-model $(served $1) --rerank-template $1"; }
 
-run() { # run <row> <set> <toolrank eval args...> -> results/<TAG>_<set>_<row>.json
+run() { # run <row> <set> <callbus eval args...> -> results/<TAG>_<set>_<row>.json
   local row=$1 out="results/${TAG}_$2_$1.json"
   shift 2
   [[ " $ROWS " == *" ${row%%_*}_${row#*_} "* || " $ROWS " == *" ${row#*_} "* ]] || return 0
@@ -45,7 +45,7 @@ run() { # run <row> <set> <toolrank eval args...> -> results/<TAG>_<set>_<row>.j
     return
   fi
   echo "== $(date -Is) $out"
-  "$UV" run toolrank eval "$@" "${LIM[@]}" --out "$out" || echo "FAILED $out"
+  "$UV" run callbus eval "$@" "${LIM[@]}" --out "$out" || echo "FAILED $out"
 }
 
 for m in $MODELS; do

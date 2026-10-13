@@ -28,8 +28,8 @@ GPU modları yalnız render ve API sunucusu doğrulamasıyla denendi.
 
 | İmaj | Denetim | Sonuç |
 | --- | --- | ---: |
-| `ghcr.io/yasinyaman/toolrank:0.1.0` (yayımlanmış) | kurulum (ingest init + indeks, 16 sn'de hazır), arama, pod içindeki stdio MCP sunucusuna çağrı, yanlış token 401, upgrade ile yeni sunucu katalogda, uninstall veri hacmini tutuyor | 6/6 (metrik ucu o sürümde yok) |
-| bu depodan kurulan `toolrank:dev` (`0.2.0.dev0`) | yukarıdakiler + metrikler + tek kaynağa sınırlı anahtar yalnız o kaynağı görüyor, başka kaynağın tool'unu çağıramıyor (404), metrikleri okuyamıyor (403) | 10/10 |
+| `ghcr.io/yasinyaman/callbus:0.1.0` (yayımlanmış) | kurulum (ingest init + indeks, 16 sn'de hazır), arama, pod içindeki stdio MCP sunucusuna çağrı, yanlış token 401, upgrade ile yeni sunucu katalogda, uninstall veri hacmini tutuyor | 6/6 (metrik ucu o sürümde yok) |
+| bu depodan kurulan `callbus:dev` (`0.2.0.dev0`) | yukarıdakiler + metrikler + tek kaynağa sınırlı anahtar yalnız o kaynağı görüyor, başka kaynağın tool'unu çağıramıyor (404), metrikleri okuyamıyor (403) | 10/10 |
 | üç mod (`vllm`, `bundled`, `external` + kiracılar) | `helm template … \| kubectl apply --dry-run=server` | hepsi geçerli |
 
 ## Kiracılar: ne yapıldı
@@ -46,19 +46,19 @@ GPU modları yalnız render ve API sunucusu doğrulamasıyla denendi.
 
 ```bash
 # Tablo 1 (Mac; $GB10: GB10'un Tailscale adresi, depoda tutulmuyor)
-TOOLRANK_HEADS=dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz uv run toolrank serve --data data/w3 --port 18792 \
+CALLBUS_HEADS=dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz uv run callbus serve --data data/w3 --port 18792 \
   --api-key "$KEY" --emb-url http://$GB10:8091/v1
 curl -s -H "Authorization: Bearer $KEY" -d '{"query": "refund this payment"}' http://127.0.0.1:18792/v1/search
 curl -s -H "Authorization: Bearer $KEY" http://127.0.0.1:18792/v1/metrics
 
 # Tablo 2 (Mac)
-kind create cluster --name toolrank
+kind create cluster --name callbus
 uv run python scripts/helm_smoke.py
-docker build -f deploy/docker/Dockerfile -t toolrank:dev . && kind load docker-image toolrank:dev --name toolrank
-uv run python scripts/helm_smoke.py --image toolrank:dev --tenants
-for m in vllm bundled; do helm template t deploy/helm/toolrank --set auth.apiKey=x --set embedding.mode=$m \
-  --set embedding.bundled.image=reg/toolrank-vllm:1 | kubectl apply --dry-run=server -f -; done
-kind delete cluster --name toolrank
+docker build -f deploy/docker/Dockerfile -t callbus:dev . && kind load docker-image callbus:dev --name callbus
+uv run python scripts/helm_smoke.py --image callbus:dev --tenants
+for m in vllm bundled; do helm template t deploy/helm/callbus --set auth.apiKey=x --set embedding.mode=$m \
+  --set embedding.bundled.image=reg/callbus-vllm:1 | kubectl apply --dry-run=server -f -; done
+kind delete cluster --name callbus
 ```
 
 ## Ortam

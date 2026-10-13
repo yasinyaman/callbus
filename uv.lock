@@ -4095,7 +4095,7 @@ wheels = [
 ]
 
 [[package]]
-name = "toolrank"
+name = "callbus"
 source = { editable = "." }
 dependencies = [
     { name = "bm25s" },

@@ -36,7 +36,7 @@ Comprehensiveness@10 aynı düzende:
 | Qwen3-Emb-8B | n | 37.09 / 26.12 | 40.18 / 30.32 | 39.05 / 27.28 | 43.54 / 36.50 |
 | Qwen3-Emb-8B | y | 43.52 / 35.50 | 47.12 / 39.60 | 45.51 / 37.00 | 51.60 / 47.64 |
 
-Her modelin en iyi w/ inst satırı ve referans olarak makale ayarındaki BM25 (`toolrank compare`):
+Her modelin en iyi w/ inst satırı ve referans olarak makale ayarındaki BM25 (`callbus compare`):
 
 | Run | dataset | inst | n | NDCG@10 | Recall@10 | Comprehensiveness@10 | NDCG@10 cat-macro | p50 ms |
 | --- | --- | :-: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -98,25 +98,25 @@ cache'ten. İndeks her iki durumda cache'ten kuruluyor (`scripts/latency.py`).
   bilinmiyor.
 
 ```bash
-# GB10, ~/toolrank
+# GB10, ~/callbus
 docker compose -f deploy/spark/compose.yaml --profile fp8 up -d qwen3-8b-fp8
 ~/.local/bin/uv run python scripts/latency.py --scorer clm --emb-url http://127.0.0.1:8090/v1 --emb-model qwen3-8b --truncate 2048 --tool-format example_call
 ~/.local/bin/uv run python scripts/latency.py --scorer clm --emb-url http://127.0.0.1:8092/v1 --emb-model qwen3-8b-fp8 --truncate 2048 --tool-format example_call
 ~/.local/bin/uv run python scripts/latency.py --scorer dense --emb-url http://127.0.0.1:8091/v1 --emb-model qwen3-emb --truncate 8192 --tool-format documentation
-~/.local/bin/uv run toolrank eval --data data/toolret --scorer clm --emb-url http://127.0.0.1:8092/v1 --emb-model qwen3-8b-fp8 --truncate 2048 --emb-batch 128 --tool-format example_call --with-inst --out results/toolret_clmfp8_example_call_inst.json
+~/.local/bin/uv run callbus eval --data data/toolret --scorer clm --emb-url http://127.0.0.1:8092/v1 --emb-model qwen3-8b-fp8 --truncate 2048 --emb-batch 128 --tool-format example_call --with-inst --out results/toolret_clmfp8_example_call_inst.json
 ~/.local/bin/uv run python scripts/fp8_agreement.py
 ```
 
 ## Komutlar
 
 ```bash
-# GB10, ~/toolrank; iki pooling servisi ayakta (deploy/spark/compose.yaml)
+# GB10, ~/callbus; iki pooling servisi ayakta (deploy/spark/compose.yaml)
 tmux new -d -s matrix 'bash scripts/run_matrix.sh 2>&1 | tee -a data/logs/matrix.log'
 bash scripts/run_matrix.sh   # ikinci geçiş: boş-sorgu düzeltmesinden önce düşen iki koşuyu yeniden dener
 
 # Mac
-scp 'gb10:toolrank/results/toolret_*.json' results/
-toolrank compare results/toolret_clm_example_call_inst.json results/toolret_clmraw_example_call_inst.json results/toolret_qwen3emb_documentation_inst.json results/toolret_bm25_nostem_inst.json
+scp 'gb10:callbus/results/toolret_*.json' results/
+callbus compare results/toolret_clm_example_call_inst.json results/toolret_clmraw_example_call_inst.json results/toolret_qwen3emb_documentation_inst.json results/toolret_bm25_nostem_inst.json
 uv run python scripts/per_task_diff.py results/toolret_clm_example_call_inst.json results/toolret_qwen3emb_documentation_inst.json --top 3
 ```
 

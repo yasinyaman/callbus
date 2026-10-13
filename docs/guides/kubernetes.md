@@ -1,12 +1,12 @@
 # Kubernetes
 
-The chart in `deploy/helm/toolrank` runs `toolrank serve` with its embedding backbone. It is not
+The chart in `deploy/helm/callbus` runs `callbus serve` with its embedding backbone. It is not
 published to a chart repository yet: install it from a checkout.
 
 ```bash
-helm install toolrank deploy/helm/toolrank -n toolrank --create-namespace \
-  --set auth.apiKey="$TOOLRANK_API_KEY"
-kubectl -n toolrank port-forward svc/toolrank 8765:8765
+helm install callbus deploy/helm/callbus -n callbus --create-namespace \
+  --set auth.apiKey="$CALLBUS_API_KEY"
+kubectl -n callbus port-forward svc/callbus 8765:8765
 ```
 
 ## The backbone
@@ -15,12 +15,12 @@ kubectl -n toolrank port-forward svc/toolrank 8765:8765
 
 | Mode | What runs | Needs |
 | --- | --- | --- |
-| `vllm` (default) | a vLLM pod next to toolrank, weights on their own volume | a GPU node (`nvidia.com/gpu`) |
+| `vllm` (default) | a vLLM pod next to callbus, weights on their own volume | a GPU node (`nvidia.com/gpu`) |
 | `external` | nothing: `embedding.url` and `embedding.model` name your endpoint | an OpenAI-compatible `/v1/embeddings` |
-| `bundled` | one pod with the `toolrank-vllm` image | a GPU node, and the image built from `deploy/docker/Dockerfile.vllm` and pushed to your registry (`embedding.bundled.image`) |
+| `bundled` | one pod with the `callbus-vllm` image | a GPU node, and the image built from `deploy/docker/Dockerfile.vllm` and pushed to your registry (`embedding.bundled.image`) |
 
-`embedding.backbone` names the weights: toolrank's LoRA-trained Qwen3-Embedding-8B by default
-(`yasinyaman/toolrank-emb-8b` at `v0.2`, served as `toolrank-emb-v0.2`), or
+`embedding.backbone` names the weights: callbus's LoRA-trained Qwen3-Embedding-8B by default
+(`yasinyaman/callbus-emb-8b` at `v0.2`, served as `callbus-emb-v0.2`), or
 `{repo: Qwen/Qwen3-Embedding-8B, revision: "", name: qwen3-emb}` for the base model with the packaged
 heads. `embedding.profile` sets the precision: `fp8` (the default, quantized at load, about 8 GB,
 served as `<name>-fp8`) or `bf16` (about 16 GB, `<name>`). In our runs FP8 stays within a point of
@@ -32,8 +32,8 @@ minutes for it. On k3s, and on other clusters where the NVIDIA runtime is not th
 
 ## Your tools
 
-`config` is the `toolrank.json` of [Serve them to agents](serve.md#the-config-file): MCP servers
-and OpenAPI base URLs and headers. An init container runs `toolrank ingest mcp` on every start, so
+`config` is the `callbus.json` of [Serve them to agents](serve.md#the-config-file): MCP servers
+and OpenAPI base URLs and headers. An init container runs `callbus ingest mcp` on every start, so
 `helm upgrade` with a new server rolls the pod and the server appears in the catalogue. Helm merges
 your values into the chart's, so drop the example server explicitly (`mcpServers: {time: null}`).
 Credentials go in a Secret listed under `envFrom` and are referred to as `${VAR}` in the config.
@@ -45,12 +45,12 @@ re-reads the catalogue without a restart.
 At least one key is required, since the server listens on the pod network: `auth.apiKey` (or
 `auth.apiKeySecret`) for one token, `auth.apiKeys` (or `auth.apiKeysSecret`, a Secret holding the
 file) for [tenants](serve.md#tenants), each with its own sources and credentials. The Service's
-names (`toolrank`, `toolrank.<namespace>.svc`, ...) are allowed as Host; add an ingress host to
+names (`callbus`, `callbus.<namespace>.svc`, ...) are allowed as Host; add an ingress host to
 `serve.allowedHosts`. Terminate TLS at the ingress.
 
 ## What it creates
 
-One toolrank Deployment (one replica, `Recreate`: the index snapshot, the usage log and the learned
+One callbus Deployment (one replica, `Recreate`: the index snapshot, the usage log and the learned
 heads live on one `ReadWriteOnce` volume), its Service, a ConfigMap, a Secret when the keys are
 given inline, the data volume (and a weights volume for `vllm` and `bundled`). The volumes are kept
 on `helm uninstall`: they hold the embedding cache and the usage log. `serve.args` passes further
@@ -66,14 +66,14 @@ that keeps the data volume. On a laptop, [kind](https://kind.sigs.k8s.io/) gives
 Docker:
 
 ```bash
-kind create cluster --name toolrank
+kind create cluster --name callbus
 uv run python scripts/helm_smoke.py                    # the published image
-docker build -f deploy/docker/Dockerfile -t toolrank:dev . && kind load docker-image toolrank:dev --name toolrank
-uv run python scripts/helm_smoke.py --image toolrank:dev --tenants
-kind delete cluster --name toolrank
+docker build -f deploy/docker/Dockerfile -t callbus:dev . && kind load docker-image callbus:dev --name callbus
+uv run python scripts/helm_smoke.py --image callbus:dev --tenants
+kind delete cluster --name callbus
 ```
 
-Check the disk before you start: the kind node image is 1.3 GB, the loaded toolrank image another
+Check the disk before you start: the kind node image is 1.3 GB, the loaded callbus image another
 0.5–0.7 GB, and the pod writes its catalogue and index on top. A Docker install with no room left
 fails in a way that looks like a chart bug — the ingest init container dies with
 `OSError: [Errno 28] No space left on device` — and on Docker Desktop a disk image that fills up can

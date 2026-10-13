@@ -1,4 +1,4 @@
-"""What a fresh `pip install toolrank` user meets: one version, install hints instead of tracebacks,
+"""What a fresh `pip install callbus` user meets: one version, install hints instead of tracebacks,
 and the packaged heads fetched into the cache."""
 
 import hashlib
@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-import toolrank
-from toolrank.cli import main
+import callbus
+from callbus.cli import main
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -20,10 +20,10 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_the_version_has_one_source(capsys):
     project = tomllib.loads((ROOT / "pyproject.toml").read_text())
     assert "version" in project["project"]["dynamic"] and "version" not in project["project"]
-    assert project["tool"]["hatch"]["version"]["path"] == "src/toolrank/__init__.py"
+    assert project["tool"]["hatch"]["version"]["path"] == "src/callbus/__init__.py"
     with pytest.raises(SystemExit):
         main(["--version"])
-    assert capsys.readouterr().out.strip() == f"toolrank {toolrank.__version__}"
+    assert capsys.readouterr().out.strip() == f"callbus {callbus.__version__}"
 
 
 @pytest.mark.parametrize(
@@ -31,24 +31,24 @@ def test_the_version_has_one_source(capsys):
 )
 def test_commands_that_need_the_mcp_extra_say_how_to_install_it(monkeypatch, argv):
     monkeypatch.setitem(sys.modules, "mcp", None)  # import mcp -> ImportError
-    with pytest.raises(SystemExit, match=r"pip install 'toolrank\[mcp\]'"):
+    with pytest.raises(SystemExit, match=r"pip install 'callbus\[mcp\]'"):
         main(argv)
 
 
 def test_a_heads_variable_pointing_nowhere_is_an_error_not_a_quiet_fallback(tmp_path, monkeypatch):
     main(["data", "synth", "--out", str(tmp_path / "syn"), "--n-tools", "10", "--n-queries", "2"])
-    monkeypatch.setenv("TOOLRANK_HEADS", str(tmp_path / "missing.npz"))
-    with pytest.raises(SystemExit, match="TOOLRANK_HEADS=.*missing.npz: no such file"):
+    monkeypatch.setenv("CALLBUS_HEADS", str(tmp_path / "missing.npz"))
+    with pytest.raises(SystemExit, match="CALLBUS_HEADS=.*missing.npz: no such file"):
         main(["search", "--data", str(tmp_path / "syn"), "--emb-url", "http://unused/v1", "find a tool"])
 
 
 def test_heads_pull_fetches_checks_and_caches_the_file(tmp_path, monkeypatch, capsys):
-    from toolrank.adapters import heads_np
+    from callbus.adapters import heads_np
 
     src = tmp_path / "mirror.npz"
     src.write_bytes(b"heads")
-    monkeypatch.setenv("TOOLRANK_CACHE", str(tmp_path / "cache"))
-    monkeypatch.delenv("TOOLRANK_HEADS", raising=False)
+    monkeypatch.setenv("CALLBUS_CACHE", str(tmp_path / "cache"))
+    monkeypatch.delenv("CALLBUS_HEADS", raising=False)
     monkeypatch.setattr(heads_np, "HEADS_SHA256", "0" * 64)
     with pytest.raises(SystemExit, match="sha256"):  # a mirror must serve the released file
         main(["heads", "pull", "--url", src.as_uri()])
@@ -61,34 +61,34 @@ def test_heads_pull_fetches_checks_and_caches_the_file(tmp_path, monkeypatch, ca
 
 
 def test_search_and_serve_take_the_endpoint_from_the_environment_unless_flagged(monkeypatch):
-    from toolrank.build import DEFAULT_EMB_MODEL, search_defaults
-    from toolrank.cli import _env_list, build_parser
+    from callbus.build import DEFAULT_EMB_MODEL, search_defaults
+    from callbus.cli import _env_list, build_parser
 
-    monkeypatch.delenv("TOOLRANK_HEADS", raising=False)
-    monkeypatch.setenv("TOOLRANK_CACHE", "/nonexistent")  # no cached heads: plain dense defaults
-    monkeypatch.setenv("TOOLRANK_EMB_URL", "http://embedding:8000/v1")
+    monkeypatch.delenv("CALLBUS_HEADS", raising=False)
+    monkeypatch.setenv("CALLBUS_CACHE", "/nonexistent")  # no cached heads: plain dense defaults
+    monkeypatch.setenv("CALLBUS_EMB_URL", "http://embedding:8000/v1")
     a = build_parser().parse_args(["search", "--data", "x", "q"])
     search_defaults(a)
     assert (a.emb_url, a.emb_model) == ("http://embedding:8000/v1", DEFAULT_EMB_MODEL)
     a = build_parser().parse_args(["search", "--data", "x", "--emb-url", "http://flag/v1", "q"])
     search_defaults(a)
     assert a.emb_url == "http://flag/v1"
-    monkeypatch.setenv("TOOLRANK_HEADS", "/heads/that/would/not/fit.npz")  # a 0.6B backbone, say
+    monkeypatch.setenv("CALLBUS_HEADS", "/heads/that/would/not/fit.npz")  # a 0.6B backbone, say
     a = build_parser().parse_args(
         ["search", "--data", "x", "--emb-model", "qwen3-emb-0.6b", "--clm-ckpt", "none", "q"]
     )
     search_defaults(a)
     assert (a.scorer, a.clm_ckpt) == ("dense", None)
-    monkeypatch.setenv("TOOLRANK_ALLOWED_HOSTS", " toolrank, tools.example.com ,,")
-    assert _env_list("TOOLRANK_ALLOWED_HOSTS") == ["toolrank", "tools.example.com"]
+    monkeypatch.setenv("CALLBUS_ALLOWED_HOSTS", " callbus, tools.example.com ,,")
+    assert _env_list("CALLBUS_ALLOWED_HOSTS") == ["callbus", "tools.example.com"]
 
 
 def test_the_gguf_and_small_backbones_skip_the_packaged_heads():
-    from toolrank.build import packaged_heads_fit
+    from callbus.build import packaged_heads_fit
 
     for name in (
-        "toolrank-emb-v0.2-q4_k_m",
-        "toolrank-emb-v0.2-q8_0",
+        "callbus-emb-v0.2-q4_k_m",
+        "callbus-emb-v0.2-q8_0",
         "qwen3-emb-0.6b-q8_0",
         "qwen3-emb-4b-q4_k_m",
         "qwen3-embedding:0.6b",
@@ -166,7 +166,7 @@ def test_the_release_check_finds_every_placeholder(tmp_path):
     card.write_text("The download address is empty until the file is hosted.\n")
     assert "still says the heads are not hosted" in check(tmp_path, files, "https://x", "0.1.0")[0]
     # a stale chart appVersion would ship last release's image (the tag defaults to it)
-    chart = tmp_path / "deploy" / "helm" / "toolrank" / "Chart.yaml"
+    chart = tmp_path / "deploy" / "helm" / "callbus" / "Chart.yaml"
     chart.parent.mkdir(parents=True)
     chart.write_text('version: 0.1.0\nappVersion: "0.0.9"\n')
     found = check(tmp_path, files, "https://x", "0.1.0")
@@ -181,9 +181,9 @@ def test_publish_heads_writes_the_address_into_the_code_and_the_card(tmp_path):
     assert ph.NOT_HOSTED == check.NOT_HOSTED  # the check looks for the sentence the script replaces
     assert ph.VERSION == "v0.1"  # the Hub tag the address names, from HEADS_FILE
     url = f"https://huggingface.co/someone/heads/resolve/v0.1/{ph.HEADS_FILE}"
-    source = (ROOT / "src" / "toolrank" / "adapters" / "heads_np.py").read_text()
+    source = (ROOT / "src" / "callbus" / "adapters" / "heads_np.py").read_text()
     for wrong in ("https://example.org/" + ph.HEADS_FILE, url.replace("v0.1/", "v0.1/other-"), url + '"'):
-        with pytest.raises(ValueError, match="not toolrank-heads"):
+        with pytest.raises(ValueError, match="not callbus-heads"):
             ph.with_heads_url(source, wrong)
     with pytest.raises(ValueError, match="found 2"):
         ph.with_heads_url(source + 'HEADS_URL = ""\n', url)
@@ -214,7 +214,7 @@ def test_publish_heads_writes_the_address_into_the_code_and_the_card(tmp_path):
         tmp_path, [], heads_url=url, version="0.1.0", backbone=("me/emb", "v0.2", False)
     )
     assert unpublished == [
-        "src/toolrank/build.py: the default backbone me/emb@v0.2 is not on the Hub yet "
+        "src/callbus/build.py: the default backbone me/emb@v0.2 is not on the Hub yet "
         "(scripts/publish_backbone.py --upload, then BACKBONE_PUBLISHED = True)"
     ]
     assert (
@@ -240,15 +240,15 @@ def test_an_index_without_its_extra_says_how_to_install_it(tmp_path, monkeypatch
     main(["data", "synth", "--out", str(tmp_path / "syn"), "--n-tools", "10", "--n-queries", "2"])
     monkeypatch.setitem(sys.modules, missing, None)
     argv = ["eval", "--data", str(tmp_path / "syn"), "--scorer", "dense", "--emb-url", "http://unused/v1"]
-    with pytest.raises(SystemExit, match=rf"pip install 'toolrank\[{extra}\]'"):
+    with pytest.raises(SystemExit, match=rf"pip install 'callbus\[{extra}\]'"):
         main([*argv, "--emb-model", "m", *flags])
 
 
 def test_torch_heads_without_torch_point_at_the_npz(tmp_path, monkeypatch):
-    from toolrank.adapters.heads_np import load_heads
+    from callbus.adapters.heads_np import load_heads
 
     monkeypatch.setitem(sys.modules, "torch", None)
-    with pytest.raises(ValueError, match=r"pip install 'toolrank\[clm\]' \(the packaged .npz heads do not\)"):
+    with pytest.raises(ValueError, match=r"pip install 'callbus\[clm\]' \(the packaged .npz heads do not\)"):
         load_heads(tmp_path / "heads.pt")
 
 
@@ -272,7 +272,7 @@ def test_publish_backbone_checks_the_merged_directory_and_flips_the_flag(tmp_pat
     ]
     card = "weights at {repo}@{revision}, sha256 {sha256}"
     assert pb.readme(card, "me/emb", "v0.2", "abc").endswith("weights at me/emb@v0.2, sha256 abc")
-    source = (ROOT / "src" / "toolrank" / "build.py").read_text()
+    source = (ROOT / "src" / "callbus" / "build.py").read_text()
     assert "BACKBONE_PUBLISHED = True" in pb.with_published(source)
     with pytest.raises(ValueError, match="one BACKBONE_PUBLISHED"):
         pb.with_published("nothing here")

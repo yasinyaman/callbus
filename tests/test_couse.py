@@ -6,14 +6,14 @@ import time
 
 import numpy as np
 
-from toolrank.adapters.dense import DenseScorer
-from toolrank.couse import CoUseTable, co_use, expand, partners
-from toolrank.cut import AdaptiveK
-from toolrank.datasets.jsonl import write_tools
-from toolrank.domain import Tool
-from toolrank.learn import mine
-from toolrank.retriever import Hit, Retriever, SearchResult
-from toolrank.usage import UsageLog, read_events
+from callbus.adapters.dense import DenseScorer
+from callbus.couse import CoUseTable, co_use, expand, partners
+from callbus.cut import AdaptiveK
+from callbus.datasets.jsonl import write_tools
+from callbus.domain import Tool
+from callbus.learn import mine
+from callbus.retriever import Hit, Retriever, SearchResult
+from callbus.usage import UsageLog, read_events
 
 
 def _search(sid, request, ts="2026-10-01T10:00:00", tenant=None):
@@ -216,7 +216,7 @@ def test_search_appends_partners_and_the_log_keeps_them_apart(tmp_path):
 
 
 def test_hits_say_which_tool_they_are_used_with():
-    from toolrank.adapters.mcp_proxy import hit_json
+    from callbus.adapters.mcp_proxy import hit_json
 
     tool = Tool(id="s/t", doc={"name": "t", "description": "d"}, category="s")
     assert hit_json(Hit(tool, 0.3, used_with="s/other"), full=True)["used_with"] == "s/other"

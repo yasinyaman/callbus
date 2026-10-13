@@ -3,8 +3,8 @@ import os
 import numpy as np
 import pytest
 
-from toolrank.adapters.index_numpy import NumpyIndex
-from toolrank.ports import VectorIndex
+from callbus.adapters.index_numpy import NumpyIndex
+from callbus.ports import VectorIndex
 
 
 def _unit(n, d, seed):
@@ -33,7 +33,7 @@ def _reference():
 
 def test_faiss_flat_matches_numpy_and_hnsw_finds_the_neighbours(tmp_path):
     pytest.importorskip("faiss")
-    from toolrank.adapters.index_faiss import FaissIndex
+    from callbus.adapters.index_faiss import FaissIndex
 
     flat = FaissIndex(kind="flat")
     assert isinstance(flat, VectorIndex) and flat.name == "faiss-flat"
@@ -55,14 +55,14 @@ def test_faiss_flat_matches_numpy_and_hnsw_finds_the_neighbours(tmp_path):
 
 
 @pytest.mark.skipif(
-    not os.environ.get("TOOLRANK_PG_DSN"), reason="needs TOOLRANK_PG_DSN (a Postgres with pgvector)"
+    not os.environ.get("CALLBUS_PG_DSN"), reason="needs CALLBUS_PG_DSN (a Postgres with pgvector)"
 )
 def test_pgvector_matches_numpy():
     pytest.importorskip("psycopg")
-    from toolrank.adapters.index_pgvector import PgVectorIndex
+    from callbus.adapters.index_pgvector import PgVectorIndex
 
-    idx = PgVectorIndex(os.environ["TOOLRANK_PG_DSN"], table="toolrank_test_tools")
-    idx._db().execute("DROP TABLE IF EXISTS toolrank_test_tools")
+    idx = PgVectorIndex(os.environ["CALLBUS_PG_DSN"], table="callbus_test_tools")
+    idx._db().execute("DROP TABLE IF EXISTS callbus_test_tools")
     idx.close()
     try:
         assert isinstance(idx, VectorIndex)
@@ -70,7 +70,7 @@ def test_pgvector_matches_numpy():
         ref_ids, ref_scores = _reference()
         assert ids == ref_ids and np.allclose(scores, ref_scores, atol=1e-5)
     finally:
-        idx._db().execute("DROP TABLE IF EXISTS toolrank_test_tools")
+        idx._db().execute("DROP TABLE IF EXISTS callbus_test_tools")
         idx.close()
     with pytest.raises(ValueError, match="table name"):
         PgVectorIndex("postgresql://x", table="drop table; --")

@@ -37,7 +37,7 @@ DISCUSSIONS = """query($owner: String!, $name: String!, $after: String) {
 
 def _get(url: str) -> Any:
     req = urllib.request.Request(
-        url, headers={"Accept": "application/json", "User-Agent": "toolrank-launch-metrics"}
+        url, headers={"Accept": "application/json", "User-Agent": "callbus-launch-metrics"}
     )
     with urllib.request.urlopen(req, timeout=30) as r:
         return json.loads(r.read().decode("utf-8"))
@@ -139,10 +139,10 @@ def fetch_discussions(repo: str) -> list[dict[str, Any]]:
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    p.add_argument("--repo", default="yasinyaman/toolrank")
+    p.add_argument("--repo", default="yasinyaman/callbus")
     p.add_argument("--maintainer", action="append", default=None, help="GitHub logins that are not 'outside'")
-    p.add_argument("--pypi", default="toolrank")
-    p.add_argument("--hub", default="yasinyaman/toolrank-heads-qwen3-emb-8b", help="the heads' model repo")
+    p.add_argument("--pypi", default="callbus")
+    p.add_argument("--hub", default="yasinyaman/callbus-heads-qwen3-emb-8b", help="the heads' model repo")
     p.add_argument("--since", required=True, help="the launch date, YYYY-MM-DD")
     p.add_argument("--discussions", action="store_true", help="count Discussions too (through the gh CLI)")
     p.add_argument("--out", default=None, help="also write the numbers as JSON")

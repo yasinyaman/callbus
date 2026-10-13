@@ -2,12 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**toolrank** — tool retrieval for LLM agents with hundreds of tools. It began (Phase 0, Sep 2026) as
+**callbus** — tool retrieval for LLM agents with hundreds of tools. It began (Phase 0, Sep 2026) as
 a benchmark harness whose job was a fair number per scorer (BM25, Qwen3-Embedding-8B, CLM heads) on
 ToolRet, then MCP-Zero and LiveMCPBench, to decide the core model. Decided on 29 Sep 2026
 (`docs/reports/faz0-gate.md`): the gate did not hold; the core adapter became Qwen3-Embedding-8B +
-our own skip heads, and since 0.2.0 the default is the toolrank backbone (Qwen3-Embedding-8B + a
-LoRA on ToolRet pairs), served headless as `toolrank-emb-v0.2` — the v0.1 heads cost it 0.2–3.9
+our own skip heads, and since 0.2.0 the default is the callbus backbone (Qwen3-Embedding-8B + a
+LoRA on ToolRet pairs), served headless as `callbus-emb-v0.2` — the v0.1 heads cost it 0.2–3.9
 points. Search and serve expect it on port 8091 (the images serve it there); on the GB10, 8091 is
 the base model as `qwen3-emb` and the LoRA backbone is the `lora` profile on 8097. CLM stays as a
 benchmark adapter. Plans and gates live in `docs/plan/` (Turkish): a separate,
@@ -34,7 +34,7 @@ copy its content into tracked files. The product/market plan lives outside the r
   adds slow/crash/pid tools), HTTP APIs are `httpx2.MockTransport`, the served app runs under
   Starlette's `TestClient` (base URL `http://127.0.0.1:8765`, or the Host check answers 421), numpy heads
   check against `tests/fixtures/heads_golden.npz` (torch outputs; regenerate with
-  `make_heads_golden.py`), pgvector tests run only with `TOOLRANK_PG_DSN` (the `pg` compose profile).
+  `make_heads_golden.py`), pgvector tests run only with `CALLBUS_PG_DSN` (the `pg` compose profile).
 - Heavy dependencies stay optional and are imported inside functions: `torch` → `[clm]`,
   `datasets` → `[data]`, `PyStemmer` → `[stem]`, `mcp` → `[mcp]`, `pyyaml` → `[openapi]`,
   `faiss-cpu` → `[faiss]`, `psycopg` + `pgvector` → `[pgvector]`, `langchain-core` → `[langgraph]`,
@@ -43,8 +43,8 @@ copy its content into tracked files. The product/market plan lives outside the r
   transformers + peft → `[lora]` (`scripts/lora_train.py` only). All but torch, transformers, peft and
   datasets are also in the `dev` dependency group, which `uv sync` installs; litellm is no
   extra and stays out of the venv, since it pins `openai<3`). `[mcp]` also brings the serve stack (starlette, uvicorn, httpx2, anyio);
-  `test_ingest_mcp.py` checks that importing `toolrank.cli` and the serve adapters loads none of them. Packaged heads run
-  in numpy (`adapters/heads_np.py`): torch is only for training and `toolrank heads export`. The base install must stay numpy + bm25s. BM25 stems only when PyStemmer is importable (otherwise the run name ends in
+  `test_ingest_mcp.py` checks that importing `callbus.cli` and the serve adapters loads none of them. Packaged heads run
+  in numpy (`adapters/heads_np.py`): torch is only for training and `callbus heads export`. The base install must stay numpy + bm25s. BM25 stems only when PyStemmer is importable (otherwise the run name ends in
   `/nostem`), so the same command scores differently across installs; the paper's BM25s is
   unstemmed (`--no-stem`).
 - The evaluation protocol is fixed to ToolRet's released code: top-100 over the full corpus,
@@ -60,12 +60,12 @@ copy its content into tracked files. The product/market plan lives outside the r
   from the parser) and `THIRD_PARTY_NOTICES.md` (`scripts/third_party.py`, from `uv.lock`); after a
   `pyproject.toml` change run `uv lock`, and after a dependency change `third_party.py --write`. Numbers that matter go into
   `docs/reports/<faz>-<hafta>.md` (e.g. `faz0-week1.md`; gate: `faz0-gate.md`; start from
-  `TEMPLATE.md`) as a `toolrank compare` table with the exact commands used — the results JSON
+  `TEMPLATE.md`) as a `callbus compare` table with the exact commands used — the results JSON
   records formats, `with_inst`, `tasks`, `limit`, `emb_model` / `emb_url` / `truncate`, `batch`
   and `encoder_tokens` (tokens sent on cache misses), but not the commit.
 - Public steps (push, PyPI, GHCR, Pages, posts) never happen during working hours: only after 19:00
   (Europe/Istanbul) and each with the user's explicit go. Local commits are fine any time. The
-  release and docs workflows stay off until the repo variables `TOOLRANK_RELEASE` / `TOOLRANK_PAGES`
+  release and docs workflows stay off until the repo variables `CALLBUS_RELEASE` / `CALLBUS_PAGES`
   are set; `scripts/release_check.py` lists what blocks a release (launch placeholder markers, an
   empty `HEADS_URL`, a dev version, an undated CHANGELOG entry). The public history starts with one
   squashed commit by `Yasin YAMAN <99225310+yasinyaman@users.noreply.github.com>`; the history before
@@ -90,74 +90,74 @@ uv sync                               # + the dev group; --extra data for the To
 uv run pytest && uv run ruff check src tests scripts examples
 uv run pytest tests/test_formats.py::test_query_formats        # one test; or -k <keyword>
 
-toolrank data synth --out data/synthetic                       # offline smoke set; its scores mean nothing
-toolrank eval --data data/synthetic --scorer bm25 --tool-format schema
-toolrank formats                                               # list tool / query formats
+callbus data synth --out data/synthetic                       # offline smoke set; its scores mean nothing
+callbus eval --data data/synthetic --scorer bm25 --tool-format schema
+callbus formats                                               # list tool / query formats
 
-# benchmark runs happen on the GB10 in ~/toolrank; git stays on the Mac (see Environment).
+# benchmark runs happen on the GB10 in ~/callbus; git stays on the Mac (see Environment).
 # Push tracked files (`git add` new ones first), run there, fetch results for compare/reports.
-git ls-files -z | COPYFILE_DISABLE=1 tar --null -T - --no-xattrs --no-mac-metadata -cf - | ssh gb10 'mkdir -p ~/toolrank && tar -xf - -C ~/toolrank'
-ssh gb10 'cd ~/toolrank && ~/.local/bin/uv run toolrank <args>'
-scp 'gb10:toolrank/results/*.json' results/
+git ls-files -z | COPYFILE_DISABLE=1 tar --null -T - --no-xattrs --no-mac-metadata -cf - | ssh gb10 'mkdir -p ~/callbus && tar -xf - -C ~/callbus'
+ssh gb10 'cd ~/callbus && ~/.local/bin/uv run callbus <args>'
+scp 'gb10:callbus/results/*.json' results/
 
-# the eval lines below run on the GB10, from ~/toolrank
-toolrank data pull toolret --out data/toolret                  # once, needs Hugging Face access
-toolrank eval --data data/toolret --scorer bm25 --tool-format documentation --out results/toolret_bm25.json
-toolrank eval --data data/toolret --scorer bm25 --tool-format documentation --with-inst --out results/toolret_bm25_inst.json
-toolrank eval --data data/toolret --scorer bm25 --tasks apibank,toolbench --limit 50   # quick subset; --limit = first N in file order, not a sample
+# the eval lines below run on the GB10, from ~/callbus
+callbus data pull toolret --out data/toolret                  # once, needs Hugging Face access
+callbus eval --data data/toolret --scorer bm25 --tool-format documentation --out results/toolret_bm25.json
+callbus eval --data data/toolret --scorer bm25 --tool-format documentation --with-inst --out results/toolret_bm25_inst.json
+callbus eval --data data/toolret --scorer bm25 --tasks apibank,toolbench --limit 50   # quick subset; --limit = first N in file order, not a sample
 
 # CLM: Qwen3-8B pooling server (port 8090) + reference heads
-toolrank eval --data data/toolret --scorer clm --emb-url http://127.0.0.1:8090/v1 --emb-model qwen3-8b \
+callbus eval --data data/toolret --scorer clm --emb-url http://127.0.0.1:8090/v1 --emb-model qwen3-8b \
   --truncate 2048 --tool-format name_desc --with-inst --out results/toolret_clm_name_desc_inst.json
 # any embedding model (port 8091 = Qwen3-Embedding-8B; --truncate = its --max-model-len)
-toolrank eval --data data/toolret --scorer dense --emb-url http://127.0.0.1:8091/v1 --emb-model qwen3-emb \
+callbus eval --data data/toolret --scorer dense --emb-url http://127.0.0.1:8091/v1 --emb-model qwen3-emb \
   --truncate 8192 --tool-format name_desc --with-inst --out results/toolret_qwen3emb_inst.json
 # week-2 zero-shot matrix (4 tool formats x CLM / clm-raw / Qwen3-Embedding x w/o, w/ inst); restartable.
 # Don't sync to the GB10 while it runs: bash reads the script as it goes and tar rewrites it.
 tmux new -d -s matrix 'bash scripts/run_matrix.sh 2>&1 | tee -a data/logs/matrix.log'
 # head fine-tune on cached vectors (Faz 1 week 5; Faz 0's train/ scripts are gone, their commands stay in
 # docs/reports/faz0-week3.md): the epoch is picked on --dev, never reported; eval runs on every --eval
-toolrank data pull toolret-train                               # -> data/toolret_train/pairs.jsonl (3.3 GB)
-toolrank finetune --data data/toolret_train/pairs.jsonl --embed-only --dev data/mcp_zero_server   # fill the cache, no torch
-toolrank finetune --data data/toolret_train/pairs.jsonl --n-train 60000 --dev data/mcp_zero_server \
+callbus data pull toolret-train                               # -> data/toolret_train/pairs.jsonl (3.3 GB)
+callbus finetune --data data/toolret_train/pairs.jsonl --embed-only --dev data/mcp_zero_server   # fill the cache, no torch
+callbus finetune --data data/toolret_train/pairs.jsonl --n-train 60000 --dev data/mcp_zero_server \
   --eval data/toolret --eval data/livemcpbench_server --out data/heads/<name>.pt [--npz dist/heads/<name>.npz] [--init-ckpt default] [--data-seed N]
 # week-4 held-out sets: LiveMCPBench from GitHub; MCP-Zero ships no queries, a chat model writes them
-toolrank data pull livemcpbench                                # -> data/livemcpbench (525 tools, 94 queries)
+callbus data pull livemcpbench                                # -> data/livemcpbench (525 tools, 94 queries)
 docker compose -f deploy/spark/compose.yaml --profile gen up -d qwen3-8b-chat   # port 8093; stop it afterwards
-toolrank data pull mcp-zero --gen-workers 64                   # 333 MB from Google Drive + one request per tool
-toolrank eval --data data/mcp_zero --ks 1,5,10,20 <scorer flags>   # Precision@1 = the paper's top-1 accuracy
+callbus data pull mcp-zero --gen-workers 64                   # 333 MB from Google Drive + one request per tool
+callbus eval --data data/mcp_zero --ks 1,5,10,20 <scorer flags>   # Precision@1 = the paper's top-1 accuracy
 # a selection set of one's own (Faz 2 week 7): a chat model writes one request per sampled tool of a catalogue
-toolrank data gen-queries --data data/devcat --out data/dev_w3 --n 1000 --exclude data/toolret [--styles situation]
-toolrank data gen-queries --data data/devcat --out data/dev_w3_multi2 --n 800 --tools-per-request 2   # tasks: all tools gold
+callbus data gen-queries --data data/devcat --out data/dev_w3 --n 1000 --exclude data/toolret [--styles situation]
+callbus data gen-queries --data data/devcat --out data/dev_w3_multi2 --n 800 --tools-per-request 2   # tasks: all tools gold
 
-toolrank data split data/dev_w3_multi2 --out-a data/dev_w3_multi2_sel --out-b data/dev_w3_multi2_conf   # pick on a, report b
+callbus data split data/dev_w3_multi2 --out-a data/dev_w3_multi2_sel --out-b data/dev_w3_multi2_conf   # pick on a, report b
 
-toolrank compare results/toolret_*.json                        # on the Mac: markdown table for the report
-toolrank eval ... --runs-out results/a_runs.jsonl              # one row per query (top-20 ids, P@1, hit@5, NDCG@10)
-toolrank compare --paired results/a_runs.jsonl results/b_runs.jsonl   # sign test (P@1, hit@5), permutation test (NDCG@10)
-toolrank compare --paired --data data/toolret a_runs.jsonl b_runs.jsonl   # + per category and cat-macro (weighted)
-toolrank compare --paired --subset data/dev_w3_multi2_conf a_runs.jsonl b_runs.jsonl   # only that half's queries
+callbus compare results/toolret_*.json                        # on the Mac: markdown table for the report
+callbus eval ... --runs-out results/a_runs.jsonl              # one row per query (top-20 ids, P@1, hit@5, NDCG@10)
+callbus compare --paired results/a_runs.jsonl results/b_runs.jsonl   # sign test (P@1, hit@5), permutation test (NDCG@10)
+callbus compare --paired --data data/toolret a_runs.jsonl b_runs.jsonl   # + per category and cat-macro (weighted)
+callbus compare --paired --subset data/dev_w3_multi2_conf a_runs.jsonl b_runs.jsonl   # only that half's queries
 PYTHONUNBUFFERED=1 nohup bash scripts/readme_results.sh > data/logs/readme_results.log 2>&1 &   # GB10: the README's runs
-uv run python scripts/readme_table.py --write                  # Mac, after scp 'gb10:toolrank/results/readme_*.json' docs/results/
+uv run python scripts/readme_table.py --write                  # Mac, after scp 'gb10:callbus/results/readme_*.json' docs/results/
 
 # Faz 1: index your own tools into an ingest dir (tools.jsonl + sources.json); re-run to sync
-toolrank ingest mcp --server time="uvx mcp-server-time" --config ~/mcp.json --out data/mytools
-toolrank ingest openapi data/specs/stripe.json --name stripe --out data/mytools   # JSON or YAML, path or URL
-toolrank ingest openapi spec.yaml --out data/mytools --dry-run                    # print the diff only
-toolrank ingest drop stripe --out data/mytools
+callbus ingest mcp --server time="uvx mcp-server-time" --config ~/mcp.json --out data/mytools
+callbus ingest openapi data/specs/stripe.json --name stripe --out data/mytools   # JSON or YAML, path or URL
+callbus ingest openapi spec.yaml --out data/mytools --dry-run                    # print the diff only
+callbus ingest drop stripe --out data/mytools
 # + --emb-url http://127.0.0.1:8091/v1 (the URL serve will use): embed new/changed tools into DIR/cache now
 
-# Faz 1 week 2: search an ingest dir (defaults: toolrank-emb-v0.2 on 8091, no heads,
+# Faz 1 week 2: search an ingest dir (defaults: callbus-emb-v0.2 on 8091, no heads,
 # adaptive K margin 0.2 / max 10, persistent index in DIR/index; --json for machines;
-# against the GB10 name what it serves: --emb-model qwen3-emb on 8091, or 8097's TOOLRANK_LORA_NAME)
+# against the GB10 name what it serves: --emb-model qwen3-emb on 8091, or 8097's CALLBUS_LORA_NAME)
 # (the v0.1 heads sit on qwen3-emb, so a run with them names the base model:)
-TOOLRANK_HEADS=dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz toolrank search --emb-model qwen3-emb --data data/mytools "refund this payment"
-toolrank eval --data data/toolret --scorer clm ... --index faiss|pgvector --hybrid --cut-margin 0.2 --instruction "..."
-toolrank eval --data data/toolret --scorer clm ... --rerank jev --rerank-depth 100   # TypeSafe AI's Jev over the top K
-# (key in TYPESAFE_API_KEY, sent to api.typesafe.ai only; answers cached in .cache/toolrank/jev.sqlite, another
+CALLBUS_HEADS=dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz callbus search --emb-model qwen3-emb --data data/mytools "refund this payment"
+callbus eval --data data/toolret --scorer clm ... --index faiss|pgvector --hybrid --cut-margin 0.2 --instruction "..."
+callbus eval --data data/toolret --scorer clm ... --rerank jev --rerank-depth 100   # TypeSafe AI's Jev over the top K
+# (key in TYPESAFE_API_KEY, sent to api.typesafe.ai only; answers cached in .cache/callbus/jev.sqlite, another
 # --jev-url /systemone endpoint is asked without a key into jev-<host>.sqlite); --scorer jev = Jev alone, chunked, MCP sets only.
 # GB10, key exported in the shell: LIMIT=50 TAG=jevsmoke bash scripts/jev_compare.sh, then the full run under nohup
-toolrank eval ... --rerank clm|dense|cross --rerank-depth 20 --rerank-emb-url ... --rerank-tool-format documentation \
+callbus eval ... --rerank clm|dense|cross --rerank-depth 20 --rerank-emb-url ... --rerank-tool-format documentation \
   --rerank-max-chars 3000 [--rerank-template qwen3|bge]   # a local second scorer over the shortlist (scripts/clm_rerank.sh, cross_rerank.sh)
 docker compose -f deploy/spark/compose.yaml --profile rerank up -d qwen3-reranker bge-reranker   # 8095 / 8096, vLLM score API
 uv run --extra lora python scripts/lora_train.py --pairs data/toolret_train/pairs.jsonl --dev data/mcp_zero_server \
@@ -166,32 +166,32 @@ uv run --extra lora python scripts/lora_train.py --pairs data/toolret_train/pair
 #   [--cache-batch 32: GradCache, every pair of a step a negative of the others (31 instead of 15), +1 forward pass]
 uv run --extra lora python scripts/lora_soup.py --adapter data/lora/<a>/adapter --adapter data/lora/<b>/adapter \
   --out data/lora/<soup>   # GB10, CPU, minutes: the mean of merged models; one --adapter = lora_train's merge
-TOOLRANK_LORA=$HOME/toolrank/data/lora/<name>/merged docker compose -f deploy/spark/compose.yaml --profile lora up -d qwen3-emb-lora  # 8097
-toolrank heads export data/heads/<run>.pt dist/heads/<name>.npz --dtype float16 --tool-format documentation ...
+CALLBUS_LORA=$HOME/callbus/data/lora/<name>/merged docker compose -f deploy/spark/compose.yaml --profile lora up -d qwen3-emb-lora  # 8097
+callbus heads export data/heads/<run>.pt dist/heads/<name>.npz --dtype float16 --tool-format documentation ...
 uv run python scripts/adaptive_k_sweep.py --margins 0.1,0.2 -- <eval flags>     # rank once, cut many ways
 uv run python scripts/heads_parity.py --a x.pt --b x.npz -- <eval flags>         # do two checkpoints rank alike
-docker compose -f deploy/spark/compose.yaml --profile pg up -d toolrank-pg        # Postgres + pgvector on 127.0.0.1:55440
+docker compose -f deploy/spark/compose.yaml --profile pg up -d callbus-pg        # Postgres + pgvector on 127.0.0.1:55440
 
 # Faz 1 week 3: serve an ingest dir to agents: MCP at /mcp + REST at /v1 on 127.0.0.1:8765, or --stdio.
 # --config = an MCP client file (+ "openapi": {source: {base_url, headers}}, ${ENV} expanded); search flags apply
-TOOLRANK_HEADS=dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz toolrank serve --emb-model qwen3-emb --data data/mytools --config toolrank.json
-curl -s -H "Authorization: Bearer $TOOLRANK_API_KEY" -d '{"query": "refund this payment"}' http://127.0.0.1:8765/v1/search
-curl -s -H "Authorization: Bearer $TOOLRANK_API_KEY" http://127.0.0.1:8765/v1/metrics      # Prometheus text (Faz 2 week 6)
+CALLBUS_HEADS=dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz callbus serve --emb-model qwen3-emb --data data/mytools --config callbus.json
+curl -s -H "Authorization: Bearer $CALLBUS_API_KEY" -d '{"query": "refund this payment"}' http://127.0.0.1:8765/v1/search
+curl -s -H "Authorization: Bearer $CALLBUS_API_KEY" http://127.0.0.1:8765/v1/metrics      # Prometheus text (Faz 2 week 6)
 # end to end on the Mac, embeddings from the GB10: MCP over HTTP and stdio, REST, usage log, cold start
 uv run python scripts/serve_e2e.py --data data/w3 --emb-url http://$GB10:8091/v1 \
-  --heads dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz --out results/serve_e2e_w3.json
+  --heads dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz --out results/serve_e2e_w3.json
 
-# Faz 1 week 4: toolrank as Claude's / OpenAI's tool search (serve running; keys from the env or .env)
+# Faz 1 week 4: callbus as Claude's / OpenAI's tool search (serve running; keys from the env or .env)
 uv run python examples/anthropic_tool_reference.py "What time is it in Tokyo?" [--builtin bm25] [--yes]
 uv run python examples/openai_client_tool_search.py "What time is it in Tokyo?" [--model gpt-5.5]
 # catalogue as the APIs get it (bytes, names, meta-schema), searches, calls; --live: both APIs, 3 tasks
 uv run python scripts/platforms_e2e.py --data data/w3 --emb-url http://$GB10:8091/v1 \
-  --heads dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz [--live] --out results/platforms_e2e.json
+  --heads dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz [--live] --out results/platforms_e2e.json
 
 # Faz 1 week 5: the framework adapters end to end with scripted models (bigtool runs in a
 # `uv run --with 'langgraph<1'` env, the LiteLLM proxy through uvx: litellm pins openai<3)
 uv run python scripts/frameworks_e2e.py --data data/w3 --emb-url http://$GB10:8091/v1 \
-  --heads dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz --out results/frameworks_e2e.json [--only langchain]
+  --heads dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz --out results/frameworks_e2e.json [--only langchain]
 
 # Faz 1 week 6: packages, images, docs (nothing is published; see Working agreements)
 uv build --out-dir dist/pypi && uvx twine check --strict dist/pypi/*     # never publish dist/* (heads live there)
@@ -199,10 +199,10 @@ uv run --group docs mkdocs serve                                         # the d
 uv run python scripts/cli_reference.py --write && uv run python scripts/third_party.py --write
 uv run python scripts/release_check.py [--tag v0.1.0]                    # what still blocks a release
 # on the GB10 (arm64): both images, then a GPU-free smoke test against a fake embedding server
-docker build -f deploy/docker/Dockerfile --build-context heads=dist/heads -t toolrank:dev .
-docker build -f deploy/docker/Dockerfile.vllm -t toolrank-vllm:dev .    # no heads context: the build pulls them
-uv run python scripts/container_smoke.py toolrank:dev --version 0.1.0
-uv run python scripts/container_smoke.py toolrank-vllm:dev --bundle     # a fake vllm inside: the entrypoint, who runs what
+docker build -f deploy/docker/Dockerfile --build-context heads=dist/heads -t callbus:dev .
+docker build -f deploy/docker/Dockerfile.vllm -t callbus-vllm:dev .    # no heads context: the build pulls them
+uv run python scripts/container_smoke.py callbus:dev --version 0.1.0
+uv run python scripts/container_smoke.py callbus-vllm:dev --bundle     # a fake vllm inside: the entrypoint, who runs what
 # FP8 backbone (profile fp8, port 8094, served as qwen3-emb-fp8); readme_results.sh takes EMB_URL,
 # EMB_MODEL, TAG, ROWS, SETS; fp8_agreement.py compares two endpoints, latency.py times .npz heads
 docker compose -f deploy/spark/compose.yaml --profile fp8 up -d qwen3-embedding-8b-fp8
@@ -211,13 +211,13 @@ docker compose -f deploy/spark/compose.yaml --profile fp8 up -d qwen3-embedding-
 export LAPTOP=…; export EMB_URL=http://$LAPTOP:11434/v1 UV=~/.local/bin/uv; bash scripts/gguf_matrix.sh   # SETS=toolret MODELS="…"
 
 # Faz 2 week 1: learn from what serve logged (no request text leaves the machine; --dry-run needs no torch)
-toolrank learn --data data/mytools [--dev data/livemcpbench_server] [--since 2026-10-01] [--tenant NAME] [--dry-run]
+callbus learn --data data/mytools [--dev data/livemcpbench_server] [--since 2026-10-01] [--tenant NAME] [--dry-run]
 # Faz 2 week 3: learn writes DATA/heads/candidate.npz, a running serve gives it --candidate-share (0.1) of the
 # requests, ab reads the log back and promotes it to current.npz or sets it aside; every night (learn pays on
 # v0.2: held-out NDCG@10 +2.4 over five training seeds on simulated ToolRet traffic and +1.6 on MCP-Zero's, and
 # --replay at its 10k default keeps what the traffic does not cover; 1k changed nothing. A difference in this
 # setup counts only beyond 2 SD of the seed spread: micro 1.1, cat-macro 1.6 — docs/reports/olcum-tabani.md):
-toolrank ab --data data/mytools [--dry-run] && toolrank learn --data data/mytools --replay data/toolret_train/pairs.jsonl
+callbus ab --data data/mytools [--dry-run] && callbus learn --data data/mytools --replay data/toolret_train/pairs.jsonl
 # Faz 2 week 4: the loop on simulated traffic (GB10): a benchmark as the served catalogue, 70% of its queries
 # logged by an agent that calls the gold tools shown, learn on that log, eval on the 30% never served;
 # NAME/BENCH/GUARD/EVALS/SIZES/NOISE/SEED/TAG/LEARN in the script's header; LEARN="--device cpu" when the GPU is full
@@ -226,18 +226,18 @@ bash scripts/learn_sim.sh                                               # ToolRe
 # traffic (leave-one-out), learn_sim's split; minutes from the cache (docs/reports/backlog-memory.md)
 uv run python scripts/memory_sim.py [--seed 1 --noise 0.2] --out results/memory_toolret_s0 -- --data data/toolret <eval flags>
 # Faz 2 week 5: a server vote, co-use partners and the no-tool gate (all off by default)
-toolrank eval --data data/mcp_zero_server --scorer clm ... --server-weight 0.2    # tool cosine + 0.2 * its server's
-toolrank serve --data data/mytools --server-weight 0.2 --co-use 2 [--cut-margin 0.2 --cut-threshold T --cut-min 0]
+callbus eval --data data/mcp_zero_server --scorer clm ... --server-weight 0.2    # tool cosine + 0.2 * its server's
+callbus serve --data data/mytools --server-weight 0.2 --co-use 2 [--cut-margin 0.2 --cut-threshold T --cut-min 0]
 uv run python scripts/routing_sweep.py [--gate] -- <eval flags>         # rank once: server rules (and the gate table)
 uv run python scripts/couse_sweep.py --log RUN/usage -- <eval flags> --cut-margin 0.2   # co-use partners vs a longer list
 
 # Backlog D2.14: what a best score means on this catalogue; searches then carry a confidence
-toolrank data gen-queries --data data/mytools --out data/mytools_requests --n 200
-toolrank calibrate --data data/mytools --requests data/mytools_requests [search flags] [--dry-run]
-toolrank serve --data data/mytools --min-confidence 0.05          # turn away ~5% of answerable requests
-# Faz 2 week 6: the Helm chart (deploy/helm/toolrank): render tests run where helm is installed (not CI);
+callbus data gen-queries --data data/mytools --out data/mytools_requests --n 200
+callbus calibrate --data data/mytools --requests data/mytools_requests [search flags] [--dry-run]
+callbus serve --data data/mytools --min-confidence 0.05          # turn away ~5% of answerable requests
+# Faz 2 week 6: the Helm chart (deploy/helm/callbus): render tests run where helm is installed (not CI);
 # a real install without a GPU on kind (Docker on the Mac), the published image or one built here
-kind create cluster --name toolrank && uv run python scripts/helm_smoke.py [--image toolrank:dev --tenants]
+kind create cluster --name callbus && uv run python scripts/helm_smoke.py [--image callbus:dev --tenants]
 
 # Faz 1 week 7: launch (every public step after 19:00 and approved one by one)
 uv run --with huggingface_hub python scripts/publish_heads.py --repo USER/NAME [--upload]   # dry run without --upload
@@ -253,13 +253,13 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   `CLAUDE.local.md`; commands write `http://$GB10:PORT/v1`, which must expand to the same literal
   address every time, since the embedding cache is keyed by the URL). MagicDNS is off: the Tailscale
   names don't resolve from the Mac, the `.local` name does on the LAN. Ubuntu 24.04 aarch64, CUDA 13, 121 GB unified memory shared with other projects'
-  containers. Git stays on the Mac; `~/toolrank` on the GB10 is a run-only copy (sync commands
+  containers. Git stays on the Mac; `~/callbus` on the GB10 is a run-only copy (sync commands
   above). uv there is `~/.local/bin/uv`, not on the non-interactive SSH PATH. Never pipe data
   into `ssh gb10 'bash -s'` that also has a heredoc: zsh (MULTIOS) feeds both to stdin and the
   piped bytes run as shell commands. Sync with the one-liner above, run scripts in a separate call.
 - vLLM pooling servers: port 8090 = `Qwen/Qwen3-8B` (`--runner pooling --max-model-len 2048`,
   last-token pooling; this is the CLM backbone), port 8091 = `Qwen/Qwen3-Embedding-8B` as `qwen3-emb` (not
-  toolrank's default `toolrank-emb-v0.2`: search and serve against it need `--emb-model qwen3-emb`). The GB10
+  callbus's default `callbus-emb-v0.2`: search and serve against it need `--emb-model qwen3-emb`). The GB10
   has no host vLLM: they run from the NGC image via `deploy/spark/compose.yaml` (the systemd
   units are for hosts with one). `--emb-model` is the served name (`qwen3-8b`, `qwen3-emb`),
   not the HF repo id. Keep `--no-enable-chunked-prefill --max-num-batched-tokens 8192`: on vLLM
@@ -268,8 +268,8 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   `CLM_CKPT=<path>` (https://huggingface.co/Contrastive-LM/CLM-v0.1-8B). Only the
   ~20M-parameter heads run in-process; CPU is fine. On the GB10 it is in place and the heads run
   on its GPU (the venv has `[clm]`; torch 2.14.0+cu130 handles sm_121).
-- Embedding cache: `.cache/toolrank/embeddings.sqlite`, relative to the working directory (run
-  from the repo root, i.e. `~/toolrank` on the GB10; `ingest`, `search` and `serve` use the ingest
+- Embedding cache: `.cache/callbus/embeddings.sqlite`, relative to the working directory (run
+  from the repo root, i.e. `~/callbus` on the GB10; `ingest`, `search` and `serve` use the ingest
   dir's `cache/` instead), keyed by the literal `--emb-url` + model
   + `--truncate` + text. Keep it: deleting it means re-encoding 44k tools. Different tool
   formats are different keys, and so are `http://127.0.0.1:8090/v1` and
@@ -281,8 +281,8 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   HTTP Error 400" without the response body; re-send one request with `curl`
   (`deploy/spark/README.md`) to see it. Usual causes: wrong `--emb-model`, input longer than
   `--max-model-len` without `--truncate`, or an old vLLM rejecting `truncate_prompt_tokens`.
-- Hugging Face Hub is needed exactly once per machine (`toolrank data pull toolret`); ToolRet
-  lives on the GB10 in `~/toolrank/data/toolret`.
+- Hugging Face Hub is needed exactly once per machine (`callbus data pull toolret`); ToolRet
+  lives on the GB10 in `~/callbus/data/toolret`.
 
 ## Architecture
 
@@ -292,7 +292,7 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   `--batch`, and averages per-query metrics per `Query.task` and overall. When queries carry a
   `category` (`data pull toolret` writes web/code/customized), it also reports `per_category`
   (mean over each category's tasks) and `category_macro` (mean over categories). The saved
-  `EvalReport` JSON is the only input to `toolrank compare`, which shows `category_macro` as the
+  `EvalReport` JSON is the only input to `callbus compare`, which shows `category_macro` as the
   `cat-macro` column (`—` for runs without categories).
 - **Scorers compose.** `BM25Scorer` stands alone. `DenseScorer` = one `TextEncoder` + tool and
   query formats + optional projections, exact inner-product top-k over L2-normalised rows
@@ -305,7 +305,7 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   formats. Defaults when the flags are omitted: bm25 `documentation` + `concat`, dense
   `name_desc` + `instruct_query`, clm `name_desc` + `clm`; the query side falls back to `plain`
   without `--with-inst`. The scorer `name` encodes all of it (e.g.
-  `clm[CLM_v0.1-8B]/emb/qwen3-8b/name_desc/clm`) and is the row label in `toolrank compare`.
+  `clm[CLM_v0.1-8B]/emb/qwen3-8b/name_desc/clm`) and is the row label in `callbus compare`.
 - **Latency** is the `rank()` step only, per query (batch time / batch size); indexing is
   reported as `index_s`. Query embeddings are cached too, so re-running a dense/CLM eval gives
   warm-cache latency without the state encode; `--cache-dir ''` disables the cache entirely
@@ -330,7 +330,7 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   `ingest/sync.py` replaces exactly the listed sources' tools, keeps failed ones, guards kind
   changes and empty listings, and writes `sources.json` (no secrets). Unchanged tools are never
   re-embedded because the embedding cache is keyed by text; `ingest --emb-url` embeds only cache
-  misses, into `DIR/cache` with search's and serve's model and truncation (toolrank-emb-v0.2, 8192), so
+  misses, into `DIR/cache` with search's and serve's model and truncation (callbus-emb-v0.2, 8192), so
   their first index is all cache hits (1,862 tools: 154 s cold over Tailscale otherwise).
 - **Vector indexes** (Faz 1 week 2): `DenseScorer` keeps tool vectors in a `VectorIndex`
   (`ports.py`; `hashes`, one atomic `apply`, `search`): `NumpyIndex` (default; exact `topk_dot`, rows
@@ -361,11 +361,11 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   counts both as shown. A "no tool fits" gate is `--cut-threshold T --cut-min 0` (an empty list plus a note in
   `search_tools`); there is no default T, the best cosine does not separate well (`docs/reports/faz2-week5.md`).
 - **Default backbone** (Faz 2 week 7): `build.BACKBONES` maps served names to weights and whether the packaged
-  heads belong on them; `DEFAULT_EMB_MODEL = "toolrank-emb-v0.2"` (the LoRA-merged Qwen3-Embedding-8B,
+  heads belong on them; `DEFAULT_EMB_MODEL = "callbus-emb-v0.2"` (the LoRA-merged Qwen3-Embedding-8B,
   `BACKBONE_REPO` @ `BACKBONE_REVISION`; the version is in the name because the embedding cache is keyed by it).
   `search_defaults` loads cached heads only when `packaged_heads_fit(emb_model)` (unknown names: yes, as before;
-  `TOOLRANK_HEADS` always), `learn.resolve_init("default", emb_model)` follows the same rule. The Ollama names of the
-  GGUF builds (`toolrank-emb-v0.2-q4_k_m`, `-q8_0`; `BACKBONE_GGUF_REPO`, not on the Hub yet) and of the small
+  `CALLBUS_HEADS` always), `learn.resolve_init("default", emb_model)` follows the same rule. The Ollama names of the
+  GGUF builds (`callbus-emb-v0.2-q4_k_m`, `-q8_0`; `BACKBONE_GGUF_REPO`, not on the Hub yet) and of the small
   Qwen3-Embedding models are listed too, heads off (`docs/guides/local.md`). The weights are on the
   Hub since 2 Oct 2026 (0.2.0; `BACKBONE_PUBLISHED = True`, else `release_check` refuses a release);
   `scripts/publish_backbone.py` (run on the GB10, dry run without `--upload`) uploads a merged directory, tags the
@@ -377,18 +377,18 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   stage's cosine list) that writes no shared state (`last_base` is eval's), so the retriever's adaptive cut
   counts on the cosines and shows the reranked order. Jev in serve sends request text out: logged at start.
   `Retriever.search` / `rank` `tidy` the request and an own instruction (NFC, blank runs, ends), never eval;
-  `retriever.second` is the second stage's client, whose `scored()` feeds `toolrank_rerank_candidates_total`.
+  `retriever.second` is the second stage's client, whose `scored()` feeds `callbus_rerank_candidates_total`.
   The retriever sets `ports.rerank_failures` around a search: a failing second stage (`--rerank-timeout` 10 s
   × 2 attempts, `rerank.Slots` = `--rerank-workers` / `--jev-workers` calls in flight, the wait counted)
   answers with the first stage's list (`SearchResult.rerank_error` → log, `note`, metric); eval sets no list
   and raises. `/v1/rank` (`score_tools`) is the first stage's cosines under either reranker.
-- **Confidence** (backlog D2.14, `calibration.py`): `toolrank calibrate` ranks gen-queries requests over the
+- **Confidence** (backlog D2.14, `calibration.py`): `callbus calibrate` ranks gen-queries requests over the
   catalogue with the search flags (`Retriever.settled`: current heads if any, never the candidate) and keeps
   their best first-stage scores (and those of "twins", the gold tools' sources hidden) in `DATA/calibration.json`,
   one entry per (first stage's name, heads sha16, serving instruction). `Retriever.calibration` re-reads the file
   when it changes; a search's `confidence` = the share of those scores ≤ its best first-stage score (`semantic or
   fused`), `--min-confidence Q` empties a list below Q unless the request named `k`. REST/MCP `confidence`, the
-  log's `confidence`, `toolrank_search_confidence`. A band describes the requests it was calibrated on and nothing
+  log's `confidence`, `callbus_search_confidence`. A band describes the requests it was calibrated on and nothing
   else: within one style it is exact (MCP-Zero's held-out half: 5.3% turned away at the 5% band) but generated
   requests sit 0.2 above real traffic, so their band turned away 54% of LiveMCPBench's human-written tasks —
   hence no default threshold and `calibrate --from-log` (`cli._logged_requests`, `calibration.measure_logged`,
@@ -443,9 +443,9 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   the served name's (same width, so nothing else notices): search and serve stop when `--emb-model` was
   defaulted, warn when it was named, eval warns. `--clm-ckpt` takes `.pt`, `.npz`, `default` or (search / serve)
   `none`, which drops the packaged heads only (a learned `DATA/heads/current.npz` and the candidate still serve)
-  (`TOOLRANK_HEADS`, `~/.cache/toolrank/heads/`, else a sha256-checked download from `HEADS_URL`). The artifact and its model card: `dist/heads/` (gitignored),
+  (`CALLBUS_HEADS`, `~/.cache/callbus/heads/`, else a sha256-checked download from `HEADS_URL`). The artifact and its model card: `dist/heads/` (gitignored),
   `docs/heads/MODEL_CARD.md` (training data has no license; the maintainers accepted that).
-- **Serving** (Faz 1 week 3, `toolrank serve`): `retriever.Retriever` holds one immutable state
+- **Serving** (Faz 1 week 3, `callbus serve`): `retriever.Retriever` holds one immutable state
   (tools, id map, indexed scorer) and swaps it whole when `tools.jsonl` changes (mtime + size,
   checked per search; a fresh scorer from `build.scorer_factory` shares encoder and heads), so
   searches run in threads without locks; `tools.jsonl` is read once it has been unchanged for
@@ -469,7 +469,7 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   call linked to a search of the same key: `search_id`, else the session's latest, else the same client's latest
   (`client` = key name | client app | remote host, logged as a digest; a named key's REST session is `rest@<name>:<id>`).
   `/healthz` (no token, no Host check) says `{ready, mode}` only, and client-facing errors leave out exception text
-  (the `toolrank.serve` log keeps it). `/v1/rank`'s supplied tools (`ports.supplied`) get query limits, an in-memory
+  (the `callbus.serve` log keeps it). `/v1/rank`'s supplied tools (`ports.supplied`) get query limits, an in-memory
   cache and two worker slots of their own.
   2026-07-28 HTTP clients have no session id (`session: null`); `client` carries their links.
   Serve gives query embeddings 10 s and one retry; indexing keeps the encoder's 600 s. Under
@@ -478,7 +478,7 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
 - **Platform integrations** (Faz 1 week 4): `names.api_name(id)` is a tool's name on the agent APIs
   (`^[A-Za-z0-9_-]{1,64}$`; readable ids keep their shape with `/` as `__`, others are cut and get
   `___` + 12 hex of sha256; injective, and a pure function of the id), carried on REST only;
-  `/v1/tools?full=true` is the platform-ready catalogue. `client.ToolrankClient` (stdlib, no
+  `/v1/tools?full=true` is the platform-ready catalogue. `client.CallBusClient` (stdlib, no
   redirects, never retries a call) talks to REST. `integrations/anthropic.py`: every tool deferred
   (`defer_loading`), `search_tools` answered with `tool_reference` blocks naming only tools of the
   snapshot sent (an unknown reference is a 400), tool list frozen per conversation, history
@@ -493,20 +493,20 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   tools' full `function` definitions, stateless (`store=False` + encrypted reasoning, all items
   resent; a search's first 3 schemas in full, the rest shrunk to 1,500 characters unless `shrink=False`); `Toolbox(namespaces=True)`: one `namespace` per server, tools under `own_name` (a call names
   both; untested live). Neither imports the SDKs; tests run the real SDKs over `httpx2.MockTransport` against
-  toolrank in process. Examples ask before non-read-only calls unless `--yes`.
+  callbus in process. Examples ask before non-read-only calls unless `--yes`.
 - **Framework adapters** (Faz 1 week 5, `integrations/`): `langgraph.Toolbox` = the catalogue as
   LangChain `BaseTool`s whose `_run(**arguments)` takes nothing else (LangChain injects `config` /
   `run_manager` by signature) plus `retrieve_tools(query) -> list[str]`, registry keys only (what
   langgraph-bigtool's `retrieve_tools_function` wants; its docstring is the model's description),
-  sessions from the LangGraph `thread_id`. `llamaindex.ToolrankToolRetriever` (an `ObjectRetriever`;
+  sessions from the LangGraph `thread_id`. `llamaindex.CallBusToolRetriever` (an `ObjectRetriever`;
   LlamaIndex 0.14 agents call `aretrieve(user message)` every step and `aretrieve(tool name)` before
   a call): searches kept per query for a TTL, handed-out tools found by name, `fn_schema` a pydantic
   model serving the `inputSchema`, descriptions ≤ 1,024. `litellm.tool_filter` (PEP 562: litellm is
   imported only when the proxy loads it; no extra, litellm pins `openai<3`): a `CustomLogger` whose
   `async_pre_call_hook` must be defined on the class itself (the proxy skips inherited hooks), ranks
   the request's own function tools with `/v1/rank`, fails open, never edits `data` in place;
-  `TOOLRANK_FILTER_WARM` lists are ranked once in a background thread at start (`warm_up`).
-  `langchain.ToolrankToolSelector` (backlog D1.4; PEP 562 like litellm, `Selector` is the work without
+  `CALLBUS_FILTER_WARM` lists are ranked once in a background thread at start (`warm_up`).
+  `langchain.CallBusToolSelector` (backlog D1.4; PEP 562 like litellm, `Selector` is the work without
   LangChain's class): a LangChain 1.x `AgentMiddleware` whose `wrap_model_call` / `awrap_model_call`
   narrow `request.tools` (`request.override`) for the last human message: the agent's own tools via
   `/v1/rank` + adaptive K, or with `toolbox=` the catalogue's tools via `Toolbox.retrieve_tools` (logged
@@ -515,40 +515,40 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   work runs in a pool thread under `contextvars.copy_context()` (the LangGraph thread id is a context var)
   and its result is cached for `ttl_s` per (session, query) or (instruction, query, tool names), so a
   late answer serves the next call and one turn's model calls ask once.
-- **Packaging and images** (Faz 1 week 6): the version lives only in `toolrank/__init__.py` (hatch reads
+- **Packaging and images** (Faz 1 week 6): the version lives only in `callbus/__init__.py` (hatch reads
   it); PEP 639 license metadata with LICENSE and NOTICE; the sdist is `src`, `tests` and the top-level
   files. Missing extras print their install line (`build.require`, `cli._need_mcp`). `serve` on
   `0.0.0.0` also answers to the loopback names; an allowed name without a port also matches a
-  portless Host (a proxy on 80/443); `TOOLRANK_ALLOWED_HOSTS`, `TOOLRANK_EMB_URL`, `TOOLRANK_EMB_MODEL`
+  portless Host (a proxy on 80/443); `CALLBUS_ALLOWED_HOSTS`, `CALLBUS_EMB_URL`, `CALLBUS_EMB_MODEL`
   configure containers (search, serve and the ingest warm-up read them, eval does not).
-  `deploy/docker/Dockerfile` (`toolrank`, 505 MB): the `uv.lock` versions of `[mcp,openapi,stem]` on
+  `deploy/docker/Dockerfile` (`callbus`, 505 MB): the `uv.lock` versions of `[mcp,openapi,stem]` on
   python:3.12-slim with Node.js, uv and tini, non-root, heads from an optional `heads` build context
-  (only `toolrank-heads-*.npz` is taken; the stage bind-mounts the context, because BuildKit reused a
-  cached `COPY --from=heads` across builds with and without it). `Dockerfile.vllm` (`toolrank-vllm`,
+  (only `callbus-heads-*.npz` is taken; the stage bind-mounts the context, because BuildKit reused a
+  cached `COPY --from=heads` across builds with and without it). `Dockerfile.vllm` (`callbus-vllm`,
   22.6 GB, not published: it does not fit two platforms on a free runner; compose.bundle.yaml builds
-  it, and without a heads context the build runs `toolrank heads pull`): the same in a
+  it, and without a heads context the build runs `callbus heads pull`): the same in a
   venv of its own on `vllm/vllm-openai:v0.30.0`; `entrypoint-vllm.sh` starts vLLM on loopback
-  (`yasinyaman/toolrank-emb-8b@v0.2` in FP8 as `toolrank-emb-v0.2-fp8` by default, bf16 as
-  `toolrank-emb-v0.2`; `TOOLRANK_BACKBONE=Qwen/Qwen3-Embedding-8B` gives `qwen3-emb[-fp8]`: the cache is keyed
+  (`yasinyaman/callbus-emb-8b@v0.2` in FP8 as `callbus-emb-v0.2-fp8` by default, bf16 as
+  `callbus-emb-v0.2`; `CALLBUS_BACKBONE=Qwen/Qwen3-Embedding-8B` gives `qwen3-emb[-fp8]`: the cache is keyed
   by the name, not the dtype),
-  waits, runs toolrank, and exits when either does. vLLM stays root; `toolrank` on that image's PATH is
-  `as-toolrank.sh` around the real command, so toolrank (and the npx/uvx MCP servers it starts) never
+  waits, runs callbus, and exits when either does. vLLM stays root; `callbus` on that image's PATH is
+  `as-callbus.sh` around the real command, so callbus (and the npx/uvx MCP servers it starts) never
   runs as root, from the entrypoint or from `docker exec`: it runs as the owner of the directory the
   command writes to (`--out`; `--data` for serve and search; else `/data`) when that is not root (a bind
   mount stays its owner's; never the root group; homes under `/home`, which the user cannot relink), else
-  as the image's `toolrank` user, and only root's files on the `/data` mount are re-owned (`chown -h`,
+  as the image's `callbus` user, and only root's files on the `/data` mount are re-owned (`chown -h`,
   `-xdev`; a failure, like a home that cannot be made, is a warning). Under a rootless engine a root-owned
   directory is the engine user's: no drop, no chown. Both images install with
   `--require-hashes` (the vLLM base's `UV_OVERRIDE` is unset for that) and name their base images once,
   by tag and digest, on `FROM` lines (Dependabot reads nothing else); the `*_IMAGE` build arguments
   default to those pinned stages. Workflow actions are pinned to commits and runners to `ubuntu-26.04` (not `ubuntu-latest`), and tests keep them so.
-  Compose projects are `toolrank-stack` and
-  `toolrank-bundled`, never `toolrank` (that name is `deploy/spark`'s benchmark servers).
-  `release.yml` on a `v*` tag: checks, the `toolrank` image to GHCR, then PyPI (it cannot be taken
+  Compose projects are `callbus-stack` and
+  `callbus-bundled`, never `callbus` (that name is `deploy/spark`'s benchmark servers).
+  `release.yml` on a `v*` tag: checks, the `callbus` image to GHCR, then PyPI (it cannot be taken
   back, so it waits for the image), then the GitHub release; by hand (`workflow_dispatch`) it is a
-  rehearsal that publishes nothing. Endpoint keys: `TOOLRANK_EMB_API_KEY` / `TOOLRANK_CHAT_API_KEY` go
+  rehearsal that publishes nothing. Endpoint keys: `CALLBUS_EMB_API_KEY` / `CALLBUS_CHAT_API_KEY` go
   anywhere, `OPENAI_API_KEY` only to https://api.openai.com, and none follows a redirect.
-- **Learning from the usage log** (Faz 2 week 1, `toolrank learn` → `learn.run`): the log holds no request
+- **Learning from the usage log** (Faz 2 week 1, `callbus learn` → `learn.run`): the log holds no request
   text, so `learn.mine` turns searches with linked calls into pairs of tool ids (`ok` → positive,
   `tool_error` → weak positive unless `--strict`, shown-but-never-called → hard negative; other outcomes say
   nothing; the same request merges), `learn.state_vectors` finds each request's backbone vector by digesting
@@ -574,69 +574,69 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   a request without one draws on its own, so a sessionless client is split, not 0/100), `tenants/<name>/` does both for one API key. Variants build in the background
   when the file appears or changes (mtime + size + the tools stamp), a request never waits for one, a file
   that cannot be loaded leaves an `error` in `status()["heads"]`. `SearchResult.arm` / `heads` go to the
-  log. `toolrank ab` (`learn.judge`, `decide`, `apply`): per arm since the candidate appeared, searches,
+  log. `callbus ab` (`learn.judge`, `decide`, `apply`): per arm since the candidate appeared, searches,
   called, top-1 and `mrr` (mean 1/rank of the called tool over all the arm's searches); promote
   (`candidate` → `current`, the old one kept as `previous-<stamp>`), roll back (`rejected-<stamp>`) or wait
   (`--min-searches` 100 a side; the `mrr` difference beyond max(`--margin` 0.01, its unpaired SE), else a tie
   that only a lower mean K beyond its SE and `K_MARGIN` 0.1 promotes); renames only, which the running server follows.
-- **Head fine-tuning** (`toolrank finetune` → `finetune.run`): the backbone stays frozen and training
+- **Head fine-tuning** (`callbus finetune` → `finetune.run`): the backbone stays frozen and training
   reads only cached vectors (one command embeds what the cache lacks, then trains). Training requests
   equal to a dev or eval query are dropped (counted per source); `split_pairs` takes a seeded
   train/val split (val pairs are a diagnostic). The epoch is picked on `--dev` (`EvalSet`, scored
-  exactly like `toolrank eval`, a test pins that), which must not be an eval set nor share queries
-  with one; the saved heads carry the serving cfg and `selected_on`, and `toolrank eval` then runs
+  exactly like `callbus eval`, a test pins that), which must not be an eval set nor share queries
+  with one; the saved heads carry the serving cfg and `selected_on`, and `callbus eval` then runs
   on the saved file for dev and every eval set. Faz 0 picked on val pairs; its runs are the parity
   reference (`results/finetune_qwen_60k_skip_neg0.json`). Heads are saved in the checkpoint shape `CLMHeads`
-  loads (`state_head`, `action_head`, `logit_scale`, `cfg`), so `toolrank eval --clm-ckpt` scores
+  loads (`state_head`, `action_head`, `logit_scale`, `cfg`), so `callbus eval --clm-ckpt` scores
   them on any backbone; `cfg["skip"]` (x + MLP(x), identity at init) is for heads on top of an
   embedding model, which must not start below its zero-shot quality.
 
 ## Map
 
 ```
-src/toolrank/domain.py            Tool, Query, TrainPair, RankedList, EvalReport
-src/toolrank/ports.py             Scorer, TextEncoder, ToolFormatter, QueryFormatter, VectorIndex, ToolSource, ChatModel
-src/toolrank/formats.py           tool formats documentation|name_desc|schema|example_call; query formats plain|concat|instruct_query|clm
-src/toolrank/adapters/bm25.py     BM25Scorer (bm25s, English stopwords, Snowball stemming if PyStemmer)
-src/toolrank/adapters/embeddings_api.py  OpenAIEmbeddings (+ EmbeddingCache, SQLite)
-src/toolrank/adapters/dense.py    DenseScorer (+ row_hash; tool vectors in a VectorIndex), topk_dot
-src/toolrank/adapters/index_numpy.py, index_faiss.py, index_pgvector.py   the VectorIndex adapters
-src/toolrank/adapters/hybrid.py   HybridScorer (RRF)
-src/toolrank/adapters/jev.py      JevClient (+ SQLite answer cache), JevReranker (Jev over a scorer's top K), JevScorer (Jev alone, chunked)
-src/toolrank/adapters/rerank.py   ScorerReranker (a second dense/clm/cross scorer over a scorer's top K), cut_formatter
-src/toolrank/adapters/cross_encoder.py  CrossEncoderScorer + ScoreClient (vLLM /score; qwen3 and bge prompt templates, SQLite cache)
-src/toolrank/adapters/clm.py      CLMHeads (mirrors clm/heads.py; torch), CLMScorer
-src/toolrank/adapters/heads_np.py NumpyHeads, load_heads, export_npz, default_heads, download
-src/toolrank/adapters/chat_api.py OpenAIChat (query generation only, never ranking)
-src/toolrank/adapters/mcp_client.py  fetch_tools / fetch_many / MCPServerSource (mcp SDK, stdio + streamable HTTP)
-src/toolrank/adapters/backends.py MCPBackend, OpenAPIExecutor, Backends (call_tool's router)
-src/toolrank/adapters/mcp_proxy.py  build_proxy (search_tools + call_tool), serve_stdio, Guard, http_app
-src/toolrank/adapters/rest.py     rest_routes (/v1/search, /v1/rank, /v1/call, /v1/tools, /openapi.json, /healthz), platform_record, OPENAPI
-src/toolrank/retriever.py         Retriever (state swap, background first index; pick: heads variants current/candidate/tenant), bucket, Hit, SearchResult
-src/toolrank/usage.py             UsageLog (schema v3: search and call events, HMAC digests, client key, call → search links), read_events
-src/toolrank/couse.py             co_use (log -> tool partners), partners / expand, CoUseTable (a server's table, refreshed in the background)
-src/toolrank/tenants.py           Tenant, load_tenants / parse_tenants (--api-keys: sources, headers, env), check_sources
-src/toolrank/metrics.py           Metrics (Prometheus counters and histograms of searches and calls, the token estimate), tool_tokens
-src/toolrank/names.py             api_name (tool ids as agent-API tool names)
-src/toolrank/client.py            ToolrankClient, AsyncToolrankClient (to_thread), ToolrankError (REST, stdlib)
-src/toolrank/integrations/        anthropic.py, openai.py (Toolbox, run), _common.py (read_only, get);
-                                  langgraph.py (Toolbox), langchain.py (ToolrankToolSelector, Selector),
-                                  llamaindex.py (ToolrankToolRetriever), litellm.py (tool_filter)
-src/toolrank/ingest/              text.py (the indexed text), mcp.py (server configs, MCP tool → Tool), openapi.py, sync.py,
+src/callbus/domain.py            Tool, Query, TrainPair, RankedList, EvalReport
+src/callbus/ports.py             Scorer, TextEncoder, ToolFormatter, QueryFormatter, VectorIndex, ToolSource, ChatModel
+src/callbus/formats.py           tool formats documentation|name_desc|schema|example_call; query formats plain|concat|instruct_query|clm
+src/callbus/adapters/bm25.py     BM25Scorer (bm25s, English stopwords, Snowball stemming if PyStemmer)
+src/callbus/adapters/embeddings_api.py  OpenAIEmbeddings (+ EmbeddingCache, SQLite)
+src/callbus/adapters/dense.py    DenseScorer (+ row_hash; tool vectors in a VectorIndex), topk_dot
+src/callbus/adapters/index_numpy.py, index_faiss.py, index_pgvector.py   the VectorIndex adapters
+src/callbus/adapters/hybrid.py   HybridScorer (RRF)
+src/callbus/adapters/jev.py      JevClient (+ SQLite answer cache), JevReranker (Jev over a scorer's top K), JevScorer (Jev alone, chunked)
+src/callbus/adapters/rerank.py   ScorerReranker (a second dense/clm/cross scorer over a scorer's top K), cut_formatter
+src/callbus/adapters/cross_encoder.py  CrossEncoderScorer + ScoreClient (vLLM /score; qwen3 and bge prompt templates, SQLite cache)
+src/callbus/adapters/clm.py      CLMHeads (mirrors clm/heads.py; torch), CLMScorer
+src/callbus/adapters/heads_np.py NumpyHeads, load_heads, export_npz, default_heads, download
+src/callbus/adapters/chat_api.py OpenAIChat (query generation only, never ranking)
+src/callbus/adapters/mcp_client.py  fetch_tools / fetch_many / MCPServerSource (mcp SDK, stdio + streamable HTTP)
+src/callbus/adapters/backends.py MCPBackend, OpenAPIExecutor, Backends (call_tool's router)
+src/callbus/adapters/mcp_proxy.py  build_proxy (search_tools + call_tool), serve_stdio, Guard, http_app
+src/callbus/adapters/rest.py     rest_routes (/v1/search, /v1/rank, /v1/call, /v1/tools, /openapi.json, /healthz), platform_record, OPENAPI
+src/callbus/retriever.py         Retriever (state swap, background first index; pick: heads variants current/candidate/tenant), bucket, Hit, SearchResult
+src/callbus/usage.py             UsageLog (schema v3: search and call events, HMAC digests, client key, call → search links), read_events
+src/callbus/couse.py             co_use (log -> tool partners), partners / expand, CoUseTable (a server's table, refreshed in the background)
+src/callbus/tenants.py           Tenant, load_tenants / parse_tenants (--api-keys: sources, headers, env), check_sources
+src/callbus/metrics.py           Metrics (Prometheus counters and histograms of searches and calls, the token estimate), tool_tokens
+src/callbus/names.py             api_name (tool ids as agent-API tool names)
+src/callbus/client.py            CallBusClient, AsyncCallBusClient (to_thread), CallBusError (REST, stdlib)
+src/callbus/integrations/        anthropic.py, openai.py (Toolbox, run), _common.py (read_only, get);
+                                  langgraph.py (Toolbox), langchain.py (CallBusToolSelector, Selector),
+                                  llamaindex.py (CallBusToolRetriever), litellm.py (tool_filter)
+src/callbus/ingest/              text.py (the indexed text), mcp.py (server configs, MCP tool → Tool), openapi.py, sync.py,
                                   schema.py (input schemas an agent API would refuse: doc["schema_problems"])
-src/toolrank/datasets/jsonl.py    the on-disk format (+ pairs.jsonl); toolret.py (pull + task→category map); toolret_train.py;
+src/callbus/datasets/jsonl.py    the on-disk format (+ pairs.jsonl); toolret.py (pull + task→category map); toolret_train.py;
                                   livemcpbench.py; mcp_zero.py (download + LLM-written queries); synthetic.py;
                                   genqueries.py (data gen-queries: sample tools over sources, LLM-written requests in styles)
-src/toolrank/eval/metrics.py      trec_eval-compatible metrics; runner.py (run_eval, summarize, format_table, save_report, --runs-out rows);
+src/callbus/eval/metrics.py      trec_eval-compatible metrics; runner.py (run_eval, summarize, format_table, save_report, --runs-out rows);
                                   paired.py (compare --paired: exact sign test, paired permutation test, weighted per category);
                                   table.py (the README's results table: render, splice, the protocol checks)
-src/toolrank/finetune.py          toolrank finetune: Job/run, EvalSet (dev curves), train_heads(select=), load_checkpoint
-src/toolrank/learn.py             toolrank learn: mine (log -> pairs of tool ids), state_vectors (emb_hmac -> cache), split, run;
-                                  toolrank ab: judge, decide, apply (candidate -> current | rejected), heads_home
-src/toolrank/build.py             composition root: scorer_factory, build_scorer, build_retriever, build_index, fingerprint; BACKBONES
-src/toolrank/cut.py               AdaptiveK (+ defaults), cutter
-src/toolrank/calibration.py       Calibration (confidence = ECDF of answerable requests' best scores), Calibrations, measure
-src/toolrank/cli.py               eval | compare | data (pull, server-names, synth, gen-queries) | ingest (mcp, openapi, drop) | search | calibrate | serve | finetune | learn | ab | heads (export, pull) | formats
+src/callbus/finetune.py          callbus finetune: Job/run, EvalSet (dev curves), train_heads(select=), load_checkpoint
+src/callbus/learn.py             callbus learn: mine (log -> pairs of tool ids), state_vectors (emb_hmac -> cache), split, run;
+                                  callbus ab: judge, decide, apply (candidate -> current | rejected), heads_home
+src/callbus/build.py             composition root: scorer_factory, build_scorer, build_retriever, build_index, fingerprint; BACKBONES
+src/callbus/cut.py               AdaptiveK (+ defaults), cutter
+src/callbus/calibration.py       Calibration (confidence = ECDF of answerable requests' best scores), Calibrations, measure
+src/callbus/cli.py               eval | compare | data (pull, server-names, synth, gen-queries) | ingest (mcp, openapi, drop) | search | calibrate | serve | finetune | learn | ab | heads (export, pull) | formats
 docs/plan/                        private repo (ignored here): README.md ("Şu an"), faz-0..3.md, backlog.md, claude-code-handoff.md,
                                   and the decision, launch and review notes
 docs/reports/                     weekly numbers; TEMPLATE.md
@@ -645,15 +645,15 @@ docs/heads/MODEL_CARD.md          the packaged heads' card (sha256, serving, dat
 docs/backbone/MODEL_CARD.md       the default backbone's card (LoRA recipe, selection set, serving, data license, numbers; publish_backbone.py stages it)
 deploy/spark/                     vLLM servers: systemd units, compose.yaml (NGC image, GB10; fp8 (8092 CLM, 8094 embedding), gen and pg profiles;
                                   rerank: Qwen3-Reranker-8B 8095 + bge-reranker-v2-gemma 8096 as vLLM score models; lora: the merged LoRA backbone 8097,
-                                  served as $TOOLRANK_LORA_NAME; lora-fp8: the same in FP8 on 8098)
-deploy/helm/toolrank/             the Helm chart (embedding.mode vllm | external | bundled, profile fp8 | bf16; one replica, Recreate)
-deploy/docker/                    Dockerfile (toolrank), Dockerfile.vllm + entrypoint-vllm.sh + as-toolrank.sh (toolrank-vllm), compose.yaml,
-                                  compose.bundle.yaml, toolrank.json, .env.example
+                                  served as $CALLBUS_LORA_NAME; lora-fp8: the same in FP8 on 8098)
+deploy/helm/callbus/             the Helm chart (embedding.mode vllm | external | bundled, profile fp8 | bf16; one replica, Recreate)
+deploy/docker/                    Dockerfile (callbus), Dockerfile.vllm + entrypoint-vllm.sh + as-callbus.sh (callbus-vllm), compose.yaml,
+                                  compose.bundle.yaml, callbus.json, .env.example
 mkdocs.yml, docs/*.md             the docs site (guides/, reference/ with the generated cli.md); plan/ and reports/ stay off it
-.github/                          ci.yml; release.yml and docs.yml (off until TOOLRANK_RELEASE / TOOLRANK_PAGES); issue forms
+.github/                          ci.yml; release.yml and docs.yml (off until CALLBUS_RELEASE / CALLBUS_PAGES); issue forms
                                   (bug, feature, benchmark result, feedback); dependabot.yml (actions)
 scripts/                          run_matrix.sh; toolret_paper_avg.py; truncation_side.py; adaptive_k_sweep.py; heads_parity.py;
-                                  serve_e2e.py (toolrank serve end to end); platforms_e2e.py (the agent APIs, --live);
+                                  serve_e2e.py (callbus serve end to end); platforms_e2e.py (the agent APIs, --live);
                                   frameworks_e2e.py (bigtool, LlamaIndex, LiteLLM proxy + MCP gateway);
                                   readme_results.sh (the README's runs), readme_table.py (--write | --check);
                                   cli_reference.py, third_party.py, release_check.py, container_smoke.py, fp8_agreement.py, latency.py;
@@ -670,7 +670,7 @@ scripts/                          run_matrix.sh; toolret_paper_avg.py; truncatio
                                   publish_backbone.py (the LoRA-merged backbone to the Hub, tagged; dry run by default);
                                   gguf_matrix.sh (GGUF builds and small backbones through Ollama, the README's eval flags)
 examples/                         anthropic_tool_reference.py, openai_client_tool_search.py, litellm/config.yaml;
-                                  skills/toolrank/ (SKILL.md + stdlib search.py / call.py / _toolrank.py over REST; tests/test_skill.py runs them
+                                  skills/callbus/ (SKILL.md + stdlib search.py / call.py / _callbus.py over REST; tests/test_skill.py runs them
                                   as processes against the served app behind a real HTTP server)
 ```
 
@@ -724,18 +724,18 @@ examples/                         anthropic_tool_reference.py, openai_client_too
   −0.08 NDCG@10 at 1.6 ms vs 8.2 ms exact (batch 1); plain RRF hybrid 46.17 ToolRet / 40.80
   LiveMCPBench / 84.31 MCP-Zero; adaptive K (margin 0.2, max 10): ToolRet completeness 54.34 at K
   8.29 (+1.49 over fixed top-k at that K).
-- Faz 1 week 3 (`docs/reports/faz1-week3.md`; `toolrank serve` on the Mac, 1,862 tools, embeddings
+- Faz 1 week 3 (`docs/reports/faz1-week3.md`; `callbus serve` on the Mac, 1,862 tools, embeddings
   from the GB10 over Tailscale): `search_tools` p50 5.2 ms with the query cached, 130–195 ms when it
   is embedded; `call_tool` adds ~2 ms over the backend; first start 154 s with an empty cache (the
   BM25 stand-in answers from 1.2 s meanwhile), 0.8 s with a warm one (`ingest --emb-url`).
-- Faz 1 week 4 (`docs/reports/faz1-week4.md`; Claude `claude-opus-5-5`, data/w3): toolrank as
+- Faz 1 week 4 (`docs/reports/faz1-week4.md`; Claude `claude-opus-5-5`, data/w3): callbus as
   Claude's tool search answered all three live tasks right, with 37–60% fewer input tokens than
   the API's own BM25 search (fewer, more relevant tools loaded) but one extra turn per search
   (client-side). 1,862 deferred tools = 3.67 MB per request. `gpt-5.5`: two tasks right in 3 turns
   (6.4 s, 4.7 s; one tool loaded for "time in Tokyo"); the refund task loaded 18 Stripe schemas and
   hit the account's 10k TPM limit at 34.5k tokens — loaded schemas pile up on broad searches.
 
-- Faz 1 week 5 (`docs/reports/faz1-week5.md`): `toolrank finetune` reproduces Faz 0's 60K runs
+- Faz 1 week 5 (`docs/reports/faz1-week5.md`): `callbus finetune` reproduces Faz 0's 60K runs
   epoch for epoch. Picked on MCP-Zero `_server` as dev, it keeps epoch 2 with in-batch negatives (dev
   88.50; ToolRet 51.74 / 46.68) and the untrained start with 15 mined negatives (val recall 89.45 →
   96.85 while dev fell 87.21 → 78.65); from the packaged heads, epoch 0 is v0.1's own 88.53. README
@@ -770,12 +770,12 @@ examples/                         anthropic_tool_reference.py, openai_client_too
   with name_desc is worse than top 20 with the documentation on every set (ToolRet 54.55 vs 58.05), and
   alone (every pair, LiveMCPBench) it gives 55.25 at 32 s a query: pointwise scoring needs a good
   shortlist.
-  The merged weights live in `~/toolrank/data/lora/qwen3-emb-lora-20k/merged` on the GB10 and must
+  The merged weights live in `~/callbus/data/lora/qwen3-emb-lora-20k/merged` on the GB10 and must
   carry the original repo's config, tokenizer and `1_Pooling` files: transformers 5.x writes a
   list-valued `extra_special_tokens` and `rope_parameters`, which the NGC image's 4.51 crashes on or
   misreads (the script copies the originals). The CLM backbone (8090) was stopped to make room;
   rerankers (48 GB) and LoRA training (20–30 GB) do not fit together.
-- Faz 2 week 4, `toolrank learn` on simulated traffic (`docs/reports/faz2-week4.md`; `scripts/learn_sim.sh`,
+- Faz 2 week 4, `callbus learn` on simulated traffic (`docs/reports/faz2-week4.md`; `scripts/learn_sim.sh`,
   NDCG@10 micro / cat-macro on the 30% of queries never served, start = the v0.1 heads): ToolRet as the
   catalogue, 5,573 requests logged → 4,313 pairs: 54.20 / 48.59 → 57.23 / 52.55 (another split: 53.97 /
   48.02 → 57.49 / 53.02); by size 300 → 55.11, 1,000 → 55.27, 3,000 → 56.64, and 100 requests publish
@@ -796,7 +796,7 @@ examples/                         anthropic_tool_reference.py, openai_client_too
   worth +2.2 top-1. No-tool gate on the best cosine (answerable vs the same request with its gold servers
   removed): AUROC 0.882 MCP-Zero, 0.761 LiveMCPBench, means 0.71 / 0.51 for answerable requests, so no
   threshold carries over (0.45 turns away 0.8% and catches 23% on MCP-Zero, turns away 30% on LiveMCPBench).
-  Backlog D2.14 makes the threshold portable instead (`calibration.py`, `toolrank calibrate`): not measured yet.
+  Backlog D2.14 makes the threshold portable instead (`calibration.py`, `callbus calibrate`): not measured yet.
   Co-use on the simulated ToolRet log (count ≥ 2, share ≥ 0.5, ≤ 2 partners): 111 of 2,388 held-out lists
   change, K 8.33 → 8.38, completeness 54.15 → 54.73 (multi-tool requests 31.48 → 32.80), the same +0.6 with
   heads learned from that log; a longer ranked list (max 12) pays +2.05 for 1.32 more tools.

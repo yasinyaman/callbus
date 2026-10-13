@@ -1,7 +1,7 @@
 """Reproduce the ToolRet paper's BM25s row (Tables 4 and 5) with the paper's own settings.
 
 The paper's "Average" is the category macro-average (``EvalReport.category_macro``, the
-``cat-macro`` column of ``toolrank compare``), and its BM25s is unstemmed and indexes
+``cat-macro`` column of ``callbus compare``), and its BM25s is unstemmed and indexes
 ``str(doc)`` rather than the ``documentation`` JSON string. The CLI covers the aggregation and
 ``--no-stem``; this script adds the ``str(doc)`` tool text and prints the per-category deltas
 against the paper, so the harness can be checked without changing the protocol.
@@ -14,11 +14,11 @@ from __future__ import annotations
 import argparse
 from dataclasses import replace
 
-from toolrank.adapters.bm25 import BM25Scorer
-from toolrank.datasets.jsonl import load_queries, load_tools
-from toolrank.datasets.toolret import TASK_TO_CATEGORY, TOOLRET_CATEGORIES
-from toolrank.eval.runner import run_eval
-from toolrank.formats import NamedFormatter
+from callbus.adapters.bm25 import BM25Scorer
+from callbus.datasets.jsonl import load_queries, load_tools
+from callbus.datasets.toolret import TASK_TO_CATEGORY, TOOLRET_CATEGORIES
+from callbus.eval.runner import run_eval
+from callbus.formats import NamedFormatter
 
 # BM25s NDCG@10 from the paper: per category, and the printed "Average" (w/o inst, w/ inst).
 PAPER_BM25S = {

@@ -1,5 +1,5 @@
 {
-  "scorer": "clm[toolrank-heads-qwen3-emb-8b-v0.1]/emb/qwen3-emb/documentation/instruct_query",
+  "scorer": "clm[callbus-heads-qwen3-emb-8b-v0.1]/emb/qwen3-emb/documentation/instruct_query",
   "dataset": "mcp_zero_server",
   "n_queries": 2792,
   "n_tools": 2792,
@@ -69,7 +69,7 @@
     "emb_url": "http://127.0.0.1:8091/v1",
     "truncate": 8192,
     "batch": 64,
-    "clm_ckpt": "dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz",
+    "clm_ckpt": "dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz",
     "heads_sha256": "f3c101251b9c23925e2925bc02c4492e6c3dea79bcfa1b56715affb20f9f72f0",
     "index": "numpy",
     "cut": null,

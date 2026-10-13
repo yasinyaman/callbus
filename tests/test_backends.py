@@ -11,9 +11,9 @@ pytest.importorskip("mcp")
 import anyio  # noqa: E402
 import httpx2  # noqa: E402
 
-from toolrank.adapters.backends import Backends, OpenAPIExecutor, Refused, same_origin  # noqa: E402
-from toolrank.domain import Tool  # noqa: E402
-from toolrank.ingest.mcp import (  # noqa: E402
+from callbus.adapters.backends import Backends, OpenAPIExecutor, Refused, same_origin  # noqa: E402
+from callbus.domain import Tool  # noqa: E402
+from callbus.ingest.mcp import (  # noqa: E402
     OpenAPIBackend,
     ServerConfig,
     expand_env,
@@ -151,7 +151,7 @@ def test_openapi_request_building_and_refusals(monkeypatch):
     assert sent["url"] == "https://real.example.com/items/%40evil.example.com%2Fx"
     asked = []
     monkeypatch.setattr(
-        "toolrank.adapters.backends.same_origin", lambda url, base: asked.append((url, base)) and False
+        "callbus.adapters.backends.same_origin", lambda url, base: asked.append((url, base)) and False
     )
     with pytest.raises(Refused, match="is not a URL on https://real.example.com"):
         hostless.build(_op(args=QUERY), {"id": 7})
@@ -205,7 +205,7 @@ def test_config_env_expansion_and_openapi_section(tmp_path, monkeypatch):
     assert expand_env({"a": ["${TR_TOKEN}", "x-${env:TR_TOKEN}"]}) == {"a": ["s3cret", "x-s3cret"]}
     with pytest.raises(ValueError, match="TR_MISSING is not set"):
         expand_env("${TR_MISSING}", "remote")
-    cfg = tmp_path / "toolrank.json"
+    cfg = tmp_path / "callbus.json"
     cfg.write_text(
         '{"mcpServers": {"r": {"url": "https://h/mcp", "headers": {"Authorization": "Bearer ${TR_TOKEN}"}}},'
         ' "openapi": {"stripe": {"base_url": "https://api.stripe.com", "headers": {"Authorization": "Bearer ${TR_TOKEN}"}}}}'
@@ -229,7 +229,7 @@ def test_config_env_expansion_and_openapi_section(tmp_path, monkeypatch):
     cfg.chmod(0)
     if not os.access(cfg, os.R_OK):  # root reads anything
         with pytest.raises(
-            ValueError, match=rf"toolrank.json: Permission denied: toolrank runs as uid {os.getuid()}"
+            ValueError, match=rf"callbus.json: Permission denied: callbus runs as uid {os.getuid()}"
         ):
             load_config(cfg)
 

@@ -1,23 +1,23 @@
 # Fine-tune the heads
 
 The packaged heads were trained on ToolRet's public request-to-tool pairs. With pairs from your own
-agents, `toolrank finetune` trains heads for your catalogue; for what `toolrank serve` logged, use
-[`toolrank learn`](learn.md), which needs no pairs file.
+agents, `callbus finetune` trains heads for your catalogue; for what `callbus serve` logged, use
+[`callbus learn`](learn.md), which needs no pairs file.
 
 ```bash
-pip install "toolrank[clm]"           # torch, for training only; the result runs in numpy
-toolrank finetune --data pairs.jsonl --dev dev/ --eval test/ --out heads.pt --npz heads.npz
+pip install "callbus[clm]"           # torch, for training only; the result runs in numpy
+callbus finetune --data pairs.jsonl --dev dev/ --eval test/ --out heads.pt --npz heads.npz
 ```
 
 It embeds with the base Qwen3-Embedding-8B served as `qwen3-emb` on port 8091 (`--emb-url`,
 `--emb-model`), and the heads it trains belong on that backbone; their cfg records it.
 
-- `pairs.jsonl` holds requests with the tools that serve them (`toolrank data pull toolret-train`
-  writes one; the format is in `toolrank.datasets.jsonl`).
+- `pairs.jsonl` holds requests with the tools that serve them (`callbus data pull toolret-train`
+  writes one; the format is in `callbus.datasets.jsonl`).
 - `--dev` is a benchmark-format set (`tools.jsonl` + `queries.jsonl`) that picks the epoch and is
   reported nowhere else. Recall on held-out training pairs is no guide: it kept rising in our runs
   while the benchmarks fell.
-- `--eval` sets (repeatable) are scored with `toolrank eval` on the saved heads at the end. A dev
+- `--eval` sets (repeatable) are scored with `callbus eval` on the saved heads at the end. A dev
   set that is also an eval set, or shares queries with one, is refused.
 
 ## What it does
@@ -28,11 +28,11 @@ It embeds with the base Qwen3-Embedding-8B served as `qwen3-emb` on port 8091 (`
    left off.
 3. Trains on the frozen backbone's vectors with the settings of the released heads: skip heads,
    lr 1e-5, batch 512, 5 epochs, in-batch negatives only.
-4. Scores the dev set after every epoch, exactly as `toolrank eval` would. The starting heads
+4. Scores the dev set after every epoch, exactly as `callbus eval` would. The starting heads
    compete too: a later epoch wins only if it is strictly better, so the command never returns
    heads worse than it started with.
 5. Saves `heads.pt` (and `--npz heads.npz`) with their serving settings (backbone, text formats,
-   truncation, instruction) and the dev result that chose them. `toolrank search --clm-ckpt
+   truncation, instruction) and the dev result that chose them. `callbus search --clm-ckpt
    heads.npz --emb-model qwen3-emb` and `serve` with the same flags take the rest from the file. Heads
    put on a backbone their cfg does not name stop search and serve when `--emb-model` was left to its
    default, and get a warning otherwise.
@@ -47,7 +47,7 @@ the starting heads. Try them only with a dev set you trust.
 
 ## A dev set of your own
 
-A model picked on a benchmark cannot be reported on it. `toolrank data gen-queries` makes a
+A model picked on a benchmark cannot be reported on it. `callbus data gen-queries` makes a
 selection set from any catalogue instead: it samples tools evenly over the catalogue's sources and
 has a chat model write one request per tool, in three styles (a person's task, an agent's note for
 its next step, a goal in everyday words; `--styles situation` writes a problem without the
@@ -55,17 +55,17 @@ operation, the hardest to match). The model is told not to use the tool's name, 
 names it anyway is dropped.
 
 ```bash
-toolrank data gen-queries --data tools/ --out dev/ --n 1000 \
+callbus data gen-queries --data tools/ --out dev/ --n 1000 \
   --exclude data/toolret --exclude data/livemcpbench_server     # queries it must not repeat
-toolrank eval --data dev/ --scorer dense --with-inst ...       # rows per source and per style
+callbus eval --data dev/ --scorer dense --with-inst ...       # rows per source and per style
 ```
 
 `--gen-url` and `--gen-model` name an OpenAI-compatible chat endpoint (by default a local
 `qwen3-8b-chat` on port 8093); answers are cached in `dev/generations.jsonl`, so a rerun writes only
 what is new. The result is a benchmark-format directory for `finetune --dev`, `learn --dev`,
-`toolrank eval` and `toolrank calibrate` ([confidence](serve.md)).
+`callbus eval` and `callbus calibrate` ([confidence](serve.md)).
 
-A set that picks a checkpoint cannot also report it. `toolrank data split dev/ --out-a dev_sel/
+A set that picks a checkpoint cannot also report it. `callbus data split dev/ --out-a dev_sel/
 --out-b dev_conf/` divides the queries in two at a seeded point, and both halves keep the whole
 catalogue. Pick on the first half and report the second.
 

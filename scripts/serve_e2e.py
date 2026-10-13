@@ -1,4 +1,4 @@
-"""End-to-end check of ``toolrank serve`` (Faz 1 week 3): MCP over streamable HTTP and stdio, the
+"""End-to-end check of ``callbus serve`` (Faz 1 week 3): MCP over streamable HTTP and stdio, the
 REST routes, the usage log, and the first start with an empty index.
 
 Needs an ingest dir with the week-1 sources (time, everything, swagger-petstore, stripe), ``uvx``
@@ -10,7 +10,7 @@ the petstore key are random per run; the token is a named key (``--api-keys``), 
 records its name as the tenant.
 
     uv run python scripts/serve_e2e.py --data data/w3 --emb-url http://$GB10:8091/v1 \
-        --heads dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz --out results/serve_e2e.json
+        --heads dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz --out results/serve_e2e.json
 
 Delete ``DATA/index`` and ``DATA/cache`` first to measure a cold start (every tool embedded).
 """
@@ -40,7 +40,7 @@ from typing import Any
 import anyio
 import httpx2
 
-from toolrank.ingest.mcp import ServerConfig
+from callbus.ingest.mcp import ServerConfig
 
 QUERIES = [
     "what time is it in Tokyo right now",
@@ -53,7 +53,7 @@ QUERIES = [
 STDIO_QUERY = "convert 3pm New York time to Istanbul time"
 CALLS = [  # (tool, arguments, expected)
     ("time/get_current_time", {"timezone": "Asia/Tokyo"}, "ok"),
-    ("everything/echo", {"message": "hello from toolrank"}, "ok"),
+    ("everything/echo", {"message": "hello from callbus"}, "ok"),
     ("swagger-petstore/findPets", {"tags": ["dog", "cat"], "limit": 2}, "ok (stand-in, key sent)"),
     ("swagger-petstore/find pet by id", {"id": 404}, "HTTP 404: error + schema"),
     ("stripe/PostRefunds", {"charge": "ch_123"}, "refused: POST"),
@@ -120,7 +120,7 @@ def write_config(directory: Path, pet_port: int) -> Path:
             }
         },
     }
-    path = directory / "toolrank.json"
+    path = directory / "callbus.json"
     path.write_text(json.dumps(cfg, indent=2))
     return path
 
@@ -139,7 +139,7 @@ def text(result: Any) -> str:
 def client_for(cfg: ServerConfig, errlog: Any, http: Any) -> Any:
     from mcp import Client
 
-    from toolrank.adapters.mcp_client import _transport
+    from callbus.adapters.mcp_client import _transport
 
     return Client(_transport(cfg, errlog, http), cache=None)
 
@@ -297,7 +297,7 @@ async def http_phase(
 ) -> dict:
     port = a.port or free_port()
     base = f"http://127.0.0.1:{port}"
-    exe = str(Path(sys.executable).with_name("toolrank"))
+    exe = str(Path(sys.executable).with_name("callbus"))
     cmd = [
         exe,
         "serve",
@@ -335,7 +335,7 @@ async def http_phase(
                 out["http_up_s"] = since(t0)
                 out["healthz_at_start"] = [r.status_code, r.json()]
                 cfg = ServerConfig(
-                    "toolrank", "http", url=base + "/mcp", headers={"Authorization": f"Bearer {key}"}
+                    "callbus", "http", url=base + "/mcp", headers={"Authorization": f"Bearer {key}"}
                 )
                 async with AsyncExitStack() as stack:
                     http = await stack.enter_async_context(
@@ -383,10 +383,10 @@ async def http_phase(
 
 
 async def stdio_phase(a: argparse.Namespace, env: dict[str, str], cfg_path: Path) -> dict:
-    exe = str(Path(sys.executable).with_name("toolrank"))
+    exe = str(Path(sys.executable).with_name("callbus"))
     args = ("serve", "--stdio", "--data", a.data, "--config", str(cfg_path), "--emb-url", a.emb_url)
     args += ("--emb-model", a.emb_model, *(("--clm-ckpt", "none") if a.heads_none else ()))
-    cfg = ServerConfig("toolrank", "stdio", command=exe, args=args, env=env, cwd="/")  # like Claude Desktop
+    cfg = ServerConfig("callbus", "stdio", command=exe, args=args, env=env, cwd="/")  # like Claude Desktop
     before = backend_pids()
     out: dict[str, Any] = {}
     t0 = time.perf_counter()
@@ -464,7 +464,7 @@ def main() -> None:
     p.add_argument(
         "--heads",
         default=None,
-        help="packaged heads (.npz), or none (the backbone alone); default: $TOOLRANK_HEADS",
+        help="packaged heads (.npz), or none (the backbone alone); default: $CALLBUS_HEADS",
     )
     p.add_argument("--port", type=int, default=0)
     p.add_argument("--skip-stdio", action="store_true")
@@ -475,13 +475,13 @@ def main() -> None:
     pet_key, api_key = secrets.token_hex(8), secrets.token_hex(16)
     stand_in = petstore(pet_key)
     env = {"PETSTORE_KEY": pet_key}
-    heads = a.heads or os.environ.get("TOOLRANK_HEADS")
+    heads = a.heads or os.environ.get("CALLBUS_HEADS")
     a.heads_none = heads == "none"  # serve --clm-ckpt none: a backbone the packaged heads do not fit
     if heads and not a.heads_none:
-        env["TOOLRANK_HEADS"] = str(Path(heads).resolve())
+        env["CALLBUS_HEADS"] = str(Path(heads).resolve())
     with tempfile.TemporaryDirectory() as tmp:
         cfg_path = write_config(Path(tmp), stand_in.server_address[1])
-        report: dict[str, Any] = {"data": a.data, "emb_url": a.emb_url, "heads": env.get("TOOLRANK_HEADS")}
+        report: dict[str, Any] = {"data": a.data, "emb_url": a.emb_url, "heads": env.get("CALLBUS_HEADS")}
         report["http"] = anyio.run(http_phase, a, env, cfg_path, api_key, Path(tmp))
         if not a.skip_stdio:
             report["stdio"] = anyio.run(stdio_phase, a, env, cfg_path)

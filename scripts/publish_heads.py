@@ -4,15 +4,15 @@ Stages the model repo — the ``.npz`` and a README that is ``docs/heads/MODEL_C
 Hub's metadata header — after checking the file against ``HEADS_SHA256``. With ``--upload`` it
 creates the repo and uploads both, tags the file's commit with the heads version (``v0.1``, so the
 address never serves another file), downloads the file back through that address and checks the
-sha256 again; then it writes the address into ``src/toolrank/adapters/heads_np.py`` (``HEADS_URL``)
+sha256 again; then it writes the address into ``src/callbus/adapters/heads_np.py`` (``HEADS_URL``)
 and into the model card, for you to commit. Without ``--upload`` nothing leaves the machine and
 nothing is written outside the stage directory.
 
 The upload needs ``huggingface_hub`` and a login with write access, done by the maintainer
 (``uvx --from huggingface_hub hf auth login``); the token never passes through this script.
 
-    uv run python scripts/publish_heads.py --repo USER/toolrank-heads-qwen3-emb-8b            # dry run
-    uv run --with huggingface_hub python scripts/publish_heads.py --repo USER/toolrank-heads-qwen3-emb-8b --upload
+    uv run python scripts/publish_heads.py --repo USER/callbus-heads-qwen3-emb-8b            # dry run
+    uv run --with huggingface_hub python scripts/publish_heads.py --repo USER/callbus-heads-qwen3-emb-8b --upload
 """
 
 from __future__ import annotations
@@ -22,13 +22,13 @@ import re
 import sys
 from pathlib import Path
 
-from toolrank.adapters.heads_np import HEADS_FILE, HEADS_SHA256, download, sha256_file
+from callbus.adapters.heads_np import HEADS_FILE, HEADS_SHA256, download, sha256_file
 
 FRONT_MATTER = """---
 license: apache-2.0
 base_model: Qwen/Qwen3-Embedding-8B
 base_model_relation: adapter
-library_name: toolrank
+library_name: callbus
 pipeline_tag: sentence-similarity
 datasets:
 - mangopy/ToolRet-Training-20w
@@ -44,7 +44,7 @@ NOT_HOSTED = (
     "The download address is empty until the file is hosted."  # scripts/release_check.py looks for it
 )
 HEADS_URL_LINE = re.compile(r'^HEADS_URL = "[^"]*".*$', re.M)
-VERSION = re.fullmatch(r"toolrank-heads-.+-(v[\d.]+)\.npz", HEADS_FILE).group(1)  # the Hub tag
+VERSION = re.fullmatch(r"callbus-heads-.+-(v[\d.]+)\.npz", HEADS_FILE).group(1)  # the Hub tag
 HUB_URL = re.compile(r"https://huggingface\.co/[\w.-]+/[\w.-]+/resolve/[\w.-]+/" + re.escape(HEADS_FILE))
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -76,7 +76,7 @@ def readme(card: str, url: str) -> str:
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    p.add_argument("--repo", required=True, help="Hub model repo id, e.g. USER/toolrank-heads-qwen3-emb-8b")
+    p.add_argument("--repo", required=True, help="Hub model repo id, e.g. USER/callbus-heads-qwen3-emb-8b")
     p.add_argument("--file", default=f"dist/heads/{HEADS_FILE}")
     p.add_argument("--card", default="docs/heads/MODEL_CARD.md")
     p.add_argument("--stage", default="dist/heads/hub", help="where the repo's files are written first")
@@ -122,7 +122,7 @@ def main() -> None:
         return
     download(url, stage / "check" / HEADS_FILE, HEADS_SHA256)
     print(f"downloaded back and checked: {url}")
-    module = ROOT / "src" / "toolrank" / "adapters" / "heads_np.py"
+    module = ROOT / "src" / "callbus" / "adapters" / "heads_np.py"
     module.write_text(with_heads_url(module.read_text(), url))
     card = Path(a.card)
     card.write_text(hosted_card(card.read_text(), url))

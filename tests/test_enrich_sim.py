@@ -9,10 +9,10 @@ from pathlib import Path
 
 import pytest
 
-from toolrank.adapters.dense import DenseScorer
-from toolrank.datasets.jsonl import write_queries, write_tools
-from toolrank.datasets.synthetic import make_queries, make_tools
-from toolrank.domain import Tool
+from callbus.adapters.dense import DenseScorer
+from callbus.datasets.jsonl import write_queries, write_tools
+from callbus.datasets.synthetic import make_queries, make_tools
+from callbus.domain import Tool
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))

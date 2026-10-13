@@ -4,14 +4,14 @@
 
 Diğer oturumun LoRA ile eğittiği Qwen3-Embedding-8B, FP8'de de bf16 kadar iyi (ToolRet 59,02 / 54,53,
 LiveMCPBench NDCG@10 55,34, MCP-Zero top-1 87,71) ve v0.1 head'leri onun üstünde 1–2 puan kaybettiriyor;
-bu yüzden paketin varsayılanı head'siz LoRA'lı backbone oldu (`toolrank-emb-v0.2`, Docker / compose /
+bu yüzden paketin varsayılanı head'siz LoRA'lı backbone oldu (`callbus-emb-v0.2`, Docker / compose /
 Helm'de FP8), head'ler yalnız eğitildikleri temel modelde uygulanıyor, ve `search` / `serve` isteğe
 bağlı ikinci aşamayı (`--rerank cross | jev`) aldı; ağırlıklar aynı gün Hub'a yüklendi (aşağıdaki
 yayın bölümü).
 
 ## Ölçüler, birimler ve yön
 
-`toolrank eval` protokolü, w/ inst; `NDCG@10 ↑ %` (ToolRet'te micro / cat-macro), `Recall@5 ↑ %`,
+`callbus eval` protokolü, w/ inst; `NDCG@10 ↑ %` (ToolRet'te micro / cat-macro), `Recall@5 ↑ %`,
 `P@1 ↑ %` (MCP-Zero'nun top-1'i). Kosinüs ve örtüşme `scripts/fp8_agreement.py`'den.
 
 ## Tablo 1 — LoRA'lı backbone: bf16, FP8, ve v0.1 head'leriyle
@@ -30,21 +30,21 @@ FP8 ile bf16 arasında (LoRA, ToolRet'in 1.000 sorgusu): omurga kosinüsü ortal
 
 | Retriever | ToolRet NDCG@10 ↑ % | cat-macro ↑ % | LiveMCPBench Recall@5 ↑ % | MCP-Zero top-1 ↑ % |
 | --- | ---: | ---: | ---: | ---: |
-| Qwen3-Embedding-8B + toolrank heads v0.1 | 54,03 | 47,13 | 53,03 | 79,87 |
-| Qwen3-Embedding-8B in FP8 + toolrank heads v0.1 | 53,94 | 47,27 | 53,48 | 79,51 |
-| toolrank backbone v0.2 (Qwen3-Embedding-8B + LoRA) | 58,90 | 54,36 | 52,06 | 88,57 |
-| toolrank backbone v0.2 in FP8 (the default) | 59,02 | 54,53 | 52,06 | 87,71 |
+| Qwen3-Embedding-8B + callbus heads v0.1 | 54,03 | 47,13 | 53,03 | 79,87 |
+| Qwen3-Embedding-8B in FP8 + callbus heads v0.1 | 53,94 | 47,27 | 53,48 | 79,51 |
+| callbus backbone v0.2 (Qwen3-Embedding-8B + LoRA) | 58,90 | 54,36 | 52,06 | 88,57 |
+| callbus backbone v0.2 in FP8 (the default) | 59,02 | 54,53 | 52,06 | 87,71 |
 
 ## Ne değişti
 
 - **Backbone kaydı** (`build.BACKBONES`): servis adı → ağırlıklar ve paketli head'lerin ona ait olup
-  olmadığı. Varsayılan servis adı `toolrank-emb-v0.2` (adda sürüm var, çünkü embedding önbelleği adla
+  olmadığı. Varsayılan servis adı `callbus-emb-v0.2` (adda sürüm var, çünkü embedding önbelleği adla
   anahtarlanıyor). Önbellekteki head'ler yalnız `qwen3-emb` / `qwen3-emb-fp8`'de (ve bilinmeyen adlarda,
-  eskisi gibi) yükleniyor; `TOOLRANK_HEADS` her zaman geçerli. `toolrank learn` başlangıcı da aynı
+  eskisi gibi) yükleniyor; `CALLBUS_HEADS` her zaman geçerli. `callbus learn` başlangıcı da aynı
   kuralla seçiyor (LoRA'da sıfırdan skip head, yani epoch 0 = backbone).
-- **Dağıtım:** birleşik imajın giriş betiği (`TOOLRANK_BACKBONE` / `_REVISION`, temel model ayrı adla),
+- **Dağıtım:** birleşik imajın giriş betiği (`CALLBUS_BACKBONE` / `_REVISION`, temel model ayrı adla),
   `deploy/docker/compose.yaml`, Helm chart'ının `embedding.backbone` değeri; hepsi FP8 ile
-  `yasinyaman/toolrank-emb-8b@v0.2`'yi servis ediyor. Temel modele dönüş tek ayar.
+  `yasinyaman/callbus-emb-8b@v0.2`'yi servis ediyor. Temel modele dönüş tek ayar.
 - **Yayın:** `docs/backbone/MODEL_CARD.md` (tarif, seçim seti uyarısı, lisans, sayılar) ve
   `scripts/publish_backbone.py` (GB10'da kuru çalıştırma geçti: 10 dosya, `model.safetensors` 16,4 GB,
   sha256 `53789cff…`). `BACKBONE_PUBLISHED = False` iken `release_check` sürümü reddediyor.
@@ -55,7 +55,7 @@ FP8 ile bf16 arasında (LoRA, ToolRet'in 1.000 sorgusu): omurga kosinüsü ortal
 
 ## Ek (2 Ekim, öğleden sonra) — kendi dev setimiz ve LoRA için ne söylediği
 
-**Sonuç:** `toolrank data gen-queries` ile hiçbir benchmark'la sorgu paylaşmayan seçim setleri
+**Sonuç:** `callbus data gen-queries` ile hiçbir benchmark'la sorgu paylaşmayan seçim setleri
 üretildi (GitHub + Stripe + üç küçük kaynak, 1.862 tool; Qwen3-8B'nin yazdığı istekler) ve
 gösterdikleri şu: LoRA'lı backbone'un kazancı **birden çok tool gerektiren görevlerde** — iki
 tool'luk 800 görevde NDCG@10 71,04 → 82,95, üç tool'luk 498 görevde 55,21 → 75,40 (ikisi de
@@ -140,16 +140,16 @@ Notlar:
 Komutlar (GB10; sohbet modeli `--profile gen`, 8093, iş bitince durduruldu):
 
 ```bash
-toolrank data gen-queries --data data/devcat --out data/dev_w3 --n 1000 --seed 0 \
+callbus data gen-queries --data data/devcat --out data/dev_w3 --n 1000 --seed 0 \
   --exclude data/toolret --exclude data/livemcpbench_server --exclude data/mcp_zero_server
-toolrank data gen-queries --data data/devcat --out data/dev_w3_sit --n 600 --seed 1 --styles situation \
+callbus data gen-queries --data data/devcat --out data/dev_w3_sit --n 600 --seed 1 --styles situation \
   --exclude data/toolret --exclude data/livemcpbench_server --exclude data/mcp_zero_server
-toolrank data gen-queries --data data/devcat --out data/dev_w3_multi2 --n 800 --seed 2 --tools-per-request 2 \
+callbus data gen-queries --data data/devcat --out data/dev_w3_multi2 --n 800 --seed 2 --tools-per-request 2 \
   --exclude data/toolret --exclude data/livemcpbench_server --exclude data/mcp_zero_server
-toolrank data gen-queries --data data/devcat --out data/dev_w3_multi3 --n 500 --seed 3 --tools-per-request 3 \
+callbus data gen-queries --data data/devcat --out data/dev_w3_multi3 --n 500 --seed 3 --tools-per-request 3 \
   --gen-max-tokens 384 --exclude data/toolret --exclude data/livemcpbench_server --exclude data/mcp_zero_server
 # data/devcat = Mac'teki data/w3'ün tools.jsonl'ı (sha256 f93cb95c…); her model için:
-toolrank eval --data data/dev_w3_sit --scorer dense --emb-url http://127.0.0.1:8097/v1 --emb-model qwen3-emb-lora \
+callbus eval --data data/dev_w3_sit --scorer dense --emb-url http://127.0.0.1:8097/v1 --emb-model qwen3-emb-lora \
   --truncate 8192 --tool-format documentation --query-format instruct_query --with-inst --ks 1,5,10 \
   --out results/dev_w3_sit_lora.json
 ```
@@ -157,19 +157,19 @@ toolrank eval --data data/dev_w3_sit --scorer dense --emb-url http://127.0.0.1:8
 ## Komutlar
 
 ```bash
-# GB10, ~/toolrank; FP8 servisi (compose profili lora-fp8, 8098) bf16'yla aynı birleştirilmiş ağırlıklardan
-TOOLRANK_LORA=$HOME/toolrank/data/lora/qwen3-emb-lora-20k/merged \
+# GB10, ~/callbus; FP8 servisi (compose profili lora-fp8, 8098) bf16'yla aynı birleştirilmiş ağırlıklardan
+CALLBUS_LORA=$HOME/callbus/data/lora/qwen3-emb-lora-20k/merged \
   docker compose -f deploy/spark/compose.yaml --profile lora-fp8 up -d qwen3-emb-lora-fp8
 FP8="--emb-url http://127.0.0.1:8098/v1 --emb-model qwen3-emb-lora-fp8 --truncate 8192 --emb-batch 128 \
   --tool-format documentation --query-format instruct_query --with-inst"
-uv run toolrank eval --data data/toolret --scorer dense $FP8 --out results/lora_toolret_lora_fp8.json
-uv run toolrank eval --data data/mcp_zero_server --scorer dense $FP8 --ks 1,5,10,20 --out results/lora_mcp_zero_server_lora_fp8.json
+uv run callbus eval --data data/toolret --scorer dense $FP8 --out results/lora_toolret_lora_fp8.json
+uv run callbus eval --data data/mcp_zero_server --scorer dense $FP8 --ks 1,5,10,20 --out results/lora_mcp_zero_server_lora_fp8.json
 # v0.1 head'leri LoRA'nın üstünde (8097, bf16)
-uv run toolrank eval --data data/livemcpbench_server --scorer clm --clm-ckpt dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz \
+uv run callbus eval --data data/livemcpbench_server --scorer clm --clm-ckpt dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz \
   --emb-url http://127.0.0.1:8097/v1 --emb-model qwen3-emb-lora --truncate 8192 --tool-format documentation \
   --query-format instruct_query --with-inst --out results/lora_livemcpbench_server_lora_v01heads.json
 uv run python scripts/fp8_agreement.py --a http://127.0.0.1:8097/v1=qwen3-emb-lora --b http://127.0.0.1:8098/v1=qwen3-emb-lora-fp8 \
-  --truncate 8192 --tool-format documentation --query-format instruct_query --heads dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz
+  --truncate 8192 --tool-format documentation --query-format instruct_query --heads dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz
 # README satırları
 EMB_URL=http://127.0.0.1:8098/v1 EMB_MODEL=qwen3-emb-lora-fp8 TAG=lora_fp8 ROWS=qwen3emb bash scripts/readme_results.sh
 EMB_URL=http://127.0.0.1:8097/v1 EMB_MODEL=qwen3-emb-lora TAG=lora ROWS=qwen3emb bash scripts/readme_results.sh
@@ -195,7 +195,7 @@ GB10, NGC vLLM 26.01 (0.13), FP8 `--quantization fp8` yüklemede; ağırlıklar
 - **MCP-Zero seçim seti:** LoRA'nın kontrol noktası MCP-Zero üzerinde seçildi; o sütun bağımsız değil
   (model kartında ve README notunda yazılı). Ayrı bir seçim seti bu ağırlıklar için de gerekiyor;
   seçimin etkisi küçük (üç kontrol noktası, 600. ve 625. adım neredeyse aynı).
-- **Adlar:** `yasinyaman/toolrank-emb-8b`, `v0.2`, `toolrank-emb-v0.2` — yayın bunlarla çıktı. Hepsi
+- **Adlar:** `yasinyaman/callbus-emb-8b`, `v0.2`, `callbus-emb-v0.2` — yayın bunlarla çıktı. Hepsi
   `build.py`'de tek yerde (giriş betiği, compose ve chart aynı değerleri taşıyor; bir test betiği
   `build`'e bağlıyor).
 - Jev ikinci aşaması gerçek API'yle denenmedi (krediler 30 Eylül'de bitti); testler sahte istemciyle.
@@ -205,7 +205,7 @@ GB10, NGC vLLM 26.01 (0.13), FP8 `--quantization fp8` yüklemede; ağırlıklar
 - ~~Ağırlıkları yükle, `BACKBONE_PUBLISHED = True`, push~~: yapıldı, 0.2.0 olarak yayımlandı (aşağıda).
 - ~~Docs sitesinin yeniden yayımı~~: yapıldı (`docs.yml`, bakımcı elle başlattı).
 - 60k koşusu 20k'yı geçerse yeni ağırlıklar yeni bir etiket ve servis adıyla çıkar (ör. `v0.3`,
-  `toolrank-emb-v0.3`); `v0.2` etiketi değişmez.
+  `callbus-emb-v0.3`); `v0.2` etiketi değişmez.
 - **60 bin çiftlik LoRA koşusu başladı (2 Ekim 16:12, GB10):** v0.2'yle aynı tarif (rank 16, lr 1e-4,
   256 / 768 token, bir epoch), yalnız veri 3 katı (1.875 adım) ve seçim `dev_w3_multi2` üzerinde,
   her 300 adımın adaptörü saklanıyor (`--keep-all`). Eğitim öncesi dev: NDCG@10 70,35. Bitiş tahmini
@@ -214,26 +214,26 @@ GB10, NGC vLLM 26.01 (0.13), FP8 `--quantization fp8` yüklemede; ağırlıklar
   dışarıda tutulmuş bir set (v0.2 için seçim setiydi); `dev_w3_multi2` ise seçim seti.
 
 ```bash
-# GB10, ~/toolrank; Qwen3-Reranker (8095) ve bf16 LoRA (8097) bellek için durduruldu
+# GB10, ~/callbus; Qwen3-Reranker (8095) ve bf16 LoRA (8097) bellek için durduruldu
 uv run --extra lora python scripts/lora_train.py --pairs data/toolret_train/pairs.jsonl --dev data/dev_w3_multi2 \
   --eval data/toolret --eval data/livemcpbench_server --eval data/mcp_zero_server --eval data/dev_w3 \
   --eval data/dev_w3_sit --eval data/dev_w3_multi3 --n-train 60000 --keep-all --check-parity \
   --out data/lora/qwen3-emb-lora-60k
 ```
 
-## Yayın: toolrank 0.2.0 (2 Ekim 2026, 22:04)
+## Yayın: callbus 0.2.0 (2 Ekim 2026, 22:04)
 
 **Sonuç:** 0.2.0 yayında. Backbone Hugging Face'te `v0.2` etiketiyle, paket PyPI'da, imaj GHCR'da,
-kaynak ve release GitHub'da, docs `yaman.dev/toolrank/`'ta; hepsi yalnız herkese açık kaynaklardan kurulup
+kaynak ve release GitHub'da, docs `yaman.dev/callbus/`'ta; hepsi yalnız herkese açık kaynaklardan kurulup
 denendi.
 
 | | Adres | Doğrulama |
 | --- | --- | --- |
-| Backbone | `huggingface.co/yasinyaman/toolrank-emb-8b`, `v0.2` etiketi (commit `c89f13b4`) | herkese açık API'den: 10 dosya + kart, `model.safetensors` 16,4 GB, sha256 `53789cff…` (birleştirilmiş dizinle aynı) |
-| Paket | `pypi.org/project/toolrank/` 0.2.0 (wheel 208 KB `99e758ce…`, sdist 288 KB `85308041…`) | temiz 3.12 venv'ine `pip install "toolrank[mcp]==0.2.0"`: sürüm 0.2.0, varsayılan `toolrank-emb-v0.2`, `heads pull` sha256'yla; `uvx mcp-server-time` ingest, GB10'daki temel modelle (8091, `qwen3-emb`, head'lerle) arama: `time/get_current_time` 0,59 ilk sırada; `serve`: `/v1/call` Tokyo saatini döndürdü, token'sız istek 401, `/v1/metrics` 42 satır, kapanışta çocuk süreç yok |
-| İmaj | `ghcr.io/yasinyaman/toolrank:0.2.0` (`0.2`, `latest`), amd64 + arm64 | GB10'da `docker pull` (arm64, 507 MB) + `container_smoke.py`: 8/8 |
-| Kaynak | `github.com/yasinyaman/toolrank`, `main` `82fe665`, release `v0.2.0` | CI 6 iş yeşil (3.11, 3.12, 3.13, paket, docs, imaj); release iş akışı yeşil, `ghcr` ve `pypi` adımları bakımcı onayıyla |
-| Docs | `yaman.dev/toolrank/` | `docs.yml` (elle) build + deploy yeşil; `/changelog/` 0.2.0 girdisini gösteriyor, `yasinyaman.github.io/toolrank/` 301 ile oraya |
+| Backbone | `huggingface.co/yasinyaman/callbus-emb-8b`, `v0.2` etiketi (commit `c89f13b4`) | herkese açık API'den: 10 dosya + kart, `model.safetensors` 16,4 GB, sha256 `53789cff…` (birleştirilmiş dizinle aynı) |
+| Paket | `pypi.org/project/callbus/` 0.2.0 (wheel 208 KB `99e758ce…`, sdist 288 KB `85308041…`) | temiz 3.12 venv'ine `pip install "callbus[mcp]==0.2.0"`: sürüm 0.2.0, varsayılan `callbus-emb-v0.2`, `heads pull` sha256'yla; `uvx mcp-server-time` ingest, GB10'daki temel modelle (8091, `qwen3-emb`, head'lerle) arama: `time/get_current_time` 0,59 ilk sırada; `serve`: `/v1/call` Tokyo saatini döndürdü, token'sız istek 401, `/v1/metrics` 42 satır, kapanışta çocuk süreç yok |
+| İmaj | `ghcr.io/yasinyaman/callbus:0.2.0` (`0.2`, `latest`), amd64 + arm64 | GB10'da `docker pull` (arm64, 507 MB) + `container_smoke.py`: 8/8 |
+| Kaynak | `github.com/yasinyaman/callbus`, `main` `82fe665`, release `v0.2.0` | CI 6 iş yeşil (3.11, 3.12, 3.13, paket, docs, imaj); release iş akışı yeşil, `ghcr` ve `pypi` adımları bakımcı onayıyla |
+| Docs | `yaman.dev/callbus/` | `docs.yml` (elle) build + deploy yeşil; `/changelog/` 0.2.0 girdisini gösteriyor, `yasinyaman.github.io/callbus/` 301 ile oraya |
 
 Notlar:
 
@@ -247,10 +247,10 @@ Notlar:
 # Mac
 uv run python scripts/release_check.py --tag v0.2.0                 # "ready to release 0.2.0"
 git push origin main                                                 # dc54bce..82fe665, CI yeşil
-git tag -a v0.2.0 -m "toolrank 0.2.0" 82fe665 && git push origin v0.2.0   # ghcr ve pypi onayları Actions'ta
-gh workflow run docs.yml -R yasinyaman/toolrank --ref main
-uv venv pub && uv pip install --python pub/bin/python "toolrank[mcp]==0.2.0" && pub/bin/toolrank heads pull
+git tag -a v0.2.0 -m "callbus 0.2.0" 82fe665 && git push origin v0.2.0   # ghcr ve pypi onayları Actions'ta
+gh workflow run docs.yml -R yasinyaman/callbus --ref main
+uv venv pub && uv pip install --python pub/bin/python "callbus[mcp]==0.2.0" && pub/bin/callbus heads pull
 # GB10 (bakımcının `hf auth login`'iyle)
 uv run --with huggingface_hub python scripts/publish_backbone.py --model data/lora/qwen3-emb-lora-20k/merged --upload
-docker pull ghcr.io/yasinyaman/toolrank:0.2.0 && uv run python scripts/container_smoke.py ghcr.io/yasinyaman/toolrank:0.2.0 --version 0.2.0
+docker pull ghcr.io/yasinyaman/callbus:0.2.0 && uv run python scripts/container_smoke.py ghcr.io/yasinyaman/callbus:0.2.0 --version 0.2.0
 ```

@@ -185,7 +185,7 @@ Ayrılmış isteklerin (2.388) NDCG@10'u:
 ## Komutlar
 
 ```bash
-# GB10, ~/toolrank (data/v02_loop_chain.sh, untracked; vectors all cached, 6 minutes end to end)
+# GB10, ~/callbus (data/v02_loop_chain.sh, untracked; vectors all cached, 6 minutes end to end)
 export HEADS=none EMB_URL=http://127.0.0.1:8097/v1 EMB_MODEL=qwen3-emb-lora UV=~/.local/bin/uv
 NAME=toolret_v02 TAG=v02 SIZES=0 LEARN="--device cpu" bash scripts/learn_sim.sh
 BENCH=data/mcp_zero_server NAME=mcpzero_v02 TAG=v02 GUARD=data/livemcpbench_server \
@@ -194,8 +194,8 @@ V02="--emb-url http://127.0.0.1:8097/v1 --emb-model qwen3-emb-lora --truncate 81
   --tool-format documentation --query-format instruct_query --with-inst"
 for d in toolret livemcpbench_server mcp_zero_server; do
   $UV run python scripts/adaptive_k_sweep.py --margins 0.1,0.15,0.2,0.3 -- --data data/$d --scorer dense $V02
-  $UV run toolrank eval --data data/$d --scorer dense $V02 --hybrid --out results/v02base_${d}_hybrid.json
-  $UV run toolrank eval --data data/$d --scorer dense $V02 --server-weight 0.2 --out results/v02base_${d}_srv.json
+  $UV run callbus eval --data data/$d --scorer dense $V02 --hybrid --out results/v02base_${d}_hybrid.json
+  $UV run callbus eval --data data/$d --scorer dense $V02 --server-weight 0.2 --out results/v02base_${d}_srv.json
 done   # mcp_zero_server also --ks 1,5,10,20
 # the replay arms (data/replay_chain.sh, untracked): the same logs, only the learn step changes
 NAME=toolret_v02 TAG=replay SIZES=0 LEARN="--device cpu --replay data/toolret_train/pairs.jsonl" \
@@ -206,10 +206,10 @@ for s in 0 1 2 3 4; do
   NAME=toolret TAG=seed$s SIZES=0 LEARN="--device cpu --seed $s" bash scripts/learn_sim.sh   # 8091 + v0.1 heads
   NAME=toolret_v02 TAG=v02seed$s SIZES=0 LEARN="--device cpu --seed $s" bash scripts/learn_sim.sh  # HEADS=none, 8097
 done
-# Mac, after scp 'gb10:toolrank/results/{sim_*_v02_*,v02base_*,sim_toolret_n0_seed*}.json' results/:
-uv run toolrank compare results/sim_toolret_v02_base_heldout.json results/sim_toolret_v02_n0_v02_heldout.json
-uv run toolrank compare results/lora_toolret_lora.json results/v02base_toolret_hybrid.json results/v02base_toolret_srv.json
-uv run toolrank compare results/sim_mcpzero_v02_{base,n0_v02,n0_replay,n0_replay10k}_toolret.json
+# Mac, after scp 'gb10:callbus/results/{sim_*_v02_*,v02base_*,sim_toolret_n0_seed*}.json' results/:
+uv run callbus compare results/sim_toolret_v02_base_heldout.json results/sim_toolret_v02_n0_v02_heldout.json
+uv run callbus compare results/lora_toolret_lora.json results/v02base_toolret_hybrid.json results/v02base_toolret_srv.json
+uv run callbus compare results/sim_mcpzero_v02_{base,n0_v02,n0_replay,n0_replay10k}_toolret.json
 ```
 
 ## Ortam

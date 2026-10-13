@@ -1,9 +1,9 @@
 """LoRA fine-tuning of the embedding backbone itself on ToolRet-train pairs (Faz 2).
 
-``toolrank finetune`` trains heads on cached vectors; this trains Qwen3-Embedding-8B's own weights
+``callbus finetune`` trains heads on cached vectors; this trains Qwen3-Embedding-8B's own weights
 (LoRA adapters) with the same data, texts and selection rule, then merges them into full weights
 that vLLM serves like the original (compose profile ``lora``, port 8097, ``qwen3-emb-lora``). GPU,
-``[lora]`` extra. On the GB10, from ~/toolrank, under nohup:
+``[lora]`` extra. On the GB10, from ~/callbus, under nohup:
 
     uv run --extra lora python scripts/lora_train.py --pairs data/toolret_train/pairs.jsonl \\
       --dev data/mcp_zero_server --eval data/toolret --eval data/livemcpbench_server \\
@@ -23,7 +23,7 @@ forward pass (``cached_step``). Last-token pooling and L2 normalisation,
 the way vLLM pools this model; ``--check-parity`` compares the untouched model with the served
 vectors first, so a tokenisation mismatch shows up before training. The dev set is scored
 in-process every ``--eval-every`` steps (``finetune.EvalSet``: exact top-k, the benchmark's
-metrics) and picks the adapter that is kept; the dev set is never reported, ``toolrank eval`` on
+metrics) and picks the adapter that is kept; the dev set is never reported, ``callbus eval`` on
 the served model is.
 """
 
@@ -41,10 +41,10 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from toolrank.build import DEFAULT_SERVING  # noqa: E402
-from toolrank.datasets.jsonl import load_pairs, load_queries, load_tools  # noqa: E402
-from toolrank.finetune import EvalSet, leaks, pair_texts, split_pairs, with_instruction  # noqa: E402
-from toolrank.formats import query_format, tool_format  # noqa: E402
+from callbus.build import DEFAULT_SERVING  # noqa: E402
+from callbus.datasets.jsonl import load_pairs, load_queries, load_tools  # noqa: E402
+from callbus.finetune import EvalSet, leaks, pair_texts, split_pairs, with_instruction  # noqa: E402
+from callbus.formats import query_format, tool_format  # noqa: E402
 
 MODEL = "Qwen/Qwen3-Embedding-8B"
 TARGETS = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
@@ -295,9 +295,9 @@ def parity(enc: Encoder, texts: list[str], url: str, model: str, max_tokens: int
     tokenisation agree, visibly lower when they do not."""
     import numpy as np
 
-    from toolrank.adapters.embeddings_api import OpenAIEmbeddings
+    from callbus.adapters.embeddings_api import OpenAIEmbeddings
 
-    served = OpenAIEmbeddings(model, url, truncate_prompt_tokens=8192, cache_dir=".cache/toolrank").encode(
+    served = OpenAIEmbeddings(model, url, truncate_prompt_tokens=8192, cache_dir=".cache/callbus").encode(
         texts
     )
     mine = enc.encode_many(texts, max_tokens, 8)

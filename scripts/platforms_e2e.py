@@ -1,18 +1,18 @@
 """End-to-end check of the platform integrations (Faz 1 week 4) on a real catalogue.
 
-Starts ``toolrank serve`` on ``--data`` with the week-1 MCP servers (time, everything) and a local
+Starts ``callbus serve`` on ``--data`` with the week-1 MCP servers (time, everything) and a local
 stand-in for every OpenAPI source (the petstore answers ``/v2/pets``, anything else is a 404), so no
 tool call leaves the machine; Stripe writes are refused by the proxy as usual. Then:
 
 - always: the catalogue as the platforms get it — Anthropic's deferred tool list (bytes, api names,
   hashed names), every input schema against the JSON Schema 2020-12 meta-schema, each task's search
   with what Claude would get referenced and what OpenAI would get loaded, and two calls;
-- ``--live``: each task through Claude with toolrank's search, Claude with the API's own BM25 tool
-  search, and an OpenAI model with toolrank's search, against the real APIs (keys from the
+- ``--live``: each task through Claude with callbus's search, Claude with the API's own BM25 tool
+  search, and an OpenAI model with callbus's search, against the real APIs (keys from the
   environment or ``.env``, never printed); then the usage log's call links.
 
     uv run python scripts/platforms_e2e.py --data data/w3 --emb-url http://$GB10:8091/v1 \
-        --heads dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz [--live] --out results/platforms_e2e.json
+        --heads dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz [--live] --out results/platforms_e2e.json
 """
 
 from __future__ import annotations
@@ -35,9 +35,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-from toolrank.client import ToolrankClient, ToolrankError
-from toolrank.integrations import anthropic as claude
-from toolrank.integrations import openai as gpt
+from callbus.client import CallBusClient, CallBusError
+from callbus.integrations import anthropic as claude
+from callbus.integrations import openai as gpt
 
 TASKS = [
     "What time is it in Tokyo right now?",
@@ -94,22 +94,22 @@ def write_config(directory: Path, port: int) -> Path:
             "github": {"base_url": f"{base}/github"},
         },
     }
-    path = directory / "toolrank.json"
+    path = directory / "callbus.json"
     path.write_text(json.dumps(cfg, indent=2))
     return path
 
 
 @contextmanager
 def served(data: Path, emb_url: str, emb_model: str, heads: str | None, stand_in_port: int) -> Iterator[str]:
-    """``toolrank serve`` on ``data`` with the week-1 servers and the stand-in; -> its URL, ready."""
+    """``callbus serve`` on ``data`` with the week-1 servers and the stand-in; -> its URL, ready."""
     env = dict(os.environ)
     if heads and heads != "none":
-        env["TOOLRANK_HEADS"] = str(Path(heads).resolve())
+        env["CALLBUS_HEADS"] = str(Path(heads).resolve())
     with tempfile.TemporaryDirectory() as tmp:
         cfg = write_config(Path(tmp), stand_in_port)
         port = free_port()
         url = f"http://127.0.0.1:{port}"
-        cmd = [str(Path(sys.executable).with_name("toolrank")), "serve", "--data", str(data)]
+        cmd = [str(Path(sys.executable).with_name("callbus")), "serve", "--data", str(data)]
         cmd += ["--config", str(cfg), "--emb-url", emb_url, "--emb-model", emb_model, "--port", str(port)]
         if heads == "none":  # a backbone the packaged heads do not fit (a small one, say)
             cmd += ["--clm-ckpt", "none"]
@@ -117,12 +117,12 @@ def served(data: Path, emb_url: str, emb_model: str, heads: str | None, stand_in
         with log.open("w") as f:
             proc = subprocess.Popen(cmd, env=env, stdout=subprocess.DEVNULL, stderr=f)
             try:
-                tr = ToolrankClient(url)
+                tr = CallBusClient(url)
                 for _ in range(600):
                     try:
                         if tr.health().get("ready"):
                             break
-                    except ToolrankError:
+                    except CallBusError:
                         pass
                     if proc.poll() is not None:
                         sys.exit(f"serve exited: {log.read_text()[-2000:]}")
@@ -147,7 +147,7 @@ def load_env(path: str = ".env") -> None:
             os.environ.setdefault(key.strip(), value.strip().strip("'\""))
 
 
-def offline(tr: ToolrankClient) -> dict[str, Any]:
+def offline(tr: CallBusClient) -> dict[str, Any]:
     import jsonschema
 
     t0 = time.perf_counter()
@@ -208,7 +208,7 @@ def live(url: str, a: argparse.Namespace) -> list[dict[str, Any]]:
         return True  # the proxy still refuses writes: this run has no --allow-write
 
     def claude_run(task: str, note: Any, session: str, builtin: str | None = None) -> Any:
-        tr = ToolrankClient(url)
+        tr = CallBusClient(url)
         box = claude.Toolbox(tr, builtin=builtin, approve=approve_all, on_event=note, session=session)
         return claude.run(claude_llm, box, task, model=a.claude_model, max_tokens=2048, max_turns=8)
 
@@ -216,7 +216,7 @@ def live(url: str, a: argparse.Namespace) -> list[dict[str, Any]]:
         return claude_run(task, note, session, builtin="bm25")
 
     def gpt_run(task: str, note: Any, session: str) -> Any:
-        box = gpt.Toolbox(ToolrankClient(url), approve=approve_all, on_event=note, session=session)
+        box = gpt.Toolbox(CallBusClient(url), approve=approve_all, on_event=note, session=session)
         return gpt.run(gpt_llm, box, task, model=a.gpt_model, max_turns=8)
 
     runs: list[dict[str, Any]] = []
@@ -224,9 +224,9 @@ def live(url: str, a: argparse.Namespace) -> list[dict[str, Any]]:
     setups = [
         (label, fn)
         for label, fn in [
-            ("claude+toolrank", claude_run),
+            ("claude+callbus", claude_run),
             ("claude+bm25", claude_bm25),
-            ("gpt+toolrank", gpt_run),
+            ("gpt+callbus", gpt_run),
         ]
         if label in wanted
     ]
@@ -271,7 +271,7 @@ def main() -> None:
     p.add_argument("--claude-model", default="claude-opus-5-5")
     p.add_argument("--gpt-model", default="gpt-5.5")
     p.add_argument(
-        "--setups", default="claude+toolrank,claude+bm25,gpt+toolrank", help="which live setups to run"
+        "--setups", default="claude+callbus,claude+bm25,gpt+callbus", help="which live setups to run"
     )
     p.add_argument("--out", default=None)
     a = p.parse_args()
@@ -285,7 +285,7 @@ def main() -> None:
     stub = stand_in()
     report: dict[str, Any] = {"data": str(data), "emb_url": a.emb_url}
     with served(data, a.emb_url, a.emb_model, a.heads, stub.server_address[1]) as url:
-        report["offline"] = offline(ToolrankClient(url))
+        report["offline"] = offline(CallBusClient(url))
         print(json.dumps(report["offline"], indent=2, ensure_ascii=False))
         if a.live:
             report["live"] = live(url, a)

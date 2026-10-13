@@ -1,17 +1,17 @@
-"""Smoke-test the Helm chart (deploy/helm/toolrank) on a real cluster without a GPU.
+"""Smoke-test the Helm chart (deploy/helm/callbus) on a real cluster without a GPU.
 
 The embedding backbone is the fake server of the container smoke test (tests/fixtures/
-fake_embeddings.py), run in the cluster with the toolrank image's Python; the chart runs in
+fake_embeddings.py), run in the cluster with the callbus image's Python; the chart runs in
 ``embedding.mode=external`` against it. The script installs the chart, waits for the pod to be
 ready (the ingest init container has listed the config's MCP server, the index is built), then
 through a port-forward: a search, a call through ``call_tool``'s REST twin, the metrics, a
 rejected token; ``helm upgrade`` with a second MCP server in the config, which must show up in the
 catalogue; and ``helm uninstall``, after which the data volume must still be there.
 
-Needs kubectl and helm pointed at a cluster (``kind create cluster --name toolrank`` gives one on a
-laptop: Docker only, removed with ``kind delete cluster --name toolrank``). Nothing is published.
+Needs kubectl and helm pointed at a cluster (``kind create cluster --name callbus`` gives one on a
+laptop: Docker only, removed with ``kind delete cluster --name callbus``). Nothing is published.
 
-uv run python scripts/helm_smoke.py [--image ghcr.io/yasinyaman/toolrank:0.3.0] [--namespace toolrank-smoke] [--keep]
+uv run python scripts/helm_smoke.py [--image ghcr.io/yasinyaman/callbus:0.3.1] [--namespace callbus-smoke] [--keep]
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-CHART = ROOT / "deploy" / "helm" / "toolrank"
+CHART = ROOT / "deploy" / "helm" / "callbus"
 FAKE = ROOT / "tests" / "fixtures" / "fake_embeddings.py"
 RELEASE = "smoke"
 
@@ -144,13 +144,13 @@ def wait_ready(ns: str, timeout: int = 900) -> None:
             check=False,
         )
     )
-    sys.exit("the toolrank pod did not become ready")
+    sys.exit("the callbus pod did not become ready")
 
 
 def port_forward(ns: str) -> tuple[subprocess.Popen, str]:
     port = free_port()
     proc = subprocess.Popen(
-        ["kubectl", "-n", ns, "port-forward", f"svc/{RELEASE}-toolrank", f"{port}:8765"],
+        ["kubectl", "-n", ns, "port-forward", f"svc/{RELEASE}-callbus", f"{port}:8765"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )  # fmt: skip
     base = f"http://127.0.0.1:{port}"
@@ -166,8 +166,8 @@ def port_forward(ns: str) -> tuple[subprocess.Popen, str]:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
-    ap.add_argument("--image", default="ghcr.io/yasinyaman/toolrank:0.3.0")
-    ap.add_argument("--namespace", default="toolrank-smoke")
+    ap.add_argument("--image", default="ghcr.io/yasinyaman/callbus:0.3.1")
+    ap.add_argument("--namespace", default="callbus-smoke")
     ap.add_argument("--keep", action="store_true", help="leave the namespace and release in place")
     ap.add_argument(
         "--tenants", action="store_true", help="also a key limited to one source (images after 0.1.0)"
@@ -218,7 +218,7 @@ def main() -> None:
             else:
                 check(
                     "metrics count the search",
-                    status == 200 and "toolrank_searches_total{" in body,
+                    status == 200 and "callbus_searches_total{" in body,
                     body[:200],
                 )
         finally:
@@ -252,7 +252,7 @@ def main() -> None:
         run("helm", "uninstall", RELEASE, "-n", ns)
         pvcs = run("kubectl", "-n", ns, "get", "pvc", "-o", "name")
         check(
-            "uninstall keeps the data volume", f"persistentvolumeclaim/{RELEASE}-toolrank-data" in pvcs, pvcs
+            "uninstall keeps the data volume", f"persistentvolumeclaim/{RELEASE}-callbus-data" in pvcs, pvcs
         )
     finally:
         if not a.keep:

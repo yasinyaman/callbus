@@ -3,11 +3,11 @@ import hashlib
 import numpy as np
 import pytest
 
-from toolrank.adapters.dense import DenseScorer, row_hash, topk_dot
-from toolrank.adapters.embeddings_api import l2_normalize
-from toolrank.adapters.index_numpy import NumpyIndex
-from toolrank.domain import Query, Tool
-from toolrank.ports import VectorIndex
+from callbus.adapters.dense import DenseScorer, row_hash, topk_dot
+from callbus.adapters.embeddings_api import l2_normalize
+from callbus.adapters.index_numpy import NumpyIndex
+from callbus.domain import Query, Tool
+from callbus.ports import VectorIndex
 
 
 class _HashEncoder:

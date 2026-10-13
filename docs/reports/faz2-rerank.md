@@ -1,6 +1,6 @@
 # Faz 2 — İkinci aşama (CLM, cross-encoder) ve LoRA karşılaştırması (30 Eyl – 1 Eki 2026)
 
-Soru: toolrank'in kısa listesinin üstüne, isteği ve adayı birlikte okuyan bir ikinci aşama koymak ne
+Soru: callbus'in kısa listesinin üstüne, isteği ve adayı birlikte okuyan bir ikinci aşama koymak ne
 kazandırır, bunu yerelde ne karşılar, ve omurganın kendisini eğitmek ne verir? Aynı protokol, aynı
 setler, aynı araç metniyle ölçüldü: CLM_v0.1-8B (Faz 0'ın çift kodlayıcısı), Qwen3-Reranker-8B ve
 bge-reranker-v2-gemma (yerel cross-encoder'lar) ve omurganın kendisinin LoRA ile eğitimi. Barındırılan
@@ -211,7 +211,7 @@ koltukta işi yapmalı. vLLM'in skor API'si (`/score`) üstünden iki model, ayn
 cross`, `adapters/cross_encoder.py`), aynı kesilmiş metinle (ilk 20, dokümantasyon 3000
 karakter; istek 6000 karakterde kesilir, çünkü her çiftte yinelenir): Qwen3-Reranker-8B (8095, vLLM'in
 reçetesiyle orijinal model, `<Instruct>/<Query>/<Document>` şablonu) ve bge-reranker-v2-gemma (8096,
-FlagEmbedding'in `A:/B:/prompt` biçimi). Puanlar `.cache/toolrank/scores.sqlite`'ta.
+FlagEmbedding'in `A:/B:/prompt` biçimi). Puanlar `.cache/callbus/scores.sqlite`'ta.
 
 | heads'in ilk 20'si + dokümantasyon (↑ %) | heads | Qwen3-Reranker-8B | bge-reranker-v2-gemma |
 |---|---:|---:|---:|
@@ -243,7 +243,7 @@ FlagEmbedding'in `A:/B:/prompt` biçimi). Puanlar `.cache/toolrank/scores.sqlite
 
 ### LoRA: omurganın kendisi
 
-`toolrank finetune` omurgayı dondurup vektörlerin üstünde head eğitiyordu; `scripts/lora_train.py`
+`callbus finetune` omurgayı dondurup vektörlerin üstünde head eğitiyordu; `scripts/lora_train.py`
 omurganın kendi ağırlıklarına LoRA adaptörleri ekliyor (derece 16, alpha 32, dropout 0.05; q, k, v, o,
 gate, up, down; 36 katman; 43.6 M eğitilen parametre, modelin %0.53'ü). Veri ve metin head eğitimiyle
 aynı yol: ToolRet-train çiftleri, kıyaslama sorgusuna eşit 776 istek düşürülüp 20.000 çift;
@@ -289,7 +289,7 @@ yeniden üretti (93.67'ye karşı 93.65).
 
 ```bash
 # CLM as the second stage (GB10, 8090 + 8091 up, free): scripts/clm_rerank.sh, i.e. per set
-toolrank eval --data data/$d --scorer clm --clm-ckpt dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz $EMB --rerank clm \
+callbus eval --data data/$d --scorer clm --clm-ckpt dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz $EMB --rerank clm \
   --rerank-emb-url http://127.0.0.1:8090/v1 --rerank-emb-model qwen3-8b --rerank-truncate 2048 \
   --rerank-tool-format example_call --rerank-query-format clm --rerank-clm-ckpt ~/.cache/clm/CLM_v0.1-8B.pt --rerank-depth 100
 # ... --rerank-depth 20; --rerank-clm-ckpt data/heads/clm_60k_lr1e-2.pt; BM25 base with --rerank-depth 30
@@ -299,29 +299,29 @@ CLM_FORMAT=name_desc CLM_MAX_CHARS=1000 ROWS="heads_clm100 heads_clm20doc bm25_c
 # cross-encoders (GB10): the rerankers as vLLM sequence classifiers, then the same cut texts
 docker compose -f deploy/spark/compose.yaml --profile rerank up -d qwen3-reranker bge-reranker   # 8095 / 8096
 ROWS=heads_x20doc PYTHONUNBUFFERED=1 nohup bash scripts/cross_rerank.sh > data/logs/cross_rerank.log 2>&1 &   # phase A
-#   i.e. toolrank eval ... --rerank cross --rerank-emb-url http://127.0.0.1:8095 --rerank-emb-model qwen3-reranker \
+#   i.e. callbus eval ... --rerank cross --rerank-emb-url http://127.0.0.1:8095 --rerank-emb-model qwen3-reranker \
 #     --rerank-template qwen3 --rerank-depth 20 --rerank-tool-format documentation --rerank-max-chars 3000 --rerank-workers 8
 ROWS="heads_x100 bm25_x30 alone" bash scripts/cross_rerank.sh                                     # phase B, after LoRA
 # LoRA (GB10, [lora] extra; the smoke run first: --n-train 64 --micro-batch 4 --eval-every 8 --limit-dev 200 --no-merge)
 uv run --extra lora python scripts/lora_train.py --pairs data/toolret_train/pairs.jsonl --dev data/mcp_zero_server \
   --eval data/toolret --eval data/livemcpbench_server --n-train 20000 --micro-batch 16 --accumulate 2 \
   --eval-every 300 --check-parity --out data/lora/qwen3-emb-lora-20k
-TOOLRANK_LORA=$HOME/toolrank/data/lora/qwen3-emb-lora-20k/merged docker compose -f deploy/spark/compose.yaml --profile lora up -d qwen3-emb-lora  # 8097
-toolrank eval --data data/$d --scorer dense --emb-url http://127.0.0.1:8097/v1 --emb-model qwen3-emb-lora --truncate 8192 \
+CALLBUS_LORA=$HOME/callbus/data/lora/qwen3-emb-lora-20k/merged docker compose -f deploy/spark/compose.yaml --profile lora up -d qwen3-emb-lora  # 8097
+callbus eval --data data/$d --scorer dense --emb-url http://127.0.0.1:8097/v1 --emb-model qwen3-emb-lora --truncate 8192 \
   --tool-format documentation --query-format instruct_query --with-inst --out results/lora_${d}_lora.json
-toolrank finetune --data data/toolret_train/pairs.jsonl --n-train 60000 --n-val 2000 --dev data/mcp_zero_server \
+callbus finetune --data data/toolret_train/pairs.jsonl --n-train 60000 --n-val 2000 --dev data/mcp_zero_server \
   --eval data/toolret --eval data/livemcpbench_server --emb-url http://127.0.0.1:8097/v1 --emb-model qwen3-emb-lora \
   --out data/heads/lora_60k.pt --npz dist/heads/lora_60k.npz        # then --scorer clm --clm-ckpt dist/heads/lora_60k.npz rows
 # Mac
-scp 'gb10:toolrank/results/clm*_*.json' 'gb10:toolrank/results/cross*_*.json' 'gb10:toolrank/results/lora_*.json' results/
+scp 'gb10:callbus/results/clm*_*.json' 'gb10:callbus/results/cross*_*.json' 'gb10:callbus/results/lora_*.json' results/
 uv run python scripts/rerank_report.py --write      # the summary and the tables of this report, from the result files
-toolrank compare results/clm_*.json results/cross_*.json docs/results/readme_*.json --metrics NDCG@10,Recall@5,Recall@10,Precision@1
+callbus compare results/clm_*.json results/cross_*.json docs/results/readme_*.json --metrics NDCG@10,Recall@5,Recall@10,Precision@1
 ```
 
 ## Ortam
 
 GB10 (NVIDIA GB10, Ubuntu 24.04 aarch64), vLLM NGC `nvcr.io/nvidia/vllm:26.01-py3`, Qwen3-Embedding-8B
-bf16 `--max-model-len 8192` (8091), paketlenmiş head'ler v0.1 (`.npz`, numpy). toolrank 0.2.0.dev0,
+bf16 `--max-model-len 8192` (8091), paketlenmiş head'ler v0.1 (`.npz`, numpy). callbus 0.2.0.dev0,
 commit `c40419e`. Gömme önbelleği sıcak.
 CLM satırları: Qwen3-8B pooling (8090, `--max-model-len 2048`), `~/.cache/clm/CLM_v0.1-8B.pt` ve
 `data/heads/clm_60k_lr1e-2.pt`, head'ler torch ile GPU'da, gömmeler Faz 0 matrisinin önbelleğinden
@@ -370,7 +370,7 @@ bellek 113 / 121 GB.
   setlerinde +3–6 (LoRA üstüne) ya da +9–12 (head'ler üstüne).
 - LoRA'yı büyütmek: 60 bin ve 206 bin çift, daha uzun doküman penceresi (1024–2048 token), ikinci epoch;
   her biri 8–24 saatlik GB10 koşusu. Hedef, ToolRet'ten çok LiveMCPBench'teki +2'yi büyütmek; bunun için
-  MCP biçimli eğitim verisi (kullanım günlüğünden `toolrank learn` çiftleri, ya da üretilmiş istekler)
+  MCP biçimli eğitim verisi (kullanım günlüğünden `callbus learn` çiftleri, ya da üretilmiş istekler)
   daha umut verici.
 - Bir derinlik / metin taraması (ilk 30 ve 50, documentation 2000 karakter) ve uyarlanabilir K için
   ikinci aşama skorlarıyla kesim (`score_kind` bugün ikinci aşama satırlarında cut'ı reddediyor).

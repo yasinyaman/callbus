@@ -6,17 +6,17 @@ Takvimde 30 Kasım – 4 Aralık; erken yapıldı.
 
 Hafta 5'in üç maddesi bitti:
 
-- `toolrank finetune`, Faz 0'ın head eğitimini tek komutla ve aynı sayılarla yeniden üretiyor; epoch'u
+- `callbus finetune`, Faz 0'ın head eğitimini tek komutla ve aynı sayılarla yeniden üretiyor; epoch'u
   eğitim çiftlerinden değil ayrı bir dev setinden seçiyor. Faz 0'ın tuzağını da kendisi yakalıyor:
   mined negatiflerle doğrulama recall'u 89.45'ten 96.85'e çıkarken dev NDCG@10 87.21'den 78.65'e
   düştü ve komut başlangıç head'lerini geri verdi.
-- toolrank artık LangGraph (langgraph-bigtool), LlamaIndex ve LiteLLM proxy'sinde çalışıyor.
+- callbus artık LangGraph (langgraph-bigtool), LlamaIndex ve LiteLLM proxy'sinde çalışıyor.
   `data/w3`'te (1.862 tool) bigtool ve LlamaIndex iki görevde de doğru tool'u buldu. LiteLLM
   filtresi 120 tool'luk istekleri üç API biçiminde de 3 function tool'a indirdi.
 - README'de her hücresi protokole göre denetlenen bir sonuç tablosu var. v0.1 head'leri ToolRet'te
   54.03 (cat-macro 47.13), LiveMCPBench'te 53.03, MCP-Zero'da 79.87 veriyor.
 
-## 1. `toolrank finetune`
+## 1. `callbus finetune`
 
 Embed, eğitim ve resmi değerlendirme tek komutta.
 
@@ -31,7 +31,7 @@ Embed, eğitim ve resmi değerlendirme tek komutta.
 - **Eğitim.** Varsayılanlar Faz 0'ın ayarı: skip head (x + MLP(x), başlangıçta kimlik), genişlik
   1536, lr 1e-5, batch 512, 5 epoch, yalnız in-batch negatif.
 - **Seçim.**
-  - Her epoch'ta dev seti, önbellekteki vektörlerle ve `toolrank eval`'in hesabıyla puanlanıyor
+  - Her epoch'ta dev seti, önbellekteki vektörlerle ve `callbus eval`'in hesabıyla puanlanıyor
     (`--select ndcg10 | ndcg10-cat`). `--curve` eval setlerini de puanlıyor; bu sayılar yalnız
     raporlanıyor, seçime girmiyor.
   - Başlangıç (epoch 0) da yarışıyor. Sonraki bir epoch ancak kesin olarak daha iyiyse seçiliyor;
@@ -41,11 +41,11 @@ Embed, eğitim ve resmi değerlendirme tek komutta.
   vektörlerle karşılaştırılıyor.
 - **Çıktı.**
   - `.pt` (istenirse `--npz` de) servis ayarlarını taşıyor: backbone, formatlar, truncate 8192,
-    talimat. `toolrank eval` ve `serve` bunları bayrak gerekmeden doğru kullanıyor.
+    talimat. `callbus eval` ve `serve` bunları bayrak gerekmeden doğru kullanıyor.
   - cfg'de ayrıca `selected_on` (set, sorgu sayısı, metrik, değer, epoch) ve `trained_from` var.
     `trained_from` dosya adı ve sha256; yerel yol yazılmıyor, çünkü cfg paketlenen dosyayla
     dağıtılıyor.
-  - Kaydedilen dosyayla dev ve eval setlerinde resmi `toolrank eval` koşuyor. Rapor
+  - Kaydedilen dosyayla dev ve eval setlerinde resmi `callbus eval` koşuyor. Rapor
     (`results/finetune_<ad>.json`) şunları içeriyor: eğri, seçilen epoch, atılan çiftler, token,
     sha256'lar ve eğri ile resmi sayı arasındaki fark.
 - **Reddettikleri.**
@@ -108,22 +108,22 @@ Kalın satırlar dev'in seçtiği epoch'lar:
   - Epoch 0'ın dev sayısı 88.53, yani v0.1 head'lerinin kendi sayısı.
   - Resmi eval ToolRet'te 54.03 / 47.13 verdi; bunlar da v0.1'in sayıları.
   - Tek epoch dev'i 88.44'e düşürdü, bu yüzden epoch 0 geri verildi.
-  - cfg'de `trained_from` = `toolrank-heads-qwen3-emb-8b-v0.1.npz` ve `init_sha256` = `f3c10125…`.
+  - cfg'de `trained_from` = `callbus-heads-qwen3-emb-8b-v0.1.npz` ve `init_sha256` = `f3c10125…`.
 - **Eğri = resmi sayı.** Seçilen epoch'un eğrideki değeriyle kaydedilen dosyanın resmi
-  `toolrank eval` sonucu arasındaki en büyük fark 0.0002 (ToolRet cat-macro). MCP setlerinde fark 0.
+  `callbus eval` sonucu arasındaki en büyük fark 0.0002 (ToolRet cat-macro). MCP setlerinde fark 0.
 - **Süre.** 60 bin çiftte bir epoch, üç setin eğrisi dahil, ~18 sn sürüyor (15 mined negatifle
   ~22 sn). Head'ler GB10'un GPU'sunda eğitiliyor.
 - **Yayımlanmadı.** Bu head'lerin hiçbiri yayımlanmadı. Dev seti olarak kullanılan MCP-Zero aynı
   zamanda raporladığımız bir benchmark; v0.2 head'lerinden önce ayrı bir dev seti gerekiyor
-  (`toolrank data gen-queries`, backlog'da).
+  (`callbus data gen-queries`, backlog'da).
 
 ## 3. Framework adapter'ları
 
-Üçü de `toolrank serve`'e `ToolrankClient` üzerinden bağlanıyor.
+Üçü de `callbus serve`'e `CallBusClient` üzerinden bağlanıyor.
 
-- **LangGraph** (`integrations/langgraph.py`, `toolrank[langgraph]`):
+- **LangGraph** (`integrations/langgraph.py`, `callbus[langgraph]`):
   - `Toolbox.registry()` kataloğun her tool'unu bir LangChain aracı yapıyor. Şema tool'un
-    `inputSchema`'sı; çağrıyı toolrank çalıştırıyor (`/v1/call`).
+    `inputSchema`'sı; çağrıyı callbus çalıştırıyor (`/v1/call`).
   - `retrieve_tools(query) -> list[str]`, langgraph-bigtool'un `retrieve_tools_function`'ı. Yalnız
     kayıt anahtarlarını döndürüyor, çünkü bigtool bilinmeyen bir anahtarda hata veriyor. Kaç tool
     döneceğini uyarlanabilir K belirliyor. Fonksiyonun docstring'i modelin gördüğü açıklama.
@@ -135,7 +135,7 @@ Kalın satırlar dev'in seçtiği epoch'lar:
   - Kullanım günlüğünde oturum LangGraph thread'i: `langgraph:<thread_id>`.
   - bigtool'un PyPI'daki 0.0.3 sürümü langgraph 1.x'te çalışmıyor, `langgraph<1` gerekiyor. Bizim
     modül yalnız langchain-core istiyor.
-- **LlamaIndex** (`integrations/llamaindex.py`, `toolrank[llamaindex]`): `ToolrankToolRetriever`,
+- **LlamaIndex** (`integrations/llamaindex.py`, `callbus[llamaindex]`): `CallBusToolRetriever`,
   bir `ObjectRetriever`.
   - LlamaIndex 0.14 ajanları her adımda kullanıcı mesajıyla, her çağrıdan önce de tool'un adıyla
     arıyor. Retriever bir sorgunun sonucunu 300 sn tutuyor, böylece aynı arama tekrarlanmıyor.
@@ -143,14 +143,14 @@ Kalın satırlar dev'in seçtiği epoch'lar:
   - Açıklamalar OpenAI'ın kabul ettiği 1.024 karaktere kesiliyor. `fn_schema`, tool'un
     `inputSchema`'sını veren bir pydantic modeli.
 - **LiteLLM** (`integrations/litellm.py`): proxy'nin ayarında
-  `callbacks: toolrank.integrations.litellm.tool_filter`.
+  `callbacks: callbus.integrations.litellm.tool_filter`.
   - İstek öncesi kancası, isteğin kendi function tool'larını `/v1/rank` ile sıralıyor ve
     uyarlanabilir K'nın tuttuklarını bırakıyor. Konuşmada çağrılmış tool'lar, `tool_choice`'un
     adlandırdığı tool ve sağlayıcı tool'ları (web search gibi) her zaman kalıyor.
   - Chat Completions, Responses ve Anthropic Messages isteklerini anlıyor. LiteLLM'in kendi
     `mcp_semantic_tool_filter`'ı yalnız Chat Completions'ta ve sabit top-K ile çalışıyor.
   - Şu isteklere dokunmuyor: 20 ya da daha az function tool'u olan, sağlayıcının kendi tool
-    aramasını kullanan (`defer_loading`) ve kullanıcı metni olmayan. toolrank hata verirse ya da
+    aramasını kullanan (`defer_loading`) ve kullanıcı metni olmayan. callbus hata verirse ya da
     2 sn içinde cevap vermezse istek filtresiz gidiyor. İsteği yerinde değiştirmiyor.
   - Proxy yalnız sınıfın kendi gövdesinde tanımlı kancayı çağırıyor, kalıtılmış kancayı atlıyor.
     Kanca bu yüzden sınıfın kendisinde tanımlı.
@@ -158,10 +158,10 @@ Kalın satırlar dev'in seçtiği epoch'lar:
     Filtre proxy'nin kendi ortamında çalışıyor; litellm yalnız proxy filtreyi yüklerken import
     ediliyor.
   - LiteLLM'in MCP ağ geçidinin kendi eklediği tool'lar bu kancadan sonra ekleniyor. Onlar için
-    toolrank ağ geçidinin arkasına MCP sunucusu olarak konuyor. `examples/litellm/config.yaml` iki
+    callbus ağ geçidinin arkasına MCP sunucusu olarak konuyor. `examples/litellm/config.yaml` iki
     yolu da gösteriyor.
 - **Testler.** LangGraph ve LlamaIndex testleri gerçek sınıflarla ve süreç içinde çalışan bir
-  toolrank'la koşuyor; LlamaIndex'te bir `FunctionAgent` sahte bir LLM'le baştan sona çalışıyor.
+  callbus'la koşuyor; LlamaIndex'te bir `FunctionAgent` sahte bir LLM'le baştan sona çalışıyor.
   litellm venv'de olmadığı için filtrenin mantığı litellm'siz sınanıyor, LiteLLM sınıfı da sahte
   bir `CustomLogger` ile. Gerçek litellm 1.103.1 filtreyi yol adından yükledi ve
   `ProxyLogging.pre_call_hook` üzerinden 25 tool'u 2'ye indirdi.
@@ -200,7 +200,7 @@ sırayla Stripe ve GitHub) ve Responses ile Messages'ta bir sağlayıcı tool'u 
 - İlk istek 11.5 sn sürdü: 120 tool metni ilk kez görüldü ve GB10'da gömüldü. Bu koşuda zaman
   aşımı bu yüzden uzun tutuldu. Varsayılan 2 sn'de bu istek filtresiz giderdi, gömme arka planda
   sürerdi. Sonraki istekler önbellekten geldi.
-- MCP ağ geçidi: LiteLLM, toolrank'ın iki aracını `toolrank-search_tools` ve `toolrank-call_tool`
+- MCP ağ geçidi: LiteLLM, callbus'ın iki aracını `callbus-search_tools` ve `callbus-call_tool`
   adıyla sundu. Arama `time/get_current_time`'ı ilk sırada buldu ve çağrı çalıştı.
 - Kullanım günlüğü: 5 çağrının 5'i de `search_id` ile aramasına bağlandı. Oturumlar: bigtool'da
   LangGraph thread'leri (`langgraph:e2e-bigtool-0`, `-1`), LlamaIndex'te retriever'ın oturumu, ağ
@@ -209,7 +209,7 @@ sırayla Stripe ve GitHub) ve Responses ile Messages'ta bir sağlayıcı tool'u 
 ## 4. README sonuç tablosu
 
 - `docs/results.toml` tablonun satırlarını tanımlıyor. Ölçülen her satır, her benchmark için bir
-  `toolrank eval` raporunu adlandırıyor; raporlar `docs/results/`'ta, repoda. Yayımlanmış sayılar
+  `callbus eval` raporunu adlandırıyor; raporlar `docs/results/`'ta, repoda. Yayımlanmış sayılar
   (ToolRet makalesi, StackOne) yalnız ait oldukları sütunda, ToolRet cat-macro'da duruyor.
 - `scripts/readme_table.py --write` tabloyu README'de iki işaretin arasına yazıyor. Yazmadan önce
   her raporu protokole göre denetliyor:
@@ -221,8 +221,8 @@ sırayla Stripe ve GitHub) ve Responses ile Messages'ta bir sağlayıcı tool'u 
   Bir satırın raporları tool ve sorgu formatında, embedding modelinde, kırpmada ve head dosyasında
   aynı olmalı. Bir test README'deki tabloyu raporlardan üretilenle karşılaştırıyor, böylece CI bayat
   bir tabloyu yakalıyor.
-- `toolrank eval` artık kullandığı head dosyasının sha256'sını rapora yazıyor.
-  `toolrank data server-names`, Faz 0'ın `_server` setlerini izlenen koddan üretiyor; GB10'da iki
+- `callbus eval` artık kullandığı head dosyasının sha256'sını rapora yazıyor.
+  `callbus data server-names`, Faz 0'ın `_server` setlerini izlenen koddan üretiyor; GB10'da iki
   set de Faz 0'dakilerle bayt bayt aynı çıktı.
 - 12 rapor güncel kodla `scripts/readme_results.sh` ile yeniden üretildi. Hepsi önbellekten geldi
   (encoder'a 0 token); sayılar Faz 0 ve Hafta 2'dekilerle aynı.
@@ -246,26 +246,26 @@ sırayla Stripe ve GitHub) ve Responses ile Messages'ta bir sağlayıcı tool'u 
 ## Komutlar
 
 ```bash
-# GB10, ~/toolrank
-toolrank finetune --data data/toolret_train/pairs.jsonl --n-train 60000 --n-val 2000 \
+# GB10, ~/callbus
+callbus finetune --data data/toolret_train/pairs.jsonl --n-train 60000 --n-val 2000 \
   --dev data/mcp_zero_server --eval data/toolret --eval data/livemcpbench_server --curve \
   --out data/heads/w5_60k.pt --npz dist/heads/w5_60k.npz --name w5_60k
-toolrank finetune --data data/toolret_train/pairs.jsonl --n-train 60000 --n-val 2000 --neg 15 \
+callbus finetune --data data/toolret_train/pairs.jsonl --n-train 60000 --n-val 2000 --neg 15 \
   --dev data/mcp_zero_server --eval data/toolret --eval data/livemcpbench_server --curve \
   --out data/heads/w5_60k_neg15.pt --name w5_60k_neg15
-TOOLRANK_HEADS=dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz toolrank finetune \
+CALLBUS_HEADS=dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz callbus finetune \
   --data data/toolret_train/pairs.jsonl --init-ckpt default --epochs 1 --n-train 5000 \
   --dev data/mcp_zero_server --eval data/toolret --eval data/livemcpbench_server \
   --out data/heads/w5_init.pt --name w5_init
-# GB10, ~/toolrank: README tablosunun 12 koşusu; ardından Mac'te raporları çekip tabloyu yaz
+# GB10, ~/callbus: README tablosunun 12 koşusu; ardından Mac'te raporları çekip tabloyu yaz
 PYTHONUNBUFFERED=1 nohup bash scripts/readme_results.sh > data/logs/readme_results.log 2>&1 &
-scp 'gb10:toolrank/results/readme_*.json' docs/results/ && uv run python scripts/readme_table.py --write
+scp 'gb10:callbus/results/readme_*.json' docs/results/ && uv run python scripts/readme_table.py --write
 # GB10: _server setleri izlenen koddan, Faz 0'dakilerle karşılaştırma (sha256)
-toolrank data server-names data/livemcpbench --out /tmp/v0_livemcpbench_server
+callbus data server-names data/livemcpbench --out /tmp/v0_livemcpbench_server
 # Mac, repo kökü: framework'ler uçtan uca (bigtool kendi ortamında, LiteLLM uvx ile)
 # $GB10: GB10'un Tailscale adresi (depoda tutulmuyor). Embedding cache'i URL'in yazımıyla anahtarlı: hep aynı adres.
 uv run python scripts/frameworks_e2e.py --data data/w3 --emb-url http://$GB10:8091/v1 \
-  --heads dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz --out results/frameworks_e2e.json
+  --heads dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz --out results/frameworks_e2e.json
 ```
 
 ## Ortam
@@ -283,7 +283,7 @@ uv run python scripts/frameworks_e2e.py --data data/w3 --emb-url http://$GB10:80
   Ayrı dev seti backlog'da; v0.2 head'lerinden önce şart.
 - **Plandan sapmalar.**
   - `litellm` ekstrası yok: litellm `openai<3` istiyor, `[dev]` ise `openai>=3.22`. Filtre proxy'nin
-    kendi ortamına kurulan toolrank'la çalışıyor.
+    kendi ortamına kurulan callbus'la çalışıyor.
   - LlamaIndex modülü import edilirken llama-index-core istiyor, çünkü retriever bir LlamaIndex
     sınıfı. LangGraph ve LiteLLM modülleri framework'ü yalnız kullanılınca yüklüyor.
 
@@ -292,7 +292,7 @@ uv run python scripts/frameworks_e2e.py --data data/w3 --emb-url http://$GB10:80
 Faz 1 Hafta 6, dokümantasyon ve paketleme:
 
 - docs sitesi (mkdocs): kavramlar, hızlı başlangıç, benchmark, mimari, katkı rehberi;
-- PyPI yayını, Docker imajı (vLLM backbone + toolrank) ve `docker compose` örneği;
+- PyPI yayını, Docker imajı (vLLM backbone + callbus) ve `docker compose` örneği;
 - lisans ve üçüncü taraf bildirimleri, CODE_OF_CONDUCT, issue şablonları.
 
 Head'lerin yüklenmesi (Hafta 2'nin 4. kutusu) hâlâ açık: `hf auth login` gerekiyor.

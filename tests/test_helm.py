@@ -1,4 +1,4 @@
-"""The Helm chart (deploy/helm/toolrank) renders what each embedding mode needs. Runs only where
+"""The Helm chart (deploy/helm/callbus) renders what each embedding mode needs. Runs only where
 ``helm`` is installed (CI has none); scripts/helm_smoke.py installs it on a real cluster."""
 
 import json
@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-CHART = Path(__file__).resolve().parents[1] / "deploy" / "helm" / "toolrank"
+CHART = Path(__file__).resolve().parents[1] / "deploy" / "helm" / "callbus"
 yaml = pytest.importorskip("yaml")
 pytestmark = pytest.mark.skipif(shutil.which("helm") is None or not CHART.exists(), reason="needs helm")
 
@@ -30,7 +30,7 @@ def render(*sets: str, fails: bool = False):
     return {(d["kind"], d["metadata"]["name"]): d for d in docs}
 
 
-def container(objs, name="t-toolrank"):
+def container(objs, name="t-callbus"):
     return objs[("Deployment", name)]["spec"]["template"]["spec"]["containers"][0]
 
 
@@ -45,51 +45,49 @@ def test_lint_passes():
     assert done.returncode == 0, done.stdout + done.stderr
 
 
-def test_the_default_runs_vllm_next_to_toolrank_with_the_fp8_profile():
+def test_the_default_runs_vllm_next_to_callbus_with_the_fp8_profile():
     objs = render("auth.apiKey=secret")
     c = container(objs)
     assert (
         c["image"]
-        == "ghcr.io/yasinyaman/toolrank:" + yaml.safe_load((CHART / "Chart.yaml").read_text())["appVersion"]
+        == "ghcr.io/yasinyaman/callbus:" + yaml.safe_load((CHART / "Chart.yaml").read_text())["appVersion"]
     )
     e = env(c)
     assert (
-        e["TOOLRANK_EMB_URL"] == "http://t-toolrank-embedding:8000/v1"
-        and e["TOOLRANK_EMB_MODEL"] == "toolrank-emb-v0.2-fp8"
+        e["CALLBUS_EMB_URL"] == "http://t-callbus-embedding:8000/v1"
+        and e["CALLBUS_EMB_MODEL"] == "callbus-emb-v0.2-fp8"
     )
-    assert e["TOOLRANK_API_KEY"] == {"secretKeyRef": {"name": "t-toolrank-auth", "key": "TOOLRANK_API_KEY"}}
-    assert e["TOOLRANK_ALLOWED_HOSTS"].split(",")[:4] == [
-        "t-toolrank",
-        "t-toolrank.ns",
-        "t-toolrank.ns.svc",
-        "t-toolrank.ns.svc.cluster.local",
+    assert e["CALLBUS_API_KEY"] == {"secretKeyRef": {"name": "t-callbus-auth", "key": "CALLBUS_API_KEY"}}
+    assert e["CALLBUS_ALLOWED_HOSTS"].split(",")[:4] == [
+        "t-callbus",
+        "t-callbus.ns",
+        "t-callbus.ns.svc",
+        "t-callbus.ns.svc.cluster.local",
     ]
     assert c["args"][:7] == [
         "serve",
         "--data",
         "/data",
         "--config",
-        "/config/toolrank.json",
+        "/config/callbus.json",
         "--host",
         "0.0.0.0",
     ]
     assert "--api-keys" not in c["args"] and c["securityContext"]["allowPrivilegeEscalation"] is False
-    pod = objs[("Deployment", "t-toolrank")]["spec"]["template"]["spec"]
+    pod = objs[("Deployment", "t-callbus")]["spec"]["template"]["spec"]
     assert pod["securityContext"]["runAsUser"] == 1000 and pod["initContainers"][0]["args"][:2] == [
         "ingest",
         "mcp",
     ]
-    assert objs[("Deployment", "t-toolrank")]["spec"]["replicas"] == 1
-    vllm = container(objs, "t-toolrank-embedding")
-    assert (
-        "--quantization=fp8" in vllm["args"] and "--served-model-name=toolrank-emb-v0.2-fp8" in vllm["args"]
-    )
-    assert vllm["args"][:2] == ["yasinyaman/toolrank-emb-8b", "--revision=v0.2"]
+    assert objs[("Deployment", "t-callbus")]["spec"]["replicas"] == 1
+    vllm = container(objs, "t-callbus-embedding")
+    assert "--quantization=fp8" in vllm["args"] and "--served-model-name=callbus-emb-v0.2-fp8" in vllm["args"]
+    assert vllm["args"][:2] == ["yasinyaman/callbus-emb-8b", "--revision=v0.2"]
     assert vllm["resources"]["limits"]["nvidia.com/gpu"] == 1
-    assert json.loads(objs[("ConfigMap", "t-toolrank-config")]["data"]["toolrank.json"])["mcpServers"]["time"]
-    assert objs[("Secret", "t-toolrank-auth")]["stringData"] == {"TOOLRANK_API_KEY": "secret"}
+    assert json.loads(objs[("ConfigMap", "t-callbus-config")]["data"]["callbus.json"])["mcpServers"]["time"]
+    assert objs[("Secret", "t-callbus-auth")]["stringData"] == {"CALLBUS_API_KEY": "secret"}
     assert (
-        objs[("PersistentVolumeClaim", "t-toolrank-data")]["metadata"]["annotations"][
+        objs[("PersistentVolumeClaim", "t-callbus-data")]["metadata"]["annotations"][
             "helm.sh/resource-policy"
         ]
         == "keep"
@@ -98,15 +96,15 @@ def test_the_default_runs_vllm_next_to_toolrank_with_the_fp8_profile():
 
 def test_bf16_external_and_bundled():
     bf16 = render("auth.apiKey=x", "embedding.profile=bf16")
-    assert "--quantization=fp8" not in container(bf16, "t-toolrank-embedding")["args"]
-    assert env(container(bf16))["TOOLRANK_EMB_MODEL"] == "toolrank-emb-v0.2"
+    assert "--quantization=fp8" not in container(bf16, "t-callbus-embedding")["args"]
+    assert env(container(bf16))["CALLBUS_EMB_MODEL"] == "callbus-emb-v0.2"
     base = render(
         "auth.apiKey=x",
         "embedding.backbone.repo=Qwen/Qwen3-Embedding-8B",
         "embedding.backbone.revision=",
         "embedding.backbone.name=qwen3-emb",
     )
-    assert container(base, "t-toolrank-embedding")["args"][:2] == [
+    assert container(base, "t-callbus-embedding")["args"][:2] == [
         "Qwen/Qwen3-Embedding-8B",
         "--served-model-name=qwen3-emb-fp8",
     ]
@@ -114,32 +112,31 @@ def test_bf16_external_and_bundled():
     ext = render(
         "auth.apiKey=x", "embedding.mode=external", "embedding.url=http://emb:8000/v1", "embedding.model=m"
     )
-    assert ("Deployment", "t-toolrank-embedding") not in ext and (
+    assert ("Deployment", "t-callbus-embedding") not in ext and (
         "PersistentVolumeClaim",
-        "t-toolrank-models",
+        "t-callbus-models",
     ) not in ext
     assert (
-        env(container(ext))["TOOLRANK_EMB_URL"] == "http://emb:8000/v1"
-        and env(container(ext))["TOOLRANK_EMB_MODEL"] == "m"
+        env(container(ext))["CALLBUS_EMB_URL"] == "http://emb:8000/v1"
+        and env(container(ext))["CALLBUS_EMB_MODEL"] == "m"
     )
 
-    one = render("auth.apiKey=x", "embedding.mode=bundled", "embedding.bundled.image=reg/toolrank-vllm:1")
+    one = render("auth.apiKey=x", "embedding.mode=bundled", "embedding.bundled.image=reg/callbus-vllm:1")
     c = container(one)
-    assert c["image"] == "reg/toolrank-vllm:1" and ("Deployment", "t-toolrank-embedding") not in one
-    assert env(c)["TOOLRANK_FP8"] == "1" and env(c)["TOOLRANK_EMB_URL"] == "http://127.0.0.1:8091/v1"
+    assert c["image"] == "reg/callbus-vllm:1" and ("Deployment", "t-callbus-embedding") not in one
+    assert env(c)["CALLBUS_FP8"] == "1" and env(c)["CALLBUS_EMB_URL"] == "http://127.0.0.1:8091/v1"
     assert (
-        env(c)["TOOLRANK_BACKBONE"] == "yasinyaman/toolrank-emb-8b"
-        and env(c)["TOOLRANK_BACKBONE_REVISION"] == "v0.2"
+        env(c)["CALLBUS_BACKBONE"] == "yasinyaman/callbus-emb-8b"
+        and env(c)["CALLBUS_BACKBONE_REVISION"] == "v0.2"
     )
     assert c["resources"]["limits"]["nvidia.com/gpu"] == 1 and "securityContext" not in c  # vLLM keeps root
     assert {m["mountPath"] for m in c["volumeMounts"]} >= {"/data", "/models", "/dev/shm"}
     k3s = render("auth.apiKey=x", "embedding.runtimeClassName=nvidia")
     assert (
-        k3s[("Deployment", "t-toolrank-embedding")]["spec"]["template"]["spec"]["runtimeClassName"]
-        == "nvidia"
+        k3s[("Deployment", "t-callbus-embedding")]["spec"]["template"]["spec"]["runtimeClassName"] == "nvidia"
     )
     assert (
-        "runtimeClassName" not in k3s[("Deployment", "t-toolrank")]["spec"]["template"]["spec"]
+        "runtimeClassName" not in k3s[("Deployment", "t-callbus")]["spec"]["template"]["spec"]
     )  # no GPU there
     k3s = render(
         "auth.apiKey=x",
@@ -147,7 +144,7 @@ def test_bf16_external_and_bundled():
         "embedding.bundled.image=r/i:1",
         "embedding.runtimeClassName=nvidia",
     )
-    assert k3s[("Deployment", "t-toolrank")]["spec"]["template"]["spec"]["runtimeClassName"] == "nvidia"
+    assert k3s[("Deployment", "t-callbus")]["spec"]["template"]["spec"]["runtimeClassName"] == "nvidia"
 
 
 def test_tenants_and_mistakes():
@@ -157,17 +154,17 @@ def test_tenants_and_mistakes():
         'auth.apiKeys={"team":{"key":"k","sources":["time"]}}',
     )
     c = container(objs)
-    assert c["args"][7:9] == ["--api-keys", "/keys/keys.json"] and "TOOLRANK_API_KEY" not in env(c)
-    keys = json.loads(objs[("Secret", "t-toolrank-auth")]["stringData"]["keys.json"])
+    assert c["args"][7:9] == ["--api-keys", "/keys/keys.json"] and "CALLBUS_API_KEY" not in env(c)
+    keys = json.loads(objs[("Secret", "t-callbus-auth")]["stringData"]["keys.json"])
     assert keys == {"team": {"key": "k", "sources": ["time"]}}
     mine = render("embedding.mode=external", "embedding.url=http://e/v1", "auth.apiKeysSecret.name=mine")
     vol = next(
         v
-        for v in container(mine) and mine[("Deployment", "t-toolrank")]["spec"]["template"]["spec"]["volumes"]
+        for v in container(mine) and mine[("Deployment", "t-callbus")]["spec"]["template"]["spec"]["volumes"]
         if v["name"] == "keys"
     )
     assert vol["secret"] == {"secretName": "mine", "items": [{"key": "keys.json", "path": "keys.json"}]}
-    assert ("Secret", "t-toolrank-auth") not in mine
+    assert ("Secret", "t-callbus-auth") not in mine
 
     assert "auth: set auth.apiKey" in render(fails=True)
     assert "embedding.url" in render("auth.apiKey=x", "embedding.mode=external", fails=True)
@@ -178,8 +175,8 @@ def test_tenants_and_mistakes():
     only_openapi = render(
         "auth.apiKey=x", 'config={"mcpServers":{"time":null},"openapi":{"api":{"base_url":"https://a"}}}'
     )
-    assert json.loads(only_openapi[("ConfigMap", "t-toolrank-config")]["data"]["toolrank.json"]) == {
+    assert json.loads(only_openapi[("ConfigMap", "t-callbus-config")]["data"]["callbus.json"]) == {
         "mcpServers": {},
         "openapi": {"api": {"base_url": "https://a"}},
     }
-    assert "initContainers" not in only_openapi[("Deployment", "t-toolrank")]["spec"]["template"]["spec"]
+    assert "initContainers" not in only_openapi[("Deployment", "t-callbus")]["spec"]["template"]["spec"]

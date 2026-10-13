@@ -4,7 +4,7 @@ Takvimde 9–13 Kasım; erken yapıldı.
 
 ## Sonuç (tek cümle)
 
-Ingest dizini artık aranabilir ve dağıtılabilir. `toolrank search`, kalıcı bir indeksle yalnız yeni ya
+Ingest dizini artık aranabilir ve dağıtılabilir. `callbus search`, kalıcı bir indeksle yalnız yeni ya
 da değişen tool'ları gömüyor. Uyarlanabilir K, aynı ortalama tool sayısında üç sette de sabit top-k'dan
 iyi. Kazanan head torch'suz 60 MB'lık bir `.npz` olarak paketlendi ve torch ile aynı sonuçları veriyor.
 FAISS HNSW 44 bin tool'da tek sorguyu 1.6 ms'de (exact 8.2 ms) neredeyse kayıpsız cevaplıyor. Hibrit
@@ -20,7 +20,7 @@ FAISS HNSW 44 bin tool'da tek sorguyu 1.6 ms'de (exact 8.2 ms) neredeyse kayıps
 - Numpy indeksi tek bir `.npz` snapshot'ı, `flock` altında atomik olarak yazılıyor.
 - Eşlik: yeni kodla Faz 0'ın tüm veriyle eğitilen head koşusu ToolRet'te tekrarlandı. Bütün genel,
   görev bazlı ve cat-macro değerler ile scorer adı birebir aynı çıktı.
-- Scorer kurulumu `toolrank.build`'e taşındı; eval, search ve Hafta 3'ün sunucusu aynı kodu kullanıyor.
+- Scorer kurulumu `callbus.build`'e taşındı; eval, search ve Hafta 3'ün sunucusu aynı kodu kullanıyor.
 
 İndeks adapter'ları (tüm veriyle eğitilen head'ler, w/ inst):
 
@@ -105,12 +105,12 @@ Kazanç recall ve tamlıkta küçük (+0.6 ile +2.7), hassasiyette büyük: tek 
   destekleniyor.
 - CI'da torch yok. Onun yerine commit edilmiş küçük bir golden fixture numpy çıktısını torch'unkiyle
   karşılaştırıyor.
-- `toolrank heads export`, `.pt`'den `.npz` üretiyor ve servis ayarlarını (backbone, formatlar,
+- `callbus heads export`, `.pt`'den `.npz` üretiyor ve servis ayarlarını (backbone, formatlar,
   kırpma, talimat) dosyanın cfg'sine yazıyor.
 - `--clm-ckpt` `.pt`, `.npz` ya da `default` kabul ediyor. `default` için indirme sha256 ile
   doğrulanıyor; adres, barındırma yeri seçilince doldurulacak.
 
-Artifact: `toolrank-heads-qwen3-emb-8b-v0.1.npz`. Tüm veriyle eğitilen head'lerden, fp16, 59.8 MB,
+Artifact: `callbus-heads-qwen3-emb-8b-v0.1.npz`. Tüm veriyle eğitilen head'lerden, fp16, 59.8 MB,
 sha256 `f3c10125…72f0`. Model kartı: `docs/heads/MODEL_CARD.md`; eğitim verisinin lisanssız olduğunu
 yazıyor.
 
@@ -139,10 +139,10 @@ Varsayılan talimat üç aday arasından seçildi; iki MCP setinde fp16 head'ler
 MCP-Zero talimata çok duyarlı: nötr talimatla top-1 25 puan düşüyor. LiveMCPBench'teki fark ise
 1–2 görev.
 
-## 5. `toolrank search`
+## 5. `callbus search`
 
 GB10'da, ingest dizininde 1.875 tool var: üç MCP sunucusu, GitHub REST ve Stripe. Arama fp16
-head'lerle yapıldı (`TOOLRANK_HEADS`).
+head'lerle yapıldı (`CALLBUS_HEADS`).
 
 - İlk arama (soğuk): indeks 0.90 sn'de kuruldu (1.875 tool projekte edildi), arama 85 ms sürdü.
 - Sonraki arama (sıcak): indeks diskten 0.00 sn'de yüklendi, arama 79 ms. Aramanın neredeyse tamamı
@@ -162,8 +162,8 @@ Uyarlanabilir K net isteklerde 2 tool, geniş isteklerde 10 tool döndürdü.
 ## Komutlar
 
 ```bash
-# GB10, ~/toolrank; ortak bayraklar
-E="$HOME/.local/bin/uv run toolrank eval"
+# GB10, ~/callbus; ortak bayraklar
+E="$HOME/.local/bin/uv run callbus eval"
 Q="--emb-url http://127.0.0.1:8091/v1 --emb-model qwen3-emb --truncate 8192 --tool-format documentation --query-format instruct_query --with-inst"
 H="--scorer clm $Q --clm-ckpt data/heads/qwen_full_skip_neg0_e5.pt"
 
@@ -172,8 +172,8 @@ $E --data data/toolret $H --out results/parity_toolret_headsfull.json
 $E --data data/toolret $H --index faiss --index-dir /tmp/w2_faiss_toolret --out results/w2_toolret_headsfull_faiss.json
 $E --data data/toolret $H --batch 1 --out results/w2_toolret_headsfull_numpy_b1.json
 $E --data data/toolret $H --batch 1 --index faiss --index-dir /tmp/w2_faiss_toolret --out results/w2_toolret_headsfull_faiss_b1.json
-docker compose -f deploy/spark/compose.yaml --profile pg up -d toolrank-pg
-export TOOLRANK_PG_DSN=postgresql://toolrank:toolrank@127.0.0.1:55440/toolrank
+docker compose -f deploy/spark/compose.yaml --profile pg up -d callbus-pg
+export CALLBUS_PG_DSN=postgresql://callbus:callbus@127.0.0.1:55440/callbus
 $E --data data/livemcpbench_server $H --index pgvector --pg-table w2_livemcp --out results/w2_livemcp_srv_headsfull_pg.json
 $E --data data/mcp_zero_server --ks 1,5,10,20 $H --index pgvector --pg-table w2_mcpzero --out results/w2_mcpzero_srv_headsfull_pg.json
 
@@ -189,15 +189,15 @@ for d in livemcpbench_server mcp_zero_server; do
 done
 
 # 4. paketlenmiş head
-~/.local/bin/uv run toolrank heads export data/heads/qwen_full_skip_neg0_e5.pt dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz \
+~/.local/bin/uv run callbus heads export data/heads/qwen_full_skip_neg0_e5.pt dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz \
   --dtype float16 --backbone Qwen/Qwen3-Embedding-8B --tool-format documentation --query-format instruct_query --truncate 8192 \
   --instruction "Given an agent's request for a tool, retrieve the MCP tool that fulfills it."
 ~/.local/bin/uv run python scripts/heads_parity.py --a data/heads/qwen_full_skip_neg0_e5.pt --b <fp16|fp32 .npz> -- --data data/<set> --scorer clm $Q
-N="--scorer clm --emb-url http://127.0.0.1:8091/v1 --emb-model qwen3-emb --clm-ckpt dist/heads/toolrank-heads-fp16.npz"
+N="--scorer clm --emb-url http://127.0.0.1:8091/v1 --emb-model qwen3-emb --clm-ckpt dist/heads/callbus-heads-fp16.npz"
 $E --data data/livemcpbench_server $N --instruction "<aday>" --out results/w2_livemcp_srv_npz16_i<n>.json   # ve mcp_zero_server
 
 # 5. search (data/demo = Mac'teki data/mytools'un kopyası)
-TOOLRANK_HEADS=dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz ~/.local/bin/uv run toolrank search --data data/demo "open an issue in my repository about the login bug"
+CALLBUS_HEADS=dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz ~/.local/bin/uv run callbus search --data data/demo "open an issue in my repository about the login bug"
 ```
 
 ## Ortam
@@ -219,5 +219,5 @@ TOOLRANK_HEADS=dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz ~/.local/bin/uv r
 
 ## Sonraki hafta
 
-Faz 1 Hafta 3: `toolrank serve --mcp` (search_tools / call_tool proxy'si), REST `/v1/search`, kullanım
-günlüğü şeması. `build.py`, `toolrank search`'ün JSON çıktısı ve kalıcı indeks bunun temeli.
+Faz 1 Hafta 3: `callbus serve --mcp` (search_tools / call_tool proxy'si), REST `/v1/search`, kullanım
+günlüğü şeması. `build.py`, `callbus search`'ün JSON çıktısı ve kalıcı indeks bunun temeli.

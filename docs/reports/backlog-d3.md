@@ -15,9 +15,9 @@ kaybetmiyor; karar setinde ise `v0.2`'yle berabere (+0,30, p 0,25). Yayın karar
 ## Ölçüler, birimler ve yön
 
 `NDCG@10 ↑ %`, README tablosundaki gibi talimatlı (w/ inst), documentation + instruct_query, `--truncate 8192`.
-`fark`: yüzde puanı, sağdaki model eksi referans. p: `toolrank compare --paired`'in eşli permütasyon testi;
+`fark`: yüzde puanı, sağdaki model eksi referans. p: `callbus compare --paired`'in eşli permütasyon testi;
 ToolRet'in kategorileri ve cat-macro'su için aynı test, sorgular kategori ortalamalarının tarttığı gibi
-ağırlıklı (`--data data/toolret`). `seçim` ve `teyit`: `dev_w3_multi2`'nin `toolrank data split` yarıları (400'er
+ağırlıklı (`--data data/toolret`). `seçim` ve `teyit`: `dev_w3_multi2`'nin `callbus data split` yarıları (400'er
 istek, aynı tool'lar); kollar seçim yarısında seçildi, teyit yarısı hiçbir seçimde kullanılmadı.
 
 ## Ön kayıt (koşulardan önce yazıldı)
@@ -104,8 +104,8 @@ NDCG@10 ↑ %; parantezde replikaya göre fark ve p.
 ## Komutlar
 
 ```bash
-# GB10, ~/toolrank. The selection and confirmation halves (once):
-uv run toolrank data split data/dev_w3_multi2 --out-a data/dev_w3_multi2_sel --out-b data/dev_w3_multi2_conf
+# GB10, ~/callbus. The selection and confirmation halves (once):
+uv run callbus data split data/dev_w3_multi2 --out-a data/dev_w3_multi2_sel --out-b data/dev_w3_multi2_conf
 # the arms (data/lora/chain_lora_arms.sh, untracked): the replica's flags plus one lever each
 P="--pairs data/toolret_train/pairs.jsonl --dev data/dev_w3_multi2_sel --eval data/toolret --eval data/livemcpbench_server \
   --eval data/mcp_zero_server --eval data/dev_w3 --eval data/dev_w3_sit --eval data/dev_w3_multi3 --eval data/dev_w3_multi2_conf \
@@ -117,20 +117,20 @@ uv run --extra lora python scripts/lora_train.py $P --fn-margin 0.1 --out data/l
 uv run --extra lora python scripts/lora_soup.py --adapter data/lora/qwen3-emb-lora-20k/adapter \
   --adapter data/lora/qwen3-emb-lora-20k-r1/adapter --out data/lora/qwen3-emb-lora-soup-seeds
 # each model served on 8097 under its own name, then scored like D1.1's (docs/reports/backlog-d1.md, Komutlar):
-TOOLRANK_LORA=$HOME/toolrank/data/lora/qwen3-emb-lora-20k-shape/merged TOOLRANK_LORA_NAME=qwen3-emb-lora-shape \
+CALLBUS_LORA=$HOME/callbus/data/lora/qwen3-emb-lora-20k-shape/merged CALLBUS_LORA_NAME=qwen3-emb-lora-shape \
   docker compose -f deploy/spark/compose.yaml --profile lora up -d --force-recreate qwen3-emb-lora
 E="--scorer dense --emb-url http://127.0.0.1:8097/v1 --emb-model qwen3-emb-lora-shape --truncate 8192 --emb-batch 128 \
   --tool-format documentation --query-format instruct_query --with-inst"
-uv run toolrank eval --data data/dev_w3_multi2 $E --ks 5,10,20 --cut-margin 0.2 \
+uv run callbus eval --data data/dev_w3_multi2 $E --ks 5,10,20 --cut-margin 0.2 \
   --runs-out results/lorashape_dev_w3_multi2_runs.jsonl --out results/lorashape_dev_w3_multi2.json
 # ... dev_w3_multi3 (--ks 5,10,20 --cut-margin 0.2), dev_w3 and dev_w3_sit (--ks 1,5,10), livemcpbench_server,
 # mcp_zero_server (--ks 1,5,10,20), toolret; tags lorar1, lorashape, lorafnm, lorasoupseeds
-# Mac, after scp 'gb10:toolrank/results/lora{r1,shape,fnm,soupseeds}_*' results/ and the halves' and ToolRet's
+# Mac, after scp 'gb10:callbus/results/lora{r1,shape,fnm,soupseeds}_*' results/ and the halves' and ToolRet's
 # queries.jsonl into data/:
-uv run toolrank compare --paired results/lorar1_dev_w3_multi2_runs.jsonl results/lorashape_dev_w3_multi2_runs.jsonl
-uv run toolrank compare --paired --subset data/dev_w3_multi2_conf \
+uv run callbus compare --paired results/lorar1_dev_w3_multi2_runs.jsonl results/lorashape_dev_w3_multi2_runs.jsonl
+uv run callbus compare --paired --subset data/dev_w3_multi2_conf \
   results/lorar1_dev_w3_multi2_runs.jsonl results/lorashape_dev_w3_multi2_runs.jsonl
-uv run toolrank compare --paired --data data/toolret results/lorar1_toolret_runs.jsonl results/lorashape_toolret_runs.jsonl
+uv run callbus compare --paired --data data/toolret results/lorar1_toolret_runs.jsonl results/lorashape_toolret_runs.jsonl
 ```
 
 ## Ortam

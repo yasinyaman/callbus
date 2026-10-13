@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from toolrank.adapters.clm import make_head
+from callbus.adapters.clm import make_head
 
 CASES = {
     "gelu_layernorm_skip": dict(width=12, depth=3, activation="gelu", layernorm=True, skip=True),

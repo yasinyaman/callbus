@@ -1,4 +1,4 @@
-"""The framework adapters against the frameworks' real classes: a real toolrank (the served app in
+"""The framework adapters against the frameworks' real classes: a real callbus (the served app in
 process, the stdio fixture MCP server behind it), or a recording stand-in for the edge cases."""
 
 import asyncio
@@ -7,15 +7,15 @@ import pytest
 
 pytest.importorskip("mcp")
 
-from test_client import _toolrank  # noqa: E402
+from callbus.client import CallBusError  # noqa: E402
+from test_client import _callbus  # noqa: E402
 from test_rest import _events  # noqa: E402
-from toolrank.client import ToolrankError  # noqa: E402
 
 ADD = {"type": "object", "properties": {"a": {"type": "integer"}, "config": {"type": "object"}}}
 
 
 class _Stub:
-    """A ``ToolrankClient`` stand-in: a fixed catalogue and search, recorded requests."""
+    """A ``CallBusClient`` stand-in: a fixed catalogue and search, recorded requests."""
 
     def __init__(self, hits=("fx__add",), result=None, fail=None):
         self.hits, self.fail, self.sent = list(hits), fail, []
@@ -38,7 +38,7 @@ class _Stub:
     def search(self, query, *, k=None, instruction=None, full_schemas=False, session=None):
         self.sent.append({"search": query, "k": k, "instruction": instruction, "session": session})
         if self.fail:
-            raise ToolrankError(503, self.fail)
+            raise CallBusError(503, self.fail)
         known = {t["api_name"]: t for t in self.catalog()["tools"]}
         new = {"server": "zz", "kind": "mcp", "description": "New.", "inputSchema": {"type": "object"}}
         hits = [known.get(n) or {"name": n.replace("__", "/"), "api_name": n, **new} for n in self.hits]
@@ -58,17 +58,17 @@ def _tool_call(name, args):
 # -- LangGraph ------------------------------------------------------------------------------------
 
 
-def test_langgraph_registry_and_bigtool_retrieval_run_through_toolrank(tmp_path):
+def test_langgraph_registry_and_bigtool_retrieval_run_through_callbus(tmp_path):
     pytest.importorskip("langchain_core")
     from langchain_core.messages import ToolMessage
     from langchain_core.tools import BaseTool, StructuredTool
     from langchain_core.utils.function_calling import convert_to_openai_tool
 
-    from toolrank.integrations import langgraph as lg
+    from callbus.integrations import langgraph as lg
 
     thread = {"configurable": {"thread_id": "t1"}}
     events = []
-    with _toolrank(tmp_path) as tr:
+    with _callbus(tmp_path) as tr:
         box = lg.Toolbox(tr, on_event=lambda kind, details: events.append(kind))
         registry = box.registry()
         assert set(registry) == {"fx__add", "api__getThing", "api__createThing"}
@@ -104,7 +104,7 @@ def test_langgraph_registry_and_bigtool_retrieval_run_through_toolrank(tmp_path)
 
 def test_langgraph_tools_pass_every_argument_and_turn_failures_into_error_results():
     pytest.importorskip("langchain_core")
-    from toolrank.integrations import langgraph as lg
+    from callbus.integrations import langgraph as lg
 
     stub = _Stub(hits=["zz__new", "fx__add", "fx__add"])  # a tool newer than the catalogue snapshot
     box = lg.Toolbox(stub, k=3, instruction="Given a task", servers=["fx"], session="s0")
@@ -126,7 +126,7 @@ def test_langgraph_tools_pass_every_argument_and_turn_failures_into_error_result
     failing = {"outcome": "error", "isError": True, "content": [{"type": "text", "text": "boom"}]}
     for result, expected in (
         (failing, "boom"),
-        (ToolrankError(0, "server unreachable"), "toolrank could not run fx/add: server unreachable"),
+        (CallBusError(0, "server unreachable"), "callbus could not run fx/add: server unreachable"),
         ({"outcome": "ok", "isError": False, "content": []}, "(the tool returned nothing)"),
     ):
         stub.result = result
@@ -136,8 +136,8 @@ def test_langgraph_tools_pass_every_argument_and_turn_failures_into_error_result
     declined = lg.Toolbox(stub, approve=lambda entry, args: False).registry()["fx__add"]
     n = len(stub.sent)
     assert declined.invoke(_tool_call("fx__add", {"a": 1})).content == "The user declined this call."
-    assert len(stub.sent) == n  # nothing reached toolrank
-    with pytest.raises(ToolrankError, match="index not ready"):  # bigtool has no way to tell the model
+    assert len(stub.sent) == n  # nothing reached callbus
+    with pytest.raises(CallBusError, match="index not ready"):  # bigtool has no way to tell the model
         lg.Toolbox(_Stub(fail="index not ready")).retrieve_tools("add")
 
 
@@ -200,7 +200,7 @@ def _names(request):
 
 def test_langchain_selector_keeps_the_ranked_used_chosen_and_provider_tools():
     pytest.importorskip("langchain")
-    from toolrank.integrations.langchain import Selector, record
+    from callbus.integrations.langchain import Selector, record
 
     request, ranker, seen = _lc_request(), _Ranker(), []
     sel = Selector(ranker, always_include=["t3"], on_select=seen.append)
@@ -213,7 +213,7 @@ def test_langchain_selector_keeps_the_ranked_used_chosen_and_provider_tools():
         "description": "Tool number 4.",
         "inputSchema": {"type": "object", "properties": {"x": {}}, "required": ["x"]},
     }
-    # the agent's next model call in the same turn: the same choice, toolrank not asked again
+    # the agent's next model call in the same turn: the same choice, callbus not asked again
     assert _names(asyncio.run(sel.aselect(request))) == _names(out)
     assert len(ranker.asked) == 1
     assert [e["cached"] for e in seen] == [False, True]
@@ -235,8 +235,8 @@ def test_langchain_selector_shows_every_tool_when_it_should_and_fails_open():
 
     from langchain_core.messages import AIMessage
 
-    from toolrank.client import ToolrankError as Down
-    from toolrank.integrations.langchain import Selector
+    from callbus.client import CallBusError as Down
+    from callbus.integrations.langchain import Selector
 
     request, ranker = _lc_request(), _Ranker()
     assert Selector(ranker, min_tools=25).select(request) is request  # few enough already
@@ -267,7 +267,7 @@ def test_langchain_selector_asks_once_per_selection_and_never_drops_one_that_wai
 
     from langchain_core.messages import HumanMessage
 
-    from toolrank.integrations.langchain import Selector
+    from callbus.integrations.langchain import Selector
 
     request, ranker = _lc_request(), _Ranker(delay=0.3)
     sel = Selector(ranker, timeout_s=0.02)
@@ -293,10 +293,10 @@ def test_langchain_selector_with_a_toolbox_falls_back_to_the_last_choice_not_the
     pytest.importorskip("langchain")
     from langchain_core.messages import HumanMessage
 
-    from toolrank.integrations.langchain import Selector
+    from callbus.integrations.langchain import Selector
 
     class _Box:  # a Toolbox stand-in: the request's t0..t24 are its catalogue
-        toolrank, fail = None, False
+        callbus, fail = None, False
 
         def __init__(self):
             self.entries = {f"t{n}": None for n in range(25)}
@@ -306,7 +306,7 @@ def test_langchain_selector_with_a_toolbox_falls_back_to_the_last_choice_not_the
 
         def retrieve_tools(self, query):
             if self.fail:
-                raise RuntimeError("toolrank is down")
+                raise RuntimeError("callbus is down")
             return ["t4", "t8"]
 
     box, seen = _Box(), []
@@ -319,12 +319,12 @@ def test_langchain_selector_with_a_toolbox_falls_back_to_the_last_choice_not_the
     assert seen[-1]["outcome"] == "skipped" and seen[-1]["fallback"] == "last selection"
 
 
-def test_langchain_selector_ranks_through_a_served_toolrank(tmp_path):
+def test_langchain_selector_ranks_through_a_served_callbus(tmp_path):
     pytest.importorskip("langchain")
-    from toolrank.integrations.langchain import Selector
+    from callbus.integrations.langchain import Selector
 
     request = _lc_request()
-    with _toolrank(tmp_path) as tr:
+    with _callbus(tmp_path) as tr:
         out = Selector(tr).select(request)
     kept = _names(out)
     assert {"t20", "t21", "web_search"} <= set(kept) and 4 <= len(kept) <= 13 and len(kept) < 26
@@ -336,8 +336,8 @@ def test_langchain_agent_shows_the_catalogue_tools_a_toolbox_search_finds(tmp_pa
     from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
     from langchain_core.tools import tool
 
-    from toolrank.integrations import langgraph as lg
-    from toolrank.integrations.langchain import ToolrankToolSelector
+    from callbus.integrations import langgraph as lg
+    from callbus.integrations.langchain import CallBusToolSelector
 
     @tool
     def note(text: str) -> str:
@@ -351,10 +351,10 @@ def test_langchain_agent_shows_the_catalogue_tools_a_toolbox_search_finds(tmp_pa
         return AIMessage("", tool_calls=[{"name": "fx__add", "args": {"a": 2, "b": 3}, "id": "c1"}])
 
     events, selections = [], []
-    with _toolrank(tmp_path) as tr:
+    with _callbus(tmp_path) as tr:
         box = lg.Toolbox(tr, on_event=lambda kind, details: events.append(kind))
         model = _scripted_model(reply)
-        selector = ToolrankToolSelector(toolbox=box, min_tools=0, on_select=selections.append)
+        selector = CallBusToolSelector(toolbox=box, min_tools=0, on_select=selections.append)
         agent = create_agent(model, tools=[*box.registry().values(), note], middleware=[selector])
         state = agent.invoke(
             {"messages": [HumanMessage("add two integers")]}, {"configurable": {"thread_id": "t1"}}
@@ -382,13 +382,13 @@ def test_langchain_agent_shows_the_catalogue_tools_a_toolbox_search_finds(tmp_pa
 # LlamaIndex's workflows list the agent's members, a pydantic model's deprecated ones included
 @pytest.mark.filterwarnings("ignore::pydantic.warnings.PydanticDeprecatedSince20")
 @pytest.mark.filterwarnings("ignore::pydantic.warnings.PydanticDeprecatedSince211")
-def test_llamaindex_agent_gets_its_tools_from_toolrank_and_runs_them(tmp_path):
+def test_llamaindex_agent_gets_its_tools_from_callbus_and_runs_them(tmp_path):
     pytest.importorskip("llama_index.core")
     from llama_index.core.agent.workflow import FunctionAgent
     from llama_index.core.base.llms.types import ChatMessage, MessageRole, ToolCallBlock
     from llama_index.core.llms.mock import MockFunctionCallingLLM
 
-    from toolrank.integrations.llamaindex import ToolrankToolRetriever
+    from callbus.integrations.llamaindex import CallBusToolRetriever
 
     offered = []
 
@@ -403,11 +403,11 @@ def test_llamaindex_agent_gets_its_tools_from_toolrank_and_runs_them(tmp_path):
         return str(await agent.run(user_msg=question))
 
     events = []
-    with _toolrank(tmp_path) as tr:
-        retriever = ToolrankToolRetriever(tr, on_event=lambda kind, details: events.append((kind, details)))
+    with _callbus(tmp_path) as tr:
+        retriever = CallBusToolRetriever(tr, on_event=lambda kind, details: events.append((kind, details)))
         agent = FunctionAgent(llm=MockFunctionCallingLLM(response_generator=model), tool_retriever=retriever)
         assert asyncio.run(ask(agent, "What is 2 + 3?")) == "2 + 3 = 5"
-    assert len(offered) == 2 and offered[0] == offered[1]  # both steps: the same toolrank search
+    assert len(offered) == 2 and offered[0] == offered[1]  # both steps: the same callbus search
     add = offered[0]["fx__add"]["function"]
     assert (add["description"], add["parameters"]["properties"]) == (
         "Add two integers.",
@@ -428,10 +428,10 @@ def test_llamaindex_agent_gets_its_tools_from_toolrank_and_runs_them(tmp_path):
 
 def test_llamaindex_tools_keep_names_schemas_and_errors_straight():
     pytest.importorskip("llama_index.core")
-    from toolrank.integrations.llamaindex import MAX_DESCRIPTION, ToolrankToolRetriever
+    from callbus.integrations.llamaindex import MAX_DESCRIPTION, CallBusToolRetriever
 
     stub = _Stub(hits=["fx__add", "api__get"])
-    retriever = ToolrankToolRetriever(stub, k=4, instruction="Given a task", session="s0")
+    retriever = CallBusToolRetriever(stub, k=4, instruction="Given a task", session="s0")
     assert retriever.retrieve("  ") == [] and stub.sent == []
     add, get = retriever.retrieve("add numbers")
     assert stub.sent[-1] == {"search": "add numbers", "k": 4, "instruction": "Given a task", "session": "s0"}
@@ -440,7 +440,7 @@ def test_llamaindex_tools_keep_names_schemas_and_errors_straight():
     assert retriever.retrieve("fx__add") == [add] and len(stub.sent) == 1  # a name handed out before
     retriever.retrieve("zz__new")  # an unknown name is a query like any other
     assert stub.sent[-1]["search"] == "zz__new"
-    assert ToolrankToolRetriever(stub, ttl_s=0).retrieve("add numbers") and len(stub.sent) == 3
+    assert CallBusToolRetriever(stub, ttl_s=0).retrieve("add numbers") and len(stub.sent) == 3
 
     # every argument reaches the tool, "input" too; one dict of them works as well
     out = asyncio.run(add.acall(a=1, input="x"))
@@ -458,14 +458,14 @@ def test_llamaindex_tools_keep_names_schemas_and_errors_straight():
     failing = {"outcome": "error", "isError": True, "content": [{"type": "text", "text": "boom"}]}
     for result, expected, is_error in (
         (failing, "boom", True),
-        (ToolrankError(0, "server unreachable"), "toolrank could not run fx/add: server unreachable", True),
+        (CallBusError(0, "server unreachable"), "callbus could not run fx/add: server unreachable", True),
         ({"outcome": "ok", "isError": False, "content": []}, "(the tool returned nothing)", False),
     ):
         stub.result = result
         out = add.call(a=1)
         assert (out.content, out.is_error) == (expected, is_error)
 
-    declined = ToolrankToolRetriever(stub, approve=lambda hit, args: False).retrieve("add numbers")[0]
+    declined = CallBusToolRetriever(stub, approve=lambda hit, args: False).retrieve("add numbers")[0]
     n = len(stub.sent)
     assert declined.call(a=1).content == "The user declined this call." and len(stub.sent) == n
 
@@ -473,13 +473,13 @@ def test_llamaindex_tools_keep_names_schemas_and_errors_straight():
     long.catalog = lambda server=None: {
         "tools": [{**_Stub().catalog()["tools"][0], "description": "x" * 5000}]
     }
-    (tool,) = ToolrankToolRetriever(long).retrieve("add")
+    (tool,) = CallBusToolRetriever(long).retrieve("add")
     spec = tool.metadata.to_openai_tool()["function"]  # raises above 1,024 characters
     assert (
         len(spec["description"]) == MAX_DESCRIPTION and spec["parameters"]["properties"] == ADD["properties"]
     )
-    with pytest.raises(ToolrankError, match="index not ready"):
-        ToolrankToolRetriever(_Stub(fail="index not ready")).retrieve("add")
+    with pytest.raises(CallBusError, match="index not ready"):
+        CallBusToolRetriever(_Stub(fail="index not ready")).retrieve("add")
 
 
 # -- LiteLLM --------------------------------------------------------------------------------------
@@ -488,7 +488,7 @@ LITELLM_SCORES = {"t5": 0.9, "t7": 0.85, "t9": 0.8}  # the rest 0.3: adaptive K 
 
 
 class _Ranker:
-    """``ToolrankClient.rank`` stand-in: fixed scores by tool name, best first."""
+    """``CallBusClient.rank`` stand-in: fixed scores by tool name, best first."""
 
     def __init__(self, fail=None, delay=0.0):
         self.fail, self.delay, self.asked = fail, delay, []
@@ -566,7 +566,7 @@ def _requests():
 def test_litellm_filter_keeps_the_ranked_used_chosen_and_provider_tools_of_every_shape():
     import copy
 
-    from toolrank.integrations.litellm import SHAPES, ToolFilter, _record
+    from callbus.integrations.litellm import SHAPES, ToolFilter, _record
 
     provider = {
         "acompletion": "code_interpreter",
@@ -596,8 +596,8 @@ def test_litellm_filter_keeps_the_ranked_used_chosen_and_provider_tools_of_every
 def test_litellm_filter_leaves_requests_alone_when_it_should_and_fails_open():
     import time
 
-    from toolrank.client import ToolrankError as Down
-    from toolrank.integrations.litellm import ToolFilter
+    from callbus.client import CallBusError as Down
+    from callbus.integrations.litellm import ToolFilter
 
     chat = _requests()["acompletion"]
     ranker = _Ranker()
@@ -620,15 +620,15 @@ def test_litellm_filter_leaves_requests_alone_when_it_should_and_fails_open():
         return await f(chat, "acompletion"), time.perf_counter() - t0
 
     out, took = asyncio.run(timed(ToolFilter(_Ranker(delay=0.5), timeout_s=0.05)))
-    assert out is None and took < 0.4  # slow: sent unfiltered, without waiting for toolrank
+    assert out is None and took < 0.4  # slow: sent unfiltered, without waiting for callbus
 
 
 def test_litellm_filter_warms_the_lists_it_is_given_in_the_background(tmp_path):
     import json
     import threading
 
-    from toolrank.client import ToolrankError
-    from toolrank.integrations.litellm import ToolFilter, load_warm, options_from_env
+    from callbus.client import CallBusError
+    from callbus.integrations.litellm import ToolFilter, load_warm, options_from_env
 
     lists = [req["tools"] for req in _requests().values()]  # all three shapes, provider tools among them
     path = tmp_path / "warm.json"
@@ -636,7 +636,7 @@ def test_litellm_filter_warms_the_lists_it_is_given_in_the_background(tmp_path):
     assert load_warm(path) == lists
     path.write_text(json.dumps(lists[0]))  # one tools array is one list
     assert load_warm(path) == [lists[0]]
-    assert options_from_env({"TOOLRANK_FILTER_WARM": str(path)})["warm"] == [lists[0]]
+    assert options_from_env({"CALLBUS_FILTER_WARM": str(path)})["warm"] == [lists[0]]
 
     done = threading.Event()
     seen = []
@@ -646,16 +646,16 @@ def test_litellm_filter_warms_the_lists_it_is_given_in_the_background(tmp_path):
     assert [names for _, names in ranker.asked] == [[f"t{n}" for n in range(25)]] * 3  # plain functions only
     assert seen == [{"outcome": "warmed", "lists": 3, "of": 3}]
 
-    down = ToolFilter(_Ranker(fail=ToolrankError(0, "server unreachable")), warm=lists[:1])
+    down = ToolFilter(_Ranker(fail=CallBusError(0, "server unreachable")), warm=lists[:1])
     assert down.warm_up() == 0  # logged, never raised: the filter fails open
     assert ToolFilter(_Ranker()).warm == []
 
 
-def test_litellm_filter_ranks_through_a_served_toolrank(tmp_path):
-    from toolrank.integrations.litellm import ToolFilter
+def test_litellm_filter_ranks_through_a_served_callbus(tmp_path):
+    from callbus.integrations.litellm import ToolFilter
 
     chat = _requests()["acompletion"]
-    with _toolrank(tmp_path) as tr:
+    with _callbus(tmp_path) as tr:
         out = asyncio.run(ToolFilter(tr)(chat, "acompletion"))
     kept = [t["function"]["name"] for t in out["tools"] if t["type"] == "function"]
     assert {"t20", "t21"} <= set(kept) and 3 <= len(kept) <= 12 and len(out["tools"]) == len(kept) + 1
@@ -665,7 +665,7 @@ def test_litellm_callback_comes_from_the_environment_and_defines_its_own_hook(mo
     import sys
     import types
 
-    from toolrank.integrations import litellm as tl
+    from callbus.integrations import litellm as tl
 
     class CustomLogger:  # the part of litellm's class the proxy relies on
         def __init__(self, *args, **kwargs):
@@ -681,15 +681,15 @@ def test_litellm_callback_comes_from_the_environment_and_defines_its_own_hook(mo
     fake["litellm.integrations.custom_logger"].CustomLogger = CustomLogger
     for name, module in fake.items():
         monkeypatch.setitem(sys.modules, name, module)
-    monkeypatch.setenv("TOOLRANK_URL", "http://toolrank.test:9000")
-    monkeypatch.setenv("TOOLRANK_FILTER_MIN_TOOLS", "3")
+    monkeypatch.setenv("CALLBUS_URL", "http://callbus.test:9000")
+    monkeypatch.setenv("CALLBUS_FILTER_MIN_TOOLS", "3")
     tl._filter_class.cache_clear()
     tl._tool_filter.cache_clear()
     try:
-        hook = tl.tool_filter  # what `callbacks: toolrank.integrations.litellm.tool_filter` loads
+        hook = tl.tool_filter  # what `callbacks: callbus.integrations.litellm.tool_filter` loads
         assert isinstance(hook, CustomLogger) and hook is tl.tool_filter
         assert "async_pre_call_hook" in vars(type(hook))  # LiteLLM skips inherited hooks
-        assert hook.filter.toolrank.base_url == "http://toolrank.test:9000" and hook.filter.min_tools == 3
+        assert hook.filter.callbus.base_url == "http://callbus.test:9000" and hook.filter.min_tools == 3
         small = {"messages": [{"role": "user", "content": "hi"}], "tools": []}
         assert asyncio.run(hook.async_pre_call_hook(None, None, small, "acompletion")) is None
         with pytest.raises(AttributeError):

@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from toolrank.formats import tool_format
-from toolrank.ingest.openapi import OpenAPISource, load_spec
+from callbus.formats import tool_format
+from callbus.ingest.openapi import OpenAPISource, load_spec
 
 SPEC = {
     "openapi": "3.0.3",
@@ -217,7 +217,7 @@ def test_refs_that_branch_at_every_level_stop_at_the_node_budget():
     """12 schemas of 6 properties, each pointing at the next: inlined in full that is 6^8 nodes."""
     import time
 
-    from toolrank.ingest.openapi import MAX_NODES
+    from callbus.ingest.openapi import MAX_NODES
 
     schemas = {
         f"S{i}": {

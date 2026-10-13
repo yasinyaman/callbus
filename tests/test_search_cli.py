@@ -4,11 +4,11 @@ import json
 import numpy as np
 import pytest
 
-from toolrank.adapters.embeddings_api import OpenAIEmbeddings
-from toolrank.cli import main
-from toolrank.datasets.jsonl import write_tools
-from toolrank.domain import Tool
-from toolrank.ingest.text import tool_text
+from callbus.adapters.embeddings_api import OpenAIEmbeddings
+from callbus.cli import main
+from callbus.datasets.jsonl import write_tools
+from callbus.domain import Tool
+from callbus.ingest.text import tool_text
 
 
 @pytest.fixture
@@ -30,8 +30,8 @@ def fake_endpoint(monkeypatch):
 
 @pytest.fixture
 def ingest_dir(tmp_path, monkeypatch):
-    monkeypatch.delenv("TOOLRANK_HEADS", raising=False)
-    monkeypatch.setenv("TOOLRANK_CACHE", str(tmp_path / "no-heads"))
+    monkeypatch.delenv("CALLBUS_HEADS", raising=False)
+    monkeypatch.setenv("CALLBUS_CACHE", str(tmp_path / "no-heads"))
     tools = [
         Tool(
             id=f"mail/{n}",
@@ -60,7 +60,7 @@ def _args(ingest_dir, tmp_path, *extra):
 def test_search_uses_raw_qwen3_without_heads_and_keeps_its_index(ingest_dir, tmp_path, fake_endpoint, capsys):
     assert main(_args(ingest_dir, tmp_path, "--k", "2")) == 0
     out = capsys.readouterr().out
-    assert out.startswith("dense/emb/toolrank-emb-v0.2/documentation/instruct_query")
+    assert out.startswith("dense/emb/callbus-emb-v0.2/documentation/instruct_query")
     assert "3 tools; index" in out and "(embedded 3, kept 0)" in out and "top 2" in out
     assert len([line for line in out.splitlines() if line.strip().startswith(("1.", "2.", "3."))]) == 2
     assert (ingest_dir / "index" / "index.npz").exists()
@@ -72,11 +72,11 @@ def test_search_uses_raw_qwen3_without_heads_and_keeps_its_index(ingest_dir, tmp
     assert "(embedded 0, kept 3)" in capsys.readouterr().out  # index and query both from caches
 
 
-def test_search_picks_up_heads_from_toolrank_heads(ingest_dir, tmp_path, fake_endpoint, monkeypatch, capsys):
+def test_search_picks_up_heads_from_callbus_heads(ingest_dir, tmp_path, fake_endpoint, monkeypatch, capsys):
     from test_heads_np import _case_npz
 
     serving = {"tool_format": "documentation", "query_format": "instruct_query", "instruction": "Find tools."}
-    monkeypatch.setenv("TOOLRANK_HEADS", str(_case_npz(tmp_path, "gelu_layernorm_skip", serving=serving)))
+    monkeypatch.setenv("CALLBUS_HEADS", str(_case_npz(tmp_path, "gelu_layernorm_skip", serving=serving)))
     main(_args(ingest_dir, tmp_path, "--json", "--no-cut"))
     got = json.loads(capsys.readouterr().out)
     assert got["scorer"].startswith("clm[gelu_layernorm_skip]/") and got["instruction"] == "Find tools."
@@ -86,8 +86,8 @@ def test_search_picks_up_heads_from_toolrank_heads(ingest_dir, tmp_path, fake_en
 def test_ingest_warms_the_cache_that_search_reads(tmp_path, fake_endpoint, monkeypatch):
     from test_ingest_cli import _write_spec
 
-    monkeypatch.delenv("TOOLRANK_HEADS", raising=False)
-    monkeypatch.setenv("TOOLRANK_CACHE", str(tmp_path / "no-heads"))
+    monkeypatch.delenv("CALLBUS_HEADS", raising=False)
+    monkeypatch.setenv("CALLBUS_CACHE", str(tmp_path / "no-heads"))
     out, url = tmp_path / "tools", ["--emb-url", "http://unused/v1"]
     assert main(["ingest", "openapi", _write_spec(tmp_path / "billing.json"), "--out", str(out), *url]) == 0
     assert (out / "cache" / "embeddings.sqlite").exists() and sum(len(b) for b in fake_endpoint) == 2
@@ -97,9 +97,9 @@ def test_ingest_warms_the_cache_that_search_reads(tmp_path, fake_endpoint, monke
 
 
 def test_a_server_without_heads_says_so(ingest_dir, tmp_path, fake_endpoint, monkeypatch):
+    from callbus.build import build_retriever
+    from callbus.cli import build_parser
     from test_heads_np import _case_npz
-    from toolrank.build import build_retriever
-    from toolrank.cli import build_parser
 
     events: list[str] = []
     base_model = _args(ingest_dir, tmp_path, "--emb-model", "qwen3-emb")
@@ -108,7 +108,7 @@ def test_a_server_without_heads_says_so(ingest_dir, tmp_path, fake_endpoint, mon
     events.clear()  # the default backbone needs no heads: nothing to say
     build_retriever(build_parser().parse_args(_args(ingest_dir, tmp_path)), notify=events.append)
     assert [e for e in events if e.startswith("no heads found")] == []
-    monkeypatch.setenv("TOOLRANK_HEADS", str(_case_npz(tmp_path, "gelu_layernorm_skip")))
+    monkeypatch.setenv("CALLBUS_HEADS", str(_case_npz(tmp_path, "gelu_layernorm_skip")))
     build_retriever(build_parser().parse_args(_args(ingest_dir, tmp_path)), notify=events.append)
     assert [e for e in events if e.startswith("no heads found")] == []
 
@@ -116,7 +116,7 @@ def test_a_server_without_heads_says_so(ingest_dir, tmp_path, fake_endpoint, mon
 def test_search_appends_what_the_usage_log_shows_is_called_together(
     ingest_dir, tmp_path, fake_endpoint, capsys
 ):
-    from toolrank.usage import SCHEMA_VERSION
+    from callbus.usage import SCHEMA_VERSION
 
     events = []
     for n in range(2):  # two requests after which send and delete were both called
@@ -174,19 +174,19 @@ def test_cached_heads_go_only_on_the_backbone_they_were_trained_on(
 ):
     import shutil
 
+    from callbus.adapters.heads_np import HEADS_FILE
     from test_heads_np import _case_npz
-    from toolrank.adapters.heads_np import HEADS_FILE
 
     cache = tmp_path / "no-heads" / "heads"
     cache.mkdir(parents=True)
     shutil.copy(_case_npz(tmp_path, "gelu_layernorm_skip"), cache / HEADS_FILE)
     main(_args(ingest_dir, tmp_path, "--json"))
-    assert json.loads(capsys.readouterr().out)["scorer"].startswith("dense/emb/toolrank-emb-v0.2/")
+    assert json.loads(capsys.readouterr().out)["scorer"].startswith("dense/emb/callbus-emb-v0.2/")
     main(_args(ingest_dir, tmp_path, "--json", "--emb-model", "qwen3-emb"))
     assert json.loads(capsys.readouterr().out)["scorer"].startswith("clm[")
     main(_args(ingest_dir, tmp_path, "--json", "--emb-model", "my-own-model"))  # unknown: as before
     assert json.loads(capsys.readouterr().out)["scorer"].startswith("clm[")
-    monkeypatch.setenv("TOOLRANK_HEADS", str(cache / HEADS_FILE))  # asked for by name: always
+    monkeypatch.setenv("CALLBUS_HEADS", str(cache / HEADS_FILE))  # asked for by name: always
     main(_args(ingest_dir, tmp_path, "--json"))
     assert json.loads(capsys.readouterr().out)["scorer"].startswith("clm[")
 
@@ -197,9 +197,9 @@ def test_clm_ckpt_none_drops_only_the_packaged_heads(ingest_dir, tmp_path, fake_
     import shutil
     import time
 
+    from callbus.build import build_retriever
+    from callbus.cli import build_parser
     from test_heads_np import _case_npz
-    from toolrank.build import build_retriever
-    from toolrank.cli import build_parser
 
     home = ingest_dir / "heads"
     home.mkdir()
@@ -218,9 +218,9 @@ def test_heads_replaced_under_the_same_name_reproject_the_persistent_index(
 ):
     """learn rewrites candidate.npz and ab renames it to current.npz while a server runs: new bytes
     under an old path must give a new fingerprint, or the index keeps tool rows of the old heads."""
+    from callbus.build import build_retriever, file_sha256
+    from callbus.cli import build_parser
     from test_retriever import _npz_heads
-    from toolrank.build import build_retriever, file_sha256
-    from toolrank.cli import build_parser
 
     heads = tmp_path / "h" / "candidate.npz"
     _npz_heads(heads, seed=1)
@@ -244,24 +244,24 @@ def test_heads_replaced_under_the_same_name_reproject_the_persistent_index(
 def test_heads_go_only_on_the_backbone_they_name(ingest_dir, tmp_path, fake_endpoint, capsys):
     """Heads trained on Qwen3-Embedding-8B and the v0.2 backbone are both 4096 wide: the width check
     passes, so the heads' cfg decides. A defaulted --emb-model stops; one given by name is a warning."""
+    from callbus.build import build_retriever, heads_mismatch
+    from callbus.cli import build_parser
     from test_retriever import _npz_heads
-    from toolrank.build import build_retriever, heads_mismatch
-    from toolrank.cli import build_parser
 
-    assert heads_mismatch("Qwen/Qwen3-Embedding-8B", "toolrank-emb-v0.2")
+    assert heads_mismatch("Qwen/Qwen3-Embedding-8B", "callbus-emb-v0.2")
     assert not heads_mismatch("Qwen/Qwen3-Embedding-8B", "qwen3-emb-fp8")
-    assert not heads_mismatch("yasinyaman/toolrank-emb-8b", "toolrank-emb-v0.2-q4_k_m")  # its GGUF build
+    assert not heads_mismatch("yasinyaman/callbus-emb-8b", "callbus-emb-v0.2-q4_k_m")  # its GGUF build
     assert not heads_mismatch("Qwen/Qwen3-Embedding-8B", "my-own-name") and not heads_mismatch(
         None, "qwen3-emb"
     )
     heads = tmp_path / "h.npz"
     _npz_heads(heads, seed=1, backbone="Qwen/Qwen3-Embedding-8B")
     parse = build_parser().parse_args
-    with pytest.raises(ValueError, match="trained on Qwen/Qwen3-Embedding-8B, served on toolrank-emb-v0.2"):
+    with pytest.raises(ValueError, match="trained on Qwen/Qwen3-Embedding-8B, served on callbus-emb-v0.2"):
         build_retriever(parse(_args(ingest_dir, tmp_path, "--clm-ckpt", str(heads))))
     build_retriever(parse(_args(ingest_dir, tmp_path, "--clm-ckpt", str(heads), "--emb-model", "qwen3-emb")))
     assert "warning" not in capsys.readouterr().err
-    named = _args(ingest_dir, tmp_path, "--clm-ckpt", str(heads), "--emb-model", "toolrank-emb-v0.2")
+    named = _args(ingest_dir, tmp_path, "--clm-ckpt", str(heads), "--emb-model", "callbus-emb-v0.2")
     build_retriever(parse(named))
     assert "warning: h.npz: heads trained on Qwen/Qwen3-Embedding-8B" in capsys.readouterr().err
 
@@ -271,16 +271,16 @@ def test_pgvector_variants_and_eval_keep_tables_of_their_own(
 ):
     """A candidate's vectors must not overwrite the control arm's rows in one shared table, and an
     eval must not delete a served catalogue's rows: each variant gets a table, eval another default."""
+    from callbus.adapters import index_pgvector
+    from callbus.adapters.index_numpy import NumpyIndex
+    from callbus.build import build_index, build_retriever
+    from callbus.cli import build_parser
     from test_retriever import _npz_heads
-    from toolrank.adapters import index_pgvector
-    from toolrank.adapters.index_numpy import NumpyIndex
-    from toolrank.build import build_index, build_retriever
-    from toolrank.cli import build_parser
 
     class _InMemory(NumpyIndex):  # the table name is what matters here, not Postgres
         name = "pgvector"
 
-        def __init__(self, dsn, table="toolrank_tools"):
+        def __init__(self, dsn, table="callbus_tools"):
             super().__init__(None)
             self.table = table
 
@@ -290,23 +290,23 @@ def test_pgvector_variants_and_eval_keep_tables_of_their_own(
     heads = tmp_path / "h" / "candidate.npz"
     _npz_heads(heads, seed=1)
     tables = {name: r.make_variant(heads, name)().vindex.table for name in ("candidate", "tenant:acme")}
-    assert len(set(tables.values())) == 2 and all(t.startswith("toolrank_tools_") for t in tables.values())
+    assert len(set(tables.values())) == 2 and all(t.startswith("callbus_tools_") for t in tables.values())
     base = build_index(build_parser().parse_args(args))
-    assert base.table == "toolrank_tools"
+    assert base.table == "callbus_tools"
     ev = build_parser().parse_args(["eval", "--data", str(tmp_path), "--index", "pgvector"])
-    assert ev.pg_table == "toolrank_eval"
+    assert ev.pg_table == "callbus_eval"
 
 
 def test_clm_ckpt_none_ranks_without_the_packaged_heads_even_when_they_are_cached(
     ingest_dir, tmp_path, fake_endpoint, monkeypatch
 ):
+    from callbus.adapters.heads_np import HEADS_FILE
+    from callbus.build import build_retriever
+    from callbus.cli import build_parser
     from test_retriever import _npz_heads
-    from toolrank.adapters.heads_np import HEADS_FILE
-    from toolrank.build import build_retriever
-    from toolrank.cli import build_parser
 
     cache = tmp_path / "cached"
-    monkeypatch.setenv("TOOLRANK_CACHE", str(cache))
+    monkeypatch.setenv("CALLBUS_CACHE", str(cache))
     _npz_heads(cache / "heads" / HEADS_FILE, seed=1, backbone="Qwen/Qwen3-Embedding-8B")
     base = _args(ingest_dir, tmp_path, "--emb-model", "qwen3-emb")  # the backbone the packaged heads fit
     assert build_retriever(build_parser().parse_args(base)).search("send an email").scorer.startswith("clm[")
@@ -320,9 +320,9 @@ def test_a_named_keys_requests_never_hit_another_keys_cached_embeddings(ingest_d
     the catalogue stays shared, and the usage log's emb_key follows the scope (learn finds it)."""
     import sqlite3
 
-    from toolrank.build import build_retriever
-    from toolrank.cli import build_parser
-    from toolrank.domain import Tool
+    from callbus.build import build_retriever
+    from callbus.cli import build_parser
+    from callbus.domain import Tool
 
     r = build_retriever(build_parser().parse_args(_args(ingest_dir, tmp_path)))
     fake_endpoint.clear()
@@ -354,11 +354,11 @@ def test_tools_a_caller_ranks_get_a_requests_limits_and_stay_out_of_the_shared_c
     endpoint (holding the workers /v1/call needs) and every text kept on disk for good."""
     import sqlite3
 
-    from toolrank.adapters.embeddings_api import OpenAIEmbeddings
-    from toolrank.build import build_retriever
-    from toolrank.cli import build_parser
-    from toolrank.domain import Tool
-    from toolrank.ports import supplied
+    from callbus.adapters.embeddings_api import OpenAIEmbeddings
+    from callbus.build import build_retriever
+    from callbus.cli import build_parser
+    from callbus.domain import Tool
+    from callbus.ports import supplied
 
     r = build_retriever(build_parser().parse_args(_args(ingest_dir, tmp_path)), serving_limits=True)
     mine = [Tool(id=f"m{n}", doc={"name": f"mine{n}", "description": f"my own tool {n}"}) for n in range(3)]

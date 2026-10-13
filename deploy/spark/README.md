@@ -1,8 +1,8 @@
 # DGX Spark — vLLM pooling servers
 
 The benchmark host's servers, all OpenAI-compatible (`/v1/embeddings`, `/v1/models`; the rerankers
-vLLM's `/score`). Port 8091 here serves the base model as `qwen3-emb`: toolrank's default since 0.2.0,
-`toolrank-emb-v0.2`, is the LoRA backbone on 8097, so name it with `--emb-model` (and `--emb-url`)
+vLLM's `/score`). Port 8091 here serves the base model as `qwen3-emb`: callbus's default since 0.2.0,
+`callbus-emb-v0.2`, is the LoRA backbone on 8097, so name it with `--emb-model` (and `--emb-url`)
 when you point search or serve at this host. The Docker images serve the default themselves.
 
 | Port | Model (served name) | Purpose | Notes |
@@ -14,7 +14,7 @@ when you point search or serve at this host. The Docker images serve the default
 | 8094 | `Qwen/Qwen3-Embedding-8B`, FP8 (`qwen3-emb-fp8`) | the same, quantized at load (profile `fp8`) | |
 | 8095 | `Qwen/Qwen3-Reranker-8B` (`qwen3-reranker`) | second stage, `--rerank cross` (profile `rerank`) | vLLM score API |
 | 8096 | `BAAI/bge-reranker-v2-gemma` (`bge-reranker`) | second stage, measured and dropped (profile `rerank`) | |
-| 8097 | a merged LoRA backbone (`$TOOLRANK_LORA_NAME`, default `qwen3-emb-lora`) | the v0.2 backbone or a new LoRA run (profile `lora`) | `TOOLRANK_LORA` names the merged weights |
+| 8097 | a merged LoRA backbone (`$CALLBUS_LORA_NAME`, default `qwen3-emb-lora`) | the v0.2 backbone or a new LoRA run (profile `lora`) | `CALLBUS_LORA` names the merged weights |
 | 8098 | the same in FP8 (`<name>-fp8`) | profile `lora-fp8` | |
 
 ## Install
@@ -44,7 +44,7 @@ healthy so the two startup memory checks don't race. Check `docker ps` for other
 first and keep the sum of their `--gpu-memory-utilization` under 1.0.
 
 ```bash
-# on the GB10, from ~/toolrank; the first start downloads ~16 GB of weights per model
+# on the GB10, from ~/callbus; the first start downloads ~16 GB of weights per model
 docker compose -f deploy/spark/compose.yaml up -d
 docker compose -f deploy/spark/compose.yaml ps          # both "healthy" when ready
 curl -s http://127.0.0.1:8090/v1/models | head -c 300
@@ -59,7 +59,7 @@ cut batch-1 latency from 86 to 49 ms.
 The same profile has an FP8 copy of the embedding model, `qwen3-embedding-8b-fp8`, on 8094 as
 `qwen3-emb-fp8`. On all three benchmarks it is within a query or two of bf16 (with and without the
 heads), at 7.6 GiB of weights and 55 ms batch-1 latency instead of 99. The Docker images serve the
-v0.2 backbone in FP8 by default (`toolrank-emb-v0.2-fp8`). Keep the two served names apart: the embedding cache is keyed by the name, not the
+v0.2 backbone in FP8 by default (`callbus-emb-v0.2-fp8`). Keep the two served names apart: the embedding cache is keyed by the name, not the
 dtype.
 
 A chat copy of the backbone (the default generate runner, same weights) writes MCP-Zero's queries
@@ -68,15 +68,15 @@ qwen3-8b-chat` serves it on 8093 as `qwen3-8b-chat`; `docker compose -f deploy/s
 stop qwen3-8b-chat` frees its memory afterwards.
 
 Postgres 17 with pgvector for the pgvector index (tests and trials only; bound to 127.0.0.1) is the
-`pg` profile: `docker compose -f deploy/spark/compose.yaml --profile pg up -d toolrank-pg`, then
-`export TOOLRANK_PG_DSN=postgresql://toolrank:toolrank@127.0.0.1:55440/toolrank`. It keeps its data in
-the `toolrank-pg` volume; another project's pgvector container on this host (port 55433) is separate.
+`pg` profile: `docker compose -f deploy/spark/compose.yaml --profile pg up -d callbus-pg`, then
+`export CALLBUS_PG_DSN=postgresql://callbus:callbus@127.0.0.1:55440/callbus`. It keeps its data in
+the `callbus-pg` volume; another project's pgvector container on this host (port 55433) is separate.
 
 For a faster first start, download both models in parallel before `up -d` (compose fetches them
 one after the other):
 
 ```bash
-cd ~/toolrank && .venv/bin/hf download Qwen/Qwen3-8B & .venv/bin/hf download Qwen/Qwen3-Embedding-8B & wait
+cd ~/callbus && .venv/bin/hf download Qwen/Qwen3-8B & .venv/bin/hf download Qwen/Qwen3-Embedding-8B & wait
 ```
 
 What the first start on the GB10 showed (vLLM 0.13.0 in NGC 26.01):
@@ -95,7 +95,7 @@ What the first start on the GB10 showed (vLLM 0.13.0 in NGC 26.01):
   `--max-model-len`); the larger budget also lifted throughput from ~3.7k to ~4.3k tokens/s.
 - Vectors are not bit-reproducible: the same batch encoded twice differs by up to ~3e-3 per
   component (GPU nondeterminism, also batch composition), with prefix caching on or off.
-  toolrank's embedding cache is what keeps numbers stable.
+  callbus's embedding cache is what keeps numbers stable.
 - Batch-1 embedding latency is ~67 ms p50 for either 8B model (memory-bandwidth bound in bf16).
 
 ## Smoke test from the Mac (Tailscale)
@@ -117,5 +117,5 @@ mkdir -p ~/.cache/clm && curl -L -o ~/.cache/clm/CLM_v0.1-8B.pt \
 CLM_EMB_URL=http://127.0.0.1:8090/v1/embeddings clm-serve --port 8700    # web playground at :8700
 ```
 
-toolrank itself does not need clm-serve: `CLMScorer` loads the `.pt` directly and calls
+callbus itself does not need clm-serve: `CLMScorer` loads the `.pt` directly and calls
 `/v1/embeddings` on port 8090.

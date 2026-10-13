@@ -1,4 +1,4 @@
-"""The toolrank skill (examples/skills/toolrank): its scripts run as separate processes against the
+"""The callbus skill (examples/skills/callbus): its scripts run as separate processes against the
 served app behind a real HTTP server, as an agent with only a shell would run them."""
 
 import json
@@ -17,11 +17,11 @@ pytest.importorskip("mcp")
 
 from starlette.testclient import TestClient  # noqa: E402
 
+from callbus.adapters.mcp_proxy import build_proxy, http_app  # noqa: E402
+from callbus.adapters.rest import rest_routes  # noqa: E402
 from test_rest import BASE, _callable, _events  # noqa: E402
-from toolrank.adapters.mcp_proxy import build_proxy, http_app  # noqa: E402
-from toolrank.adapters.rest import rest_routes  # noqa: E402
 
-SKILL = Path(__file__).resolve().parents[1] / "examples" / "skills" / "toolrank"
+SKILL = Path(__file__).resolve().parents[1] / "examples" / "skills" / "callbus"
 
 
 @contextmanager
@@ -69,10 +69,10 @@ def _served(tmp_path, api_key):
 
 
 def _run(script, *args, url, key=None, stdin=None):
-    env = {k: v for k, v in os.environ.items() if not k.startswith("TOOLRANK_")}
-    env["TOOLRANK_URL"] = url
+    env = {k: v for k, v in os.environ.items() if not k.startswith("CALLBUS_")}
+    env["CALLBUS_URL"] = url
     if key:
-        env["TOOLRANK_API_KEY"] = key
+        env["CALLBUS_API_KEY"] = key
     cmd = [sys.executable, str(SKILL / "scripts" / script), *args]
     return subprocess.run(cmd, capture_output=True, text=True, env=env, input=stdin, timeout=60)
 
@@ -85,7 +85,7 @@ def test_skill_card_names_the_skill_and_its_scripts():
     assert "scripts/search.py" in text and "scripts/call.py" in text and len(text) < 3000
 
 
-def test_skill_searches_then_calls_through_toolrank(tmp_path):
+def test_skill_searches_then_calls_through_callbus(tmp_path):
     with _served(tmp_path, api_key="k") as url:
         found = _run("search.py", "add", "two", "integers", "--k", "2", url=url, key="k")
         assert found.returncode == 0, found.stderr
@@ -105,9 +105,9 @@ def test_skill_searches_then_calls_through_toolrank(tmp_path):
         refused = _run("call.py", "api/createThing", '{"name": "x"}', url=url, key="k")
         assert refused.returncode == 1 and "--allow-write" in refused.stdout  # the tool's error: read it
         missing = _run("call.py", "fx/nope", url=url, key="k")
-        assert missing.returncode == 2 and "toolrank 404" in missing.stderr
+        assert missing.returncode == 2 and "callbus 404" in missing.stderr
         locked = _run("search.py", "add", url=url)  # no key
-        assert locked.returncode == 2 and "toolrank 401" in locked.stderr
+        assert locked.returncode == 2 and "callbus 401" in locked.stderr
         odd = _run("call.py", "fx/add", "[1]", url=url, key="k")
         assert odd.returncode == 2 and "one JSON object" in odd.stderr
     calls = [e for e in _events(tmp_path) if e["event"] == "call"]
@@ -115,13 +115,13 @@ def test_skill_searches_then_calls_through_toolrank(tmp_path):
     assert [(c["tool"], c["link"]) for c in calls[:2]] == [("fx/add", "search_id"), ("fx/add", "client")]
 
 
-def test_skill_keeps_its_token_on_the_host_and_says_when_toolrank_is_away():
+def test_skill_keeps_its_token_on_the_host_and_says_when_callbus_is_away():
     def redirect(path, headers, body):
         return 302, {"Location": "http://127.0.0.1:1/steal"}, b""
 
     with _http(redirect) as url:
         moved = _run("search.py", "x", url=url, key="secret")
-    assert moved.returncode == 2 and "toolrank 302" in moved.stderr
+    assert moved.returncode == 2 and "callbus 302" in moved.stderr
     away = _run("search.py", "x", url="http://127.0.0.1:1")
     assert away.returncode == 2 and "unreachable" in away.stderr
 

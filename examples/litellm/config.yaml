@@ -1,17 +1,17 @@
-# The LiteLLM proxy with toolrank, two ways; use either or both.
+# The LiteLLM proxy with callbus, two ways; use either or both.
 #
-# 1. The tool filter: a request that carries many tools reaches the model with the ones toolrank
+# 1. The tool filter: a request that carries many tools reaches the model with the ones callbus
 #    ranks relevant to the conversation (Chat Completions, Responses and Anthropic Messages).
-#    Install toolrank into the proxy's environment (no extra needed) and point it at a running
-#    `toolrank serve`: TOOLRANK_URL, TOOLRANK_API_KEY, TOOLRANK_FILTER_MIN_TOOLS (20),
-#    TOOLRANK_FILTER_MAX_TOOLS (10), TOOLRANK_FILTER_MARGIN (0.2), TOOLRANK_FILTER_TIMEOUT (2 s),
-#    TOOLRANK_FILTER_WARM (a JSON file of the tool lists to embed when the proxy starts).
-# 2. toolrank behind LiteLLM's MCP gateway: clients of the gateway get toolrank's search_tools
+#    Install callbus into the proxy's environment (no extra needed) and point it at a running
+#    `callbus serve`: CALLBUS_URL, CALLBUS_API_KEY, CALLBUS_FILTER_MIN_TOOLS (20),
+#    CALLBUS_FILTER_MAX_TOOLS (10), CALLBUS_FILTER_MARGIN (0.2), CALLBUS_FILTER_TIMEOUT (2 s),
+#    CALLBUS_FILTER_WARM (a JSON file of the tool lists to embed when the proxy starts).
+# 2. callbus behind LiteLLM's MCP gateway: clients of the gateway get callbus's search_tools
 #    and call_tool instead of every tool of every server.
 #
-#   toolrank serve --data data/mytools --port 8765
-#   uv pip install 'litellm[proxy]' -e /path/to/toolrank
-#   TOOLRANK_URL=http://127.0.0.1:8765 litellm --config examples/litellm/config.yaml --port 4000
+#   callbus serve --data data/mytools --port 8765
+#   uv pip install 'litellm[proxy]' -e /path/to/callbus
+#   CALLBUS_URL=http://127.0.0.1:8765 litellm --config examples/litellm/config.yaml --port 4000
 
 model_list:
   - model_name: claude
@@ -24,13 +24,13 @@ model_list:
       api_key: os.environ/OPENAI_API_KEY
 
 litellm_settings:
-  callbacks: toolrank.integrations.litellm.tool_filter
+  callbacks: callbus.integrations.litellm.tool_filter
 
 mcp_servers:
-  toolrank:
+  callbus:
     url: http://127.0.0.1:8765/mcp
     transport: http
-    description: Search and call the tools indexed by toolrank
-    # with `toolrank serve --api-key`:
+    description: Search and call the tools indexed by callbus
+    # with `callbus serve --api-key`:
     # auth_type: bearer_token
-    # authentication_token: os.environ/TOOLRANK_API_KEY
+    # authentication_token: os.environ/CALLBUS_API_KEY

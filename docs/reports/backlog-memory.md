@@ -18,7 +18,7 @@ kısıyor ama başabaş tekrar payını %10'dan %3'e çekiyor.
 
 `NDCG@10 ↑ %`, `Recall@k ↑ %`, `Comprehensiveness@10 ↑ %` README'deki gibi, w/ inst; `K@cut ↓`: adaptive K'nın
 (margin 0,2, en çok 10) gösterdiği tool sayısı, `Recall@cut ↑ %` o listenin bulduğu altın tool payı. `istenmiş`: ayrılmış
-sorgunun altın tool'larından biri trafikte çağrılmış; `yeni`: hiçbiri çağrılmamış. p: `toolrank compare --paired`
+sorgunun altın tool'larından biri trafikte çağrılmış; `yeni`: hiçbiri çağrılmamış. p: `callbus compare --paired`
 (ToolRet'te kategori ağırlıklı da).
 
 ## Kurgu (koşudan önce sabitlendi)
@@ -70,7 +70,7 @@ az tool gösterip daha çok doğru tool buluyor. Seed 1'de cat-macro 56,30 → 5
 ## Komutlar
 
 ```bash
-# GB10, ~/toolrank (8097 serving v0.2 as qwen3-emb-lora; vectors from .cache/toolrank)
+# GB10, ~/callbus (8097 serving v0.2 as qwen3-emb-lora; vectors from .cache/callbus)
 E="--scorer dense --emb-url http://127.0.0.1:8097/v1 --emb-model qwen3-emb-lora --truncate 8192 --emb-batch 128 \
   --tool-format documentation --query-format instruct_query --with-inst --cut-margin 0.2"
 uv run python scripts/memory_sim.py --out results/memory_toolret_s0 -- --data data/toolret $E --ks 5,10,20
@@ -78,8 +78,8 @@ uv run python scripts/memory_sim.py --seed 1 --out results/memory_toolret_s1 -- 
 uv run python scripts/memory_sim.py --noise 0.2 --out results/memory_toolret_s0n20 -- --data data/toolret $E --ks 5,10,20
 uv run python scripts/memory_sim.py --out results/memory_mcp_zero_server_s0 -- --data data/mcp_zero_server $E --ks 1,5,10,20
 # ... dev_w3, dev_w3_sit (--ks 1,5,10), dev_w3_multi2, livemcpbench_server (--ks 5,10,20)
-# Mac, after scp 'gb10:toolrank/results/memory_*' results/:
-uv run toolrank compare --paired --data data/toolret results/memory_toolret_s0_base_runs.jsonl \
+# Mac, after scp 'gb10:callbus/results/memory_*' results/:
+uv run callbus compare --paired --data data/toolret results/memory_toolret_s0_base_runs.jsonl \
   results/memory_toolret_s0_memory_runs.jsonl
 ```
 
@@ -129,7 +129,7 @@ güvenli seçim; kurulum kendi günlüğünde ölçüp en iyiye geçebilir.
 ```bash
 # the same commands as above, with the gates (memory_sim.py at b6c9486), tags g0, g1, g0n20
 uv run python scripts/memory_sim.py --out results/memory_toolret_g0 -- --data data/toolret $E --ks 5,10,20
-uv run toolrank compare --paired --data data/toolret results/memory_toolret_g0_base_runs.jsonl \
+uv run callbus compare --paired --data data/toolret results/memory_toolret_g0_base_runs.jsonl \
   results/memory_toolret_g0_memory_safe_runs.jsonl
 ```
 
@@ -175,7 +175,7 @@ uv run python scripts/enrich_sim.py --cache data/enrich/toolret.jsonl --out resu
 uv run python scripts/enrich_sim.py --cache data/enrich/livemcpbench_server.jsonl \
   --out results/enrich_livemcpbench_server -- ${FLAGS/toolret/livemcpbench_server}
 # Mac
-uv run toolrank compare --paired --data data/toolret results/enrich_toolret_base_runs.jsonl \
+uv run callbus compare --paired --data data/toolret results/enrich_toolret_base_runs.jsonl \
   results/enrich_toolret_requests_rows_runs.jsonl
 ```
 

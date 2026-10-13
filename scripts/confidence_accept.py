@@ -1,6 +1,6 @@
 """Does a catalogue's confidence band carry to requests it was not calibrated on? (backlog D2.14)
 
-``toolrank calibrate`` keeps the best scores of requests written for a catalogue, and a search's
+``callbus calibrate`` keeps the best scores of requests written for a catalogue, and a search's
 ``confidence`` is where its own best score falls in that distribution. The acceptance question is
 not how a calibration describes itself — on its own requests the 5% band turns away 5% by
 construction — but what the band does to requests from somewhere else: a benchmark's real tasks,
@@ -26,11 +26,11 @@ import statistics
 import sys
 from pathlib import Path
 
-from toolrank.build import build_scorer
-from toolrank.calibration import FILE, Calibration, load
-from toolrank.calibration import measure as measure_scores
-from toolrank.cli import build_parser
-from toolrank.datasets.jsonl import load_queries, load_tools
+from callbus.build import build_scorer
+from callbus.calibration import FILE, Calibration, load
+from callbus.calibration import measure as measure_scores
+from callbus.cli import build_parser
+from callbus.datasets.jsonl import load_queries, load_tools
 
 
 def _floats(s: str) -> list[float]:
@@ -51,7 +51,7 @@ def pick(entries: list[Calibration], scorer: str) -> Calibration:
 def main() -> None:
     argv = sys.argv[1:]
     if "--" not in argv:
-        sys.exit("usage: confidence_accept.py [flags] -- <toolrank eval flags>")
+        sys.exit("usage: confidence_accept.py [flags] -- <callbus eval flags>")
     cut = argv.index("--")
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", required=True, help="dir whose queries.jsonl is checked against the band")
@@ -66,7 +66,7 @@ def main() -> None:
     cal_path = Path(a.calibration) if a.calibration else Path(e.data) / FILE
     entries = load(cal_path)
     if not entries:
-        sys.exit(f"{cal_path}: no calibration (run toolrank calibrate first)")
+        sys.exit(f"{cal_path}: no calibration (run callbus calibrate first)")
 
     tools = load_tools(Path(e.data) / "tools.jsonl")
     queries = load_queries(Path(a.check) / "queries.jsonl")

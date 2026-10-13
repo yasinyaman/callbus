@@ -7,9 +7,9 @@ import builtins
 
 import pytest
 
-from toolrank.ingest.mcp import tool_from_mcp
-from toolrank.ingest.schema import _validator, problems
-from toolrank.ingest.sync import Listing, checked, sync
+from callbus.ingest.mcp import tool_from_mcp
+from callbus.ingest.schema import _validator, problems
+from callbus.ingest.sync import Listing, checked, sync
 
 GOOD = {
     "type": "object",

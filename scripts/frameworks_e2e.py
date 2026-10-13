@@ -1,22 +1,22 @@
 """End-to-end check of the framework adapters (Faz 1 week 5) on a real catalogue, with scripted
 models: no model API is called and no tool call leaves the machine.
 
-Starts ``toolrank serve`` as ``platforms_e2e.py`` does (the week-1 MCP servers, a local stand-in for
+Starts ``callbus serve`` as ``platforms_e2e.py`` does (the week-1 MCP servers, a local stand-in for
 every OpenAPI source), then runs each task through:
 
 - langgraph-bigtool 0.0.3's agent, in its own environment (the release needs ``langgraph<1``): the
   model calls ``retrieve_tools``, then the task's tool if it was retrieved, then answers;
-- a LangChain 1.x ``create_agent`` with ``ToolrankToolSelector``, two ways: the whole catalogue as
+- a LangChain 1.x ``create_agent`` with ``CallBusToolSelector``, two ways: the whole catalogue as
   its tools with a ``Toolbox`` (a search per turn), and N_TOOLS of them as its own tools (``/v1/rank``);
   the model calls the task's tool if it was shown, then answers;
-- a LlamaIndex ``FunctionAgent`` with ``ToolrankToolRetriever`` and ``MockFunctionCallingLLM``;
+- a LlamaIndex ``FunctionAgent`` with ``CallBusToolRetriever`` and ``MockFunctionCallingLLM``;
 - the LiteLLM proxy (``uvx``, its own environment) with ``tool_filter`` in front of a stub upstream
   that records the tools each request brings: 120 catalogue tools plus a provider tool, in Chat
   Completions, Responses and Anthropic Messages shape, with an earlier call in the history;
-- toolrank behind LiteLLM's MCP gateway: list, search, call.
+- callbus behind LiteLLM's MCP gateway: list, search, call.
 
     uv run python scripts/frameworks_e2e.py --data data/w3 --emb-url http://$GB10:8091/v1 \
-        --heads dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz --out results/frameworks_e2e.json
+        --heads dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz --out results/frameworks_e2e.json
 
 ``--only NAME`` (repeatable) runs some of the parts: langgraph_bigtool, langchain, llamaindex, litellm.
 """
@@ -45,7 +45,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).parent))
 from platforms_e2e import free_port, served, stand_in  # noqa: E402
 
-from toolrank.client import ToolrankClient  # noqa: E402
+from callbus.client import CallBusClient  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[1]
 BIGTOOL = ["--with", "langgraph<1", "--with", "langgraph-bigtool==0.0.3"]
@@ -101,10 +101,10 @@ def bigtool(url: str) -> list[dict[str, Any]]:
     from langgraph.store.memory import InMemoryStore
     from langgraph_bigtool import create_agent
 
-    from toolrank.integrations.langgraph import Toolbox
+    from callbus.integrations.langgraph import Toolbox
 
     events: list[tuple[str, dict[str, Any]]] = []
-    box = Toolbox(ToolrankClient(url), on_event=lambda kind, details: events.append((kind, details)))
+    box = Toolbox(CallBusClient(url), on_event=lambda kind, details: events.append((kind, details)))
     t0 = time.perf_counter()
     registry = box.registry()
     registry_s = time.perf_counter() - t0
@@ -156,8 +156,8 @@ def langchain_agent(url: str) -> list[dict[str, Any]]:
     from langchain_core.outputs import ChatGeneration, ChatResult
     from pydantic import Field
 
-    from toolrank.integrations.langchain import ToolrankToolSelector
-    from toolrank.integrations.langgraph import Toolbox
+    from callbus.integrations.langchain import CallBusToolSelector
+    from callbus.integrations.langgraph import Toolbox
 
     class Scripted(BaseChatModel):
         """Calls the task's tool if it was shown, then answers with the tool's output."""
@@ -188,7 +188,7 @@ def langchain_agent(url: str) -> list[dict[str, Any]]:
             return "scripted"
 
     events: list[tuple[str, dict[str, Any]]] = []
-    box = Toolbox(ToolrankClient(url), on_event=lambda kind, details: events.append((kind, details)))
+    box = Toolbox(CallBusClient(url), on_event=lambda kind, details: events.append((kind, details)))
     registry = box.registry()
     own = [registry[t["api_name"]] for t in request_tools(list(box.entries.values()))]
     ways = {"toolbox": (list(registry.values()), {"toolbox": box}), "own_tools": (own, {})}
@@ -197,8 +197,8 @@ def langchain_agent(url: str) -> list[dict[str, Any]]:
         for n, t in enumerate(TASKS):
             model, selections = Scripted(task=t), []
             # a long timeout: the first ranking of a tool list embeds it, and the report should show the choice
-            selector = ToolrankToolSelector(
-                ToolrankClient(url), timeout_s=60.0, on_select=selections.append, **options
+            selector = CallBusToolSelector(
+                CallBusClient(url), timeout_s=60.0, on_select=selections.append, **options
             )
             t0 = time.perf_counter()
             agent = create_agent(model, tools=tools, middleware=[selector])
@@ -241,11 +241,11 @@ async def llamaindex(url: str) -> list[dict[str, Any]]:
     from llama_index.core.base.llms.types import ChatMessage, MessageRole, ToolCallBlock
     from llama_index.core.llms.mock import MockFunctionCallingLLM
 
-    from toolrank.integrations.llamaindex import ToolrankToolRetriever
+    from callbus.integrations.llamaindex import CallBusToolRetriever
 
     events: list[tuple[str, dict[str, Any]]] = []
-    retriever = ToolrankToolRetriever(
-        ToolrankClient(url), on_event=lambda kind, details: events.append((kind, details))
+    retriever = CallBusToolRetriever(
+        CallBusClient(url), on_event=lambda kind, details: events.append((kind, details))
     )
 
     def scripted(t: dict[str, Any], offered: list[list[str]]) -> Any:
@@ -296,12 +296,12 @@ model_list:
   - model_name: claude-stub
     litellm_params: {{model: anthropic/claude-stub, api_base: "{upstream}", api_key: sk-stub}}
 litellm_settings:
-  callbacks: toolrank.integrations.litellm.tool_filter
+  callbacks: callbus.integrations.litellm.tool_filter
 general_settings:
   master_key: {master_key}
 mcp_servers:
-  toolrank:
-    url: "{toolrank}/mcp"
+  callbus:
+    url: "{callbus}/mcp"
     transport: http
 """
 
@@ -464,12 +464,12 @@ def _post(url: str, body: dict[str, Any]) -> tuple[int, Any]:
 
 
 async def gateway(url: str) -> dict[str, Any]:
-    """toolrank behind LiteLLM's MCP gateway: its tools listed, one search, one call."""
+    """callbus behind LiteLLM's MCP gateway: its tools listed, one search, one call."""
     import httpx2
     from mcp import Client
     from mcp.client.streamable_http import streamable_http_client
 
-    from toolrank.adapters.mcp_client import list_all
+    from callbus.adapters.mcp_client import list_all
 
     headers = {"Authorization": f"Bearer {MASTER_KEY}"}
     async with (
@@ -498,7 +498,7 @@ async def gateway(url: str) -> dict[str, Any]:
 
 
 def litellm_proxy(url: str) -> dict[str, Any]:
-    catalog = ToolrankClient(url).catalog()["tools"]
+    catalog = CallBusClient(url).catalog()["tools"]
     tools = request_tools(catalog)
     used = next(t for t in tools if t["server"] == "stripe")
     stub, got = upstream()
@@ -509,11 +509,11 @@ def litellm_proxy(url: str) -> dict[str, Any]:
         cfg = Path(tmp) / "litellm.yaml"
         cfg.write_text(
             LITELLM_CONFIG.format(
-                upstream=f"http://127.0.0.1:{stub.server_address[1]}", toolrank=url, master_key=MASTER_KEY
+                upstream=f"http://127.0.0.1:{stub.server_address[1]}", callbus=url, master_key=MASTER_KEY
             )
         )
         # a long timeout here: the first request embeds the 120 tool texts, which is what it measures
-        env = {**os.environ, "TOOLRANK_URL": url, "TOOLRANK_FILTER_TIMEOUT": "600"}
+        env = {**os.environ, "CALLBUS_URL": url, "CALLBUS_FILTER_TIMEOUT": "600"}
         env.pop("VIRTUAL_ENV", None)
         cmd = ["uvx", "--quiet", "--from", LITELLM, "--with-editable", str(REPO), "litellm"]
         cmd += ["--config", str(cfg), "--host", "127.0.0.1", "--port", str(port)]

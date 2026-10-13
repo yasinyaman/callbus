@@ -1,5 +1,5 @@
-from toolrank.domain import Query, Tool
-from toolrank.formats import QUERY_FORMATS, TOOL_FORMATS, _params, parse_doc, query_format, tool_format
+from callbus.domain import Query, Tool
+from callbus.formats import QUERY_FORMATS, TOOL_FORMATS, _params, parse_doc, query_format, tool_format
 
 DOC = {
     "name": "bacterial_growth",
@@ -123,7 +123,7 @@ def test_query_formats():
 
 
 def test_toolret_labels_and_task_map():
-    from toolrank.datasets.toolret import TASK_TO_CATEGORY, TOOLRET_CATEGORIES, TOOLRET_TASKS, _labels
+    from callbus.datasets.toolret import TASK_TO_CATEGORY, TOOLRET_CATEGORIES, TOOLRET_TASKS, _labels
 
     raw = '[{"id": "apigen_tool_272", "doc": {"name": "bacterial_growth"}, "relevance": 1}, {"id": "x", "relevance": 2}]'
     assert _labels(raw) == {"apigen_tool_272": 1, "x": 2}

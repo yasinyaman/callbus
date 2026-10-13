@@ -9,7 +9,7 @@ kalitesinden başlayan (skip) head'ler yalnız in-batch negatiflerle 46.55'ten 4
 
 ## Tablo
 
-Kapı ayarı: ToolRet, w/ inst, NDCG@10 (resmi `toolrank eval --clm-ckpt` koşuları, `toolrank compare`):
+Kapı ayarı: ToolRet, w/ inst, NDCG@10 (resmi `callbus eval --clm-ckpt` koşuları, `callbus compare`):
 
 | Run | dataset | inst | n | NDCG@10 | Recall@10 | Comprehensiveness@10 | NDCG@10 cat-macro | Comprehensiveness@10 cat-macro | p50 ms |
 | --- | --- | :-: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -70,8 +70,8 @@ Veri 3.4 kat artınca micro 52.5'ten 54.0'a çıkıyor, cat-macro ~47.2'de kalı
 ## Komutlar
 
 ```bash
-# GB10, ~/toolrank
-toolrank data pull toolret-train
+# GB10, ~/callbus
+callbus data pull toolret-train
 ~/.local/bin/uv run python train/embed_pairs.py --emb-url http://127.0.0.1:8090/v1 --emb-model qwen3-8b --truncate 2048 --tool-format example_call --query-format clm --n-train 60000
 ~/.local/bin/uv run python train/embed_pairs.py --emb-url http://127.0.0.1:8091/v1 --emb-model qwen3-emb --truncate 8192 --tool-format documentation --query-format instruct_query --n-train 60000
 
@@ -81,8 +81,8 @@ toolrank data pull toolret-train
 ~/.local/bin/uv run python train/finetune_heads.py --emb-url http://127.0.0.1:8091/v1 --emb-model qwen3-emb --truncate 8192 --tool-format documentation --query-format instruct_query --n-train 60000 --epochs 5 --skip --lr 1e-5 --neg 0 --name qwen_60k_skip_neg0
 
 # resmi değerlendirme
-~/.local/bin/uv run toolrank eval --data data/toolret --scorer clm --emb-url http://127.0.0.1:8090/v1 --emb-model qwen3-8b --truncate 2048 --tool-format example_call --with-inst --clm-ckpt data/heads/clm_60k_lr1e-2_negf95.pt --out results/toolret_clmft60kf_example_call_inst.json
-~/.local/bin/uv run toolrank eval --data data/toolret --scorer clm --emb-url http://127.0.0.1:8091/v1 --emb-model qwen3-emb --truncate 8192 --tool-format documentation --query-format instruct_query --with-inst --clm-ckpt data/heads/qwen_60k_skip_neg0.pt --out results/toolret_qwen3emb_heads60k_documentation_inst.json
+~/.local/bin/uv run callbus eval --data data/toolret --scorer clm --emb-url http://127.0.0.1:8090/v1 --emb-model qwen3-8b --truncate 2048 --tool-format example_call --with-inst --clm-ckpt data/heads/clm_60k_lr1e-2_negf95.pt --out results/toolret_clmft60kf_example_call_inst.json
+~/.local/bin/uv run callbus eval --data data/toolret --scorer clm --emb-url http://127.0.0.1:8091/v1 --emb-model qwen3-emb --truncate 8192 --tool-format documentation --query-format instruct_query --with-inst --clm-ckpt data/heads/qwen_60k_skip_neg0.pt --out results/toolret_qwen3emb_heads60k_documentation_inst.json
 ```
 
 Diğer koşuların bayrakları `results/finetune_<ad>.json` içindeki `args` alanında.

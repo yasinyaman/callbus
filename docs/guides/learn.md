@@ -1,13 +1,13 @@
 # Learn from the usage log
 
-Every search and call `toolrank serve` answers goes to its usage log: which tools a request
-retrieved, which one the agent then called, and how that went. `toolrank learn` turns that into
+Every search and call `callbus serve` answers goes to its usage log: which tools a request
+retrieved, which one the agent then called, and how that went. `callbus learn` turns that into
 better heads for your catalogue, without ever seeing a request's text.
 
 ```bash
-pip install "toolrank[clm]"                 # torch, for training only; the result runs in numpy
-toolrank learn --data data/mytools          # the ingest dir toolrank serve has been serving
-toolrank learn --data data/mytools --dry-run   # what the log yields, nothing trained (no torch)
+pip install "callbus[clm]"                 # torch, for training only; the result runs in numpy
+callbus learn --data data/mytools          # the ingest dir callbus serve has been serving
+callbus learn --data data/mytools --dry-run   # what the log yields, nothing trained (no torch)
 ```
 
 ## What it learns from
@@ -43,14 +43,14 @@ The start is what the server would serve (`--init` names another): the promoted
 heads when they fit the backbone, else fresh heads that start as the identity — so on a headless
 backbone like the default one, epoch 0 is the backbone's own score, not a random head's noise.
 
-With `--dev DIR` (a benchmark-format set, as `toolrank finetune` takes) the same heads are scored on
+With `--dev DIR` (a benchmark-format set, as `callbus finetune` takes) the same heads are scored on
 it every epoch; an epoch that wins on the log but loses more than `--max-drop` NDCG@10 points there
 is not published either. The decision is one of:
 
 - `published`: the heads are written as fp16 `.npz` (the `.pt` next to it) with what they were
   selected on in their `cfg`. By default that is `DATA/heads/candidate.npz`: a running server starts
   answering a share of the requests with it (see below). `--out FILE` writes them elsewhere, to serve
-  with `TOOLRANK_HEADS=<file>` or `--clm-ckpt <file>`.
+  with `CALLBUS_HEADS=<file>` or `--clm-ckpt <file>`.
 - `no improvement`, `benchmark dropped`: nothing is written; the report says the numbers.
 - `not enough pairs` (fewer than `--min-pairs`, 20): the log is too young.
 
@@ -59,7 +59,7 @@ or to one API key's traffic.
 
 ## Trying the new heads on live traffic
 
-A held-out share of yesterday's requests is evidence; today's requests are the test. `toolrank serve`
+A held-out share of yesterday's requests is evidence; today's requests are the test. `callbus serve`
 watches `DATA/heads` while it runs:
 
 | File | What the server does |
@@ -75,10 +75,10 @@ a key; `ab` without `--tenant` leaves the keys with their own experiment out, an
 
 A file that appears or changes is loaded in the background (its tools are re-projected from cached
 vectors, nothing is embedded again); until then requests get the heads before it. The log records
-which arm answered each search. `toolrank ab` reads it back:
+which arm answered each search. `callbus ab` reads it back:
 
 ```bash
-toolrank ab --data data/mytools            # since the candidate appeared; --dry-run moves nothing
+callbus ab --data data/mytools            # since the candidate appeared; --dry-run moves nothing
 ```
 
 It prints one row per arm (the control and the candidate): its searches, how many led to a call, the
@@ -100,8 +100,8 @@ learned. While a candidate is still being judged, `learn` leaves it alone (`--re
 overwrites it, and its comparison starts over).
 
 ```bash
-toolrank ab --data data/mytools && \
-  toolrank learn --data data/mytools --replay data/toolret_train/pairs.jsonl
+callbus ab --data data/mytools && \
+  callbus learn --data data/mytools --replay data/toolret_train/pairs.jsonl
 ```
 
 (`--replay` keeps the heads from forgetting what the backbone already ranked well; *Not forgetting*
@@ -111,7 +111,7 @@ below has the numbers and why the sample size matters.)
 
 Heads trained on one catalogue's traffic can lose what the released ones knew. `--replay pairs.jsonl`
 mixes general request-to-tool pairs into the training batches (`--replay-n`, 10,000 of them; ToolRet's
-training pairs from `toolrank data pull toolret-train` are what the released heads saw): a seeded
+training pairs from `callbus data pull toolret-train` are what the released heads saw): a seeded
 sample over the whole file, positives only, requests a `--dev` set asks about dropped. They are
 embedded once into the same cache; the epoch is still picked on the log, and `--dev` still guards.
 
@@ -163,7 +163,7 @@ What the numbers say:
   the full gain came back from the remaining requests. If your agents' failed calls are mostly wrong
   picks rather than right tools with bad arguments, use it.
 - **The A/B agrees.** The held-out requests played as the next period's traffic, half to the
-  candidate: `mrr` 0.572 for the control, 0.593 for the candidate, and `toolrank ab` promoted it.
+  candidate: `mrr` 0.572 for the control, 0.593 for the candidate, and `callbus ab` promoted it.
 
 A simulated agent is tidier than a real one, and a benchmark's requests repeat more than yours may:
 take the table as the shape of the curve, not as a promise. Heads learned from one catalogue's traffic

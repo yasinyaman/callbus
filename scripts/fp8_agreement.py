@@ -1,14 +1,14 @@
 """Two backbone endpoints on the same texts (bf16 vs FP8, two vLLM versions, vLLM vs llama.cpp): how
 close are their vectors, before and after the heads, and do they rank alike? Reads both from the
-embedding cache, so each endpoint must have encoded the set first (e.g. a `toolrank eval` run each,
+embedding cache, so each endpoint must have encoded the set first (e.g. a `callbus eval` run each,
 same formats), or ``--encode`` sends what a side lacks to its endpoint. A set without
 ``queries.jsonl`` (an ingest dir) compares tool vectors only; ``--heads none`` skips the heads.
-On the GB10, from ~/toolrank:
+On the GB10, from ~/callbus:
 
     # Qwen3-Embedding-8B bf16 (8091) vs FP8 (8094), with the packaged heads
     uv run python scripts/fp8_agreement.py --a http://127.0.0.1:8091/v1=qwen3-emb \\
         --b http://127.0.0.1:8094/v1=qwen3-emb-fp8 --truncate 8192 --tool-format documentation \\
-        --query-format instruct_query --heads dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz
+        --query-format instruct_query --heads dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz
     # the defaults: the CLM backbone (Qwen3-8B, 8090 vs 8092) with CLM's reference heads
     uv run python scripts/fp8_agreement.py
     # on the Mac: vLLM bf16 vectors of data/w3 (cached) vs a llama.cpp GGUF server
@@ -24,11 +24,11 @@ from pathlib import Path
 
 import numpy as np
 
-from toolrank.adapters.dense import topk_dot
-from toolrank.adapters.embeddings_api import EmbeddingCache, OpenAIEmbeddings, l2_normalize
-from toolrank.adapters.heads_np import load_heads
-from toolrank.datasets.jsonl import load_queries, load_tools
-from toolrank.formats import query_format, tool_format
+from callbus.adapters.dense import topk_dot
+from callbus.adapters.embeddings_api import EmbeddingCache, OpenAIEmbeddings, l2_normalize
+from callbus.adapters.heads_np import load_heads
+from callbus.datasets.jsonl import load_queries, load_tools
+from callbus.formats import query_format, tool_format
 
 
 def _stack(found: dict[int, np.ndarray], n: int) -> np.ndarray:
@@ -54,7 +54,7 @@ def main() -> None:
         "--heads", default=None, help=".npz or .pt heads, or none (default: CLM's reference heads)"
     )
     p.add_argument("--n", type=int, default=1000, help="queries compared on their top 10")
-    p.add_argument("--db", default=".cache/toolrank/embeddings.sqlite")
+    p.add_argument("--db", default=".cache/callbus/embeddings.sqlite")
     p.add_argument("--encode", action="store_true", help="send the texts a side lacks to its endpoint")
     a = p.parse_args()
 
@@ -81,7 +81,7 @@ def main() -> None:
         return _stack(x, len(texts)), _stack(y, len(texts))
 
     if a.heads is None:
-        from toolrank.adapters.clm import default_checkpoint
+        from callbus.adapters.clm import default_checkpoint
 
         a.heads = default_checkpoint()
     Ta, Tb = both([tool_format(a.tool_format)(t) for t in load_tools(f"{a.data}/tools.jsonl")])

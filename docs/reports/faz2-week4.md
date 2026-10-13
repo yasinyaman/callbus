@@ -2,7 +2,7 @@
 
 ## Sonuç (tek cümle)
 
-`toolrank learn`, ToolRet kataloğunda (44.453 tool) 5.573 simüle isteğin günlüğünden öğrenince hiç
+`callbus learn`, ToolRet kataloğunda (44.453 tool) 5.573 simüle isteğin günlüğünden öğrenince hiç
 görmediği 2.388 istekte NDCG@10'u 54,20 → 57,23'e (cat-macro 48,59 → 52,55) çıkarıyor; kazancın
 tamamı trafiğin daha önce sorduğu tool'lara gelen yeni isteklerde, başka benchmark'larda unutma yok,
 ve aynı fark canlı A/B'de günlükten okunuyor (`mrr` 0,572 → 0,593, karar `promote`) — yani Hafta 3'te
@@ -10,7 +10,7 @@ yalnız mekanizması doğrulanan döngü kalite de üretiyor.
 
 ## Ölçüler, birimler ve yön
 
-- `NDCG@10 ↑ %`: `toolrank eval` protokolü (ilk 100, tüm katalog), w/ inst. ToolRet satırlarında
+- `NDCG@10 ↑ %`: `callbus eval` protokolü (ilk 100, tüm katalog), w/ inst. ToolRet satırlarında
   `micro / cat-macro`; MCP setlerinde tek sayı (micro).
 - **Ayrılmış**: sorguların rastgele %30'u (tohumlu); hiçbir zaman servis edilmedi, günlüğe girmedi.
   **Sorulmuş tool**: ayrılmış sorgulardan, altın tool'larından en az biri trafikteki bir sorgunun da
@@ -19,17 +19,17 @@ yalnız mekanizması doğrulanan döngü kalite de üretiyor.
   doğrusal): `(n·tümü − n_yeni·yeni) / (n − n_yeni)`.
 - `log.Recall@5 ↑ %`: `learn`'ün kendi seçim ölçüsü — günlüğün en yeni %20 isteğinde çağrılan tool
   tüm katalogda ilk 5'te mi (başlangıç → seçilen epoch).
-- `mrr ↑`: `toolrank ab`'nin ölçüsü — çağrılan tool'un 1/sırası, kolun bütün aramaları üzerinden.
+- `mrr ↑`: `callbus ab`'nin ölçüsü — çağrılan tool'un 1/sırası, kolun bütün aramaları üzerinden.
 
 ## Simülasyon
 
 Bir benchmark, servis edilen bir katalog yerine geçiyor (`scripts/learn_sim.py`). Sorguların %70'i
-"trafik": her biri `toolrank serve`'ün yaptığı gibi yanıtlanıyor (aynı `Retriever`, uyarlanabilir K
+"trafik": her biri `callbus serve`'ün yaptığı gibi yanıtlanıyor (aynı `Retriever`, uyarlanabilir K
 0,2 / en çok 10, aynı kullanım günlüğü) ve simüle ajan **gösterilen** altın tool'ları çağırıyor;
 gösterilmeyen altın tool hiç çağrılmıyor, yani günlük yalnız servisin zaten yüzeye çıkardığını
 öğretebiliyor (gerçekte olduğu gibi). ToolRet'te başlangıç head'leriyle aramaların %77,4'ünde bir
-altın tool gösterildi (ilk sırada %45,5, ortalama K 8,27). Sonra günlükte `toolrank learn`, ve
-başlangıç ile öğrenilmiş head'ler ayrılmış sorgularda `toolrank eval` ile ölçülüyor.
+altın tool gösterildi (ilk sırada %45,5, ortalama K 8,27). Sonra günlükte `callbus learn`, ve
+başlangıç ile öğrenilmiş head'ler ayrılmış sorgularda `callbus eval` ile ölçülüyor.
 
 ## Tablo 1 — trafik boyutu (ToolRet kataloğu, varsayılan tarif)
 
@@ -80,7 +80,7 @@ Burada ayrılmış her istek trafikte hiç sorulmamış bir tool'a (838'in 829'u
 ## Tablo 4 — A/B: ayrılmış sorgular "sonraki dönemin trafiği" olarak
 
 5.573 istekten öğrenilen aday `DATA/heads/candidate.npz`; ayrılmış 2.388 sorgu `--candidate-share 0.5`
-ile oynatıldı, `toolrank ab --dry-run` günlüğü okudu.
+ile oynatıldı, `callbus ab --dry-run` günlüğü okudu.
 
 | Kol | Arama | Çağrıya giden | İlk sırada ↑ | `mrr` ↑ |
 | --- | ---: | ---: | ---: | ---: |
@@ -93,7 +93,7 @@ sonra devredeydi (44.453 tool'un yeniden izdüşümü).
 ## Komutlar
 
 ```bash
-# GB10, ~/toolrank; Qwen3-Embedding-8B 8091'de, bütün vektörler önbellekte (encoder tokens 0)
+# GB10, ~/callbus; Qwen3-Embedding-8B 8091'de, bütün vektörler önbellekte (encoder tokens 0)
 bash scripts/learn_sim.sh                                          # Tablo 1: 100/300/1000/3000/tümü
 SIZES=0 SEED=1 NAME=toolret_s1 LEARN="--device cpu" bash scripts/learn_sim.sh   # ikinci bölme
 SIZES=0 TAG=e10 LEARN="--epochs 10" bash scripts/learn_sim.sh      # Tablo 2
@@ -105,27 +105,27 @@ BENCH=data/mcp_zero_server NAME=mcpzero GUARD=data/livemcpbench_server \
   EVALS="data/toolret data/livemcpbench_server" SIZES="300 1000 0" bash scripts/learn_sim.sh   # Tablo 3
 
 # Tablo 4 (elle; A/B günlüğü kirlettiği için ayrı bir dizinde: data/sim/toolret)
-export TOOLRANK_HEADS=$PWD/dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz
-EMB="--emb-url http://127.0.0.1:8091/v1 --cache-dir .cache/toolrank"
+export CALLBUS_HEADS=$PWD/dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz
+EMB="--emb-url http://127.0.0.1:8091/v1 --cache-dir .cache/callbus"
 uv run python scripts/learn_sim.py split --bench data/toolret --out data/sim/toolret
 uv run python scripts/learn_sim.py traffic --queries data/sim/toolret/traffic.jsonl -- --data data/sim/toolret $EMB
-uv run toolrank learn --data data/sim/toolret $EMB --dev data/mcp_zero_server
+uv run callbus learn --data data/sim/toolret $EMB --dev data/mcp_zero_server
 uv run python scripts/learn_sim.py traffic --queries data/sim/toolret/heldout/queries.jsonl --wait-candidate -- \
   --data data/sim/toolret $EMB --candidate-share 0.5
-uv run toolrank ab --data data/sim/toolret --dry-run
+uv run callbus ab --data data/sim/toolret --dry-run
 
 # Mac: tablolar results/sim_*.json ve results/learn_sim_*.json raporlarından
-uv run toolrank compare results/sim_toolret_base_heldout.json results/sim_toolret_n0_default_heldout.json
+uv run callbus compare results/sim_toolret_base_heldout.json results/sim_toolret_n0_default_heldout.json
 ```
 
-Sürücünün her adımı gerçek komut: `learn_sim.py traffic` → `toolrank learn --data RUN --out
-RUN/learned/<TAG>.npz --dev GUARD` → `toolrank eval --scorer clm --clm-ckpt <head> --tool-format
+Sürücünün her adımı gerçek komut: `learn_sim.py traffic` → `callbus learn --data RUN --out
+RUN/learned/<TAG>.npz --dev GUARD` → `callbus eval --scorer clm --clm-ckpt <head> --tool-format
 documentation --query-format instruct_query --with-inst` (ayrılmış, yeni tool ve unutma setleri).
 
 ## Ortam
 
 - GB10; Qwen3-Embedding-8B bf16 (NGC vLLM 0.13, `--max-model-len 8192`), önbellek sıcak: hiçbir koşu
-  embedding istemedi. Başlangıç head'leri `toolrank-heads-qwen3-emb-8b-v0.1.npz` (fp16).
+  embedding istemedi. Başlangıç head'leri `callbus-heads-qwen3-emb-8b-v0.1.npz` (fp16).
 - Kod: `dc54bce` + bu haftanın değişiklikleri (`learn.state_vectors`, `scripts/learn_sim.*`).
 - Süreler: 5.573 arama + günlük 153 sn (44.453 tool, tek iş parçacığı); `learn` 3 epoch × ~13 sn +
   ölçümler ≈ 1 dk (GPU); `learn --dry-run` 2,2 sn (önbellek 872 bin satır, 14,8 GB — anahtarlar önce

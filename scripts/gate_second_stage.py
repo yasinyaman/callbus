@@ -35,10 +35,10 @@ from pathlib import Path
 import numpy as np
 from routing_sweep import auroc, gate_table
 
-from toolrank.adapters.cross_encoder import CrossEncoderScorer, ScoreClient
-from toolrank.build import build_scorer
-from toolrank.cli import build_parser
-from toolrank.datasets.jsonl import load_queries, load_tools
+from callbus.adapters.cross_encoder import CrossEncoderScorer, ScoreClient
+from callbus.build import build_scorer
+from callbus.cli import build_parser
+from callbus.datasets.jsonl import load_queries, load_tools
 
 
 def _floats(s: str) -> list[float]:
@@ -62,7 +62,7 @@ def table(name: str, have: np.ndarray, gone: np.ndarray, thresholds: list[float]
 def main() -> None:
     argv = sys.argv[1:]
     if "--" not in argv:
-        sys.exit("usage: gate_second_stage.py [flags] -- <toolrank eval flags>")
+        sys.exit("usage: gate_second_stage.py [flags] -- <callbus eval flags>")
     cut = argv.index("--")
     ap = argparse.ArgumentParser()
     ap.add_argument("--rerank-url", required=True, help="the cross-encoder's /score endpoint")
@@ -101,7 +101,7 @@ def main() -> None:
     client = ScoreClient(
         a.rerank_model,
         a.rerank_url,
-        cache_dir=e.cache_dir or ".cache/toolrank",
+        cache_dir=e.cache_dir or ".cache/callbus",
         slots=a.rerank_workers,
     )
     cross = CrossEncoderScorer(

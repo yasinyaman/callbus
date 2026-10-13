@@ -2,12 +2,12 @@
 
 The tool index is built once from the embedding cache; then a sample of queries is ranked one
 at a time through an uncached encoder (cold: HTTP encode + heads + exact top-k over all tools)
-and through the cached one (warm: heads + top-k only). Run on the GB10 from ~/toolrank:
+and through the cached one (warm: heads + top-k only). Run on the GB10 from ~/callbus:
 
     uv run python scripts/latency.py --scorer clm --emb-url http://127.0.0.1:8090/v1 \
         --emb-model qwen3-8b --truncate 2048 --tool-format example_call
     # the packaged heads on Qwen3-Embedding-8B (bf16 on 8091, FP8 on 8094)
-    uv run python scripts/latency.py --scorer clm --clm-ckpt dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz \
+    uv run python scripts/latency.py --scorer clm --clm-ckpt dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz \
         --emb-url http://127.0.0.1:8094/v1 --emb-model qwen3-emb-fp8 --truncate 8192 \
         --tool-format documentation --query-format instruct_query
 """
@@ -19,9 +19,9 @@ import random
 import statistics
 import time
 
-from toolrank.adapters.dense import DenseScorer
-from toolrank.adapters.embeddings_api import OpenAIEmbeddings
-from toolrank.datasets.jsonl import load_queries, load_tools
+from callbus.adapters.dense import DenseScorer
+from callbus.adapters.embeddings_api import OpenAIEmbeddings
+from callbus.datasets.jsonl import load_queries, load_tools
 
 
 def main() -> None:
@@ -43,11 +43,11 @@ def main() -> None:
     tools = load_tools(f"{a.data}/tools.jsonl")
     sample = random.Random(a.seed).sample(load_queries(f"{a.data}/queries.jsonl"), a.n)
     kw = dict(truncate_prompt_tokens=a.truncate)
-    cached = OpenAIEmbeddings(a.emb_model, a.emb_url, cache_dir=".cache/toolrank", **kw)
+    cached = OpenAIEmbeddings(a.emb_model, a.emb_url, cache_dir=".cache/callbus", **kw)
     cold = OpenAIEmbeddings(a.emb_model, a.emb_url, cache_dir=None, **kw)
     if a.scorer == "clm":
-        from toolrank.adapters.clm import CLMScorer, default_checkpoint
-        from toolrank.adapters.heads_np import load_heads
+        from callbus.adapters.clm import CLMScorer, default_checkpoint
+        from callbus.adapters.heads_np import load_heads
 
         heads = load_heads(a.clm_ckpt or default_checkpoint(), device=a.device)
         scorer = CLMScorer(cached, heads, a.tool_format, a.query_format or "clm")

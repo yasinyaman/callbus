@@ -1,6 +1,6 @@
-# A release, from a v* tag: checks, the toolrank image on GHCR, then the package on PyPI (which cannot
+# A release, from a v* tag: checks, the callbus image on GHCR, then the package on PyPI (which cannot
 # be taken back, so it waits for the image), then a GitHub release. A tag pushed while the repository
-# variable TOOLRANK_RELEASE is not "enabled" fails at once and publishes nothing; the pypi and ghcr
+# variable CALLBUS_RELEASE is not "enabled" fails at once and publishes nothing; the pypi and ghcr
 # environments require a reviewer, so every publication is approved by hand.
 #
 # Run by hand (workflow_dispatch) it is a rehearsal: the same checks, the package, the heads and the
@@ -26,9 +26,9 @@ jobs:
     runs-on: ubuntu-26.04
     steps:
       - name: Releases are switched on
-        if: github.event_name == 'push' && vars.TOOLRANK_RELEASE != 'enabled'
+        if: github.event_name == 'push' && vars.CALLBUS_RELEASE != 'enabled'
         run: |
-          echo "::error::the repository variable TOOLRANK_RELEASE is not 'enabled': nothing was built or published"
+          echo "::error::the repository variable CALLBUS_RELEASE is not 'enabled': nothing was built or published"
           exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
@@ -68,7 +68,7 @@ jobs:
           python-version: "3.12"
       - name: The released heads, sha256-checked (a rehearsal before they are hosted goes without)
         run: |
-          if ! TOOLRANK_CACHE=build uv run --locked toolrank heads pull; then
+          if ! CALLBUS_CACHE=build uv run --locked callbus heads pull; then
             test "$GITHUB_EVENT_NAME" = workflow_dispatch
             mkdir -p build/heads && echo "no heads: a rehearsal before they were hosted" > build/heads/README
           fi
@@ -102,7 +102,7 @@ jobs:
       - id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
-          images: ghcr.io/${{ github.repository_owner }}/toolrank
+          images: ghcr.io/${{ github.repository_owner }}/callbus
           # latest comes with a release's semver tag (flavor latest=auto), never with a pre-release
           tags: |
             type=semver,pattern={{version}}
@@ -166,6 +166,6 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           awk -v v="$version" '$0 ~ "^## \\[" v "\\]" {on=1; next} /^## \[/ {on=0} on' CHANGELOG.md > notes.md
           test -s notes.md
-          gh release create "$GITHUB_REF_NAME" --verify-tag --title "toolrank $version" --notes-file notes.md
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "callbus $version" --notes-file notes.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

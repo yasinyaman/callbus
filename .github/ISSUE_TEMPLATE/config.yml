@@ -1,11 +1,11 @@
 blank_issues_enabled: false
 contact_links:
   - name: Report a security vulnerability
-    url: https://github.com/yasinyaman/toolrank/security/advisories/new
+    url: https://github.com/yasinyaman/callbus/security/advisories/new
     about: Privately, please; see SECURITY.md.
   - name: Questions and ideas
-    url: https://github.com/yasinyaman/toolrank/discussions
-    about: Ask, or share how you use toolrank.
+    url: https://github.com/yasinyaman/callbus/discussions
+    about: Ask, or share how you use callbus.
   - name: Documentation
-    url: https://yaman.dev/toolrank/
+    url: https://yaman.dev/callbus/
     about: Quick start, guides and the CLI reference.

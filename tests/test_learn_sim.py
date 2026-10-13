@@ -1,5 +1,5 @@
 """``scripts/learn_sim.py``: a benchmark split into traffic and held-out queries, and the simulated
-agent whose calls end up in the usage log the way ``toolrank learn`` reads them."""
+agent whose calls end up in the usage log the way ``callbus learn`` reads them."""
 
 import importlib.util
 import random
@@ -7,11 +7,11 @@ from pathlib import Path
 
 import pytest
 
-from toolrank.datasets.jsonl import load_queries, load_tools, write_queries, write_tools
-from toolrank.datasets.synthetic import make_queries, make_tools
-from toolrank.learn import judge, mine, read_events
-from toolrank.retriever import Hit, SearchResult
-from toolrank.usage import UsageLog
+from callbus.datasets.jsonl import load_queries, load_tools, write_queries, write_tools
+from callbus.datasets.synthetic import make_queries, make_tools
+from callbus.learn import judge, mine, read_events
+from callbus.retriever import Hit, SearchResult
+from callbus.usage import UsageLog
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -96,7 +96,7 @@ def test_play_logs_searches_and_the_calls_of_the_gold_tools_shown(tmp_path):
         and len(pairs) == len({q.text for q in queries})
     )
     assert {p.positives for p in pairs} == {(g,) for g in gold} and all(len(p.negatives) == 3 for p in pairs)
-    stats = judge(events)  # what toolrank ab reads agrees with the script's own summary
+    stats = judge(events)  # what callbus ab reads agrees with the script's own summary
     assert stats["candidate"]["searches"] == 3 and stats["candidate"]["mrr"] == arms["candidate"]["mrr"]
 
     # a gold tool that was not shown is never called; a noisy agent calls a wrong tool instead

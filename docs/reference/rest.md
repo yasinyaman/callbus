@@ -1,11 +1,11 @@
 # REST API
 
-`toolrank serve` serves REST next to MCP, on the same port. A running server describes itself at
+`callbus serve` serves REST next to MCP, on the same port. A running server describes itself at
 `GET /openapi.json` (OpenAPI 3.1).
 
 ## Authentication
 
-When a key is set (`--api-key`, `TOOLRANK_API_KEY`, or named keys from `--api-keys`), every `/v1`
+When a key is set (`--api-key`, `CALLBUS_API_KEY`, or named keys from `--api-keys`), every `/v1`
 and `/mcp` request needs `Authorization: Bearer <key>`, on loopback too; `serve` refuses to listen
 on a non-loopback address without one. `/healthz` and `/openapi.json` need no key.
 Requests must come with an allowed `Host` header and, from a browser, an allowed `Origin`; bodies are
@@ -28,7 +28,7 @@ first index builds), `took_ms`, `rule` and `tools`. Each tool has `name` (its id
 for OpenAPI operations; a tool appended by `serve --co-use` also has `used_with`, the returned tool
 it is called together with. A `note` for the agent is added when the tools are keyword matches,
 when none is close enough, or when the reranker did not answer and the tools are in the first
-stage's order. With a calibration (`toolrank calibrate`) the answer also has `confidence`, the
+stage's order. With a calibration (`callbus calibrate`) the answer also has `confidence`, the
 share of answerable requests whose best score was at or below this one's.
 
 ### `POST /v1/rank`
@@ -58,11 +58,11 @@ operations, `http_status`. A tool that fails is still a 200 with `isError: true`
 {"name": "stripe/PostRefunds", "outcome": "ok", "search_id": "s-...", "took_ms": 840}
 ```
 
-For a client that runs the tools itself (its agent platform calls the APIs) and wants toolrank to
+For a client that runs the tools itself (its agent platform calls the APIs) and wants callbus to
 learn from what it called. It reports a call: the tool id, `outcome` (`ok`, or `tool_error` when the
 tool answered with an error), and optionally the search that found it and how long it took. The
-call goes to the usage log as if toolrank had run it, linked to that search (`ran_by: client`), so
-`toolrank learn`, `ab` and co-use count it. The answer is `{name, call_id}`. JSON bodies only.
+call goes to the usage log as if callbus had run it, linked to that search (`ran_by: client`), so
+`callbus learn`, `ab` and co-use count it. The answer is `{name, call_id}`. JSON bodies only.
 
 ### `GET /v1/tools`, `GET /v1/tools/{id}`
 
@@ -98,5 +98,5 @@ Errors are JSON `{"error": "..."}`:
 
 ## A client
 
-`toolrank.client.ToolrankClient` wraps these endpoints with the standard library only; see the
+`callbus.client.CallBusClient` wraps these endpoints with the standard library only; see the
 [Python API](python.md).

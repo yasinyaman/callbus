@@ -1,6 +1,6 @@
 import random
 
-from toolrank.names import API_NAME_RE, api_name
+from callbus.names import API_NAME_RE, api_name
 
 
 def test_readable_ids_keep_their_shape():

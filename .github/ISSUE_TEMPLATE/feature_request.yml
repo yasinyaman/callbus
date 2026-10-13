@@ -1,12 +1,12 @@
 name: Feature request
-description: Something toolrank should do, or do differently.
+description: Something callbus should do, or do differently.
 labels: ["enhancement"]
 body:
   - type: textarea
     id: problem
     attributes:
       label: The problem
-      description: What you are trying to do, and where toolrank gets in the way today.
+      description: What you are trying to do, and where callbus gets in the way today.
     validations:
       required: true
   - type: textarea

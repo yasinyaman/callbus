@@ -1,11 +1,11 @@
 name: Feedback
-description: You tried toolrank. Tell us how it went, good or bad; it decides what comes next.
+description: You tried callbus. Tell us how it went, good or bad; it decides what comes next.
 labels: ["feedback"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for trying toolrank. Only the first two questions are required. Please leave out
+        Thanks for trying callbus. Only the first two questions are required. Please leave out
         secrets, API keys and tool definitions you cannot share.
   - type: textarea
     id: setup
@@ -13,7 +13,7 @@ body:
       label: What did you set up?
       description: >-
         The agent or client (Claude Code, Claude Desktop, the Claude or OpenAI API, LangGraph,
-        LlamaIndex, LiteLLM, your own), how you ran toolrank (pip, Docker) and where the embedding
+        LlamaIndex, LiteLLM, your own), how you ran callbus (pip, Docker) and where the embedding
         model ran.
     validations:
       required: true

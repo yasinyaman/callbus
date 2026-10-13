@@ -4,7 +4,7 @@ Takvimde 16–20 Kasım; erken yapıldı.
 
 ## Sonuç (tek cümle)
 
-`toolrank serve` bir ingest dizinini ajanlara iki tool'luk tek bir MCP sunucusu olarak sunuyor:
+`callbus serve` bir ingest dizinini ajanlara iki tool'luk tek bir MCP sunucusu olarak sunuyor:
 `search_tools` ve `call_tool`. Sunucu HTTP'den ya da stdio'dan çalışıyor; aynı portta bir REST API
 ve OpenAPI şeması da var. Her arama ve çağrı Faz 2 için kullanım günlüğüne yazılıyor.
 
@@ -65,7 +65,7 @@ Mac'te uçtan uca denendi: 1.862 tool, 5 kaynak, embedding'ler GB10'dan Tailscal
     ile yazılıyor.
   - Çağrı bir aramaya bağlanıyor. Bağlama sırası: ajan `search_id` verdiyse o arama; yoksa
     oturumun son araması; o da yoksa aynı arayüzden (`via`) son arama.
-- **CLI.** `toolrank serve --data DIR [--config F] [--server N=T] [--stdio] [--host] [--port]
+- **CLI.** `callbus serve --data DIR [--config F] [--server N=T] [--stdio] [--host] [--port]
   [--api-key] [--allowed-host] [--allow-write] [--usage-log | --no-usage-log] [--log-text]
   [--timeout]` + `search`'ün arama bayrakları. Yollar mutlak yapılıyor (Claude Desktop sunucuları
   `/`'da başlatıyor). README'de Claude Desktop örneği var.
@@ -127,7 +127,7 @@ Adaptif K (margin 0.2, max 10). Süreler istemci tarafında, MCP HTTP çağrıs�
 | Çağrı | Sonuç | ms |
 | --- | --- | ---: |
 | `time/get_current_time` {timezone: Asia/Tokyo} | doğru saat (ilk çağrı: `uvx` süreci başlıyor) | 689 |
-| `everything/echo` | "Echo: hello from toolrank" (ilk çağrı: `npx`) | 1.459 |
+| `everything/echo` | "Echo: hello from callbus" (ilk çağrı: `npx`) | 1.459 |
 | `swagger-petstore/findPets` {tags: [dog, cat], limit: 2} | HTTP 200; `tags=dog&tags=cat&limit=2`, API anahtarı ulaştı | 35 |
 | `swagger-petstore/find pet by id` {id: 404} | `isError`: HTTP 404 + tool'un tam şeması | 4.9 |
 | `stripe/PostRefunds` | reddedildi: POST, `--allow-write` yok (istek çıkmadı) | 3.0 |
@@ -177,19 +177,19 @@ Soğuk koşunun olayları:
 ```bash
 # Mac, repo kökü; embedding'ler GB10'dan (Tailscale)
 # $GB10: GB10'un Tailscale adresi (depoda tutulmuyor). Embedding cache'i URL'in yazımıyla anahtarlı: hep aynı adres.
-cp -R data/mytools data/w3 && uv run toolrank ingest drop everything-http --out data/w3
-uv run toolrank ingest openapi data/specs/github.json --name github --out data/w3   # call_tool için sorgu stilleri
-uv run toolrank ingest openapi data/specs/stripe.json --name stripe --out data/w3
-uv run toolrank ingest openapi data/specs/petstore-expanded.yaml --out data/w3
+cp -R data/mytools data/w3 && uv run callbus ingest drop everything-http --out data/w3
+uv run callbus ingest openapi data/specs/github.json --name github --out data/w3   # call_tool için sorgu stilleri
+uv run callbus ingest openapi data/specs/stripe.json --name stripe --out data/w3
+uv run callbus ingest openapi data/specs/petstore-expanded.yaml --out data/w3
 # soğuk açılış (DATA/index ve DATA/cache yok) + stdio + REST + günlük
 uv run python scripts/serve_e2e.py --data data/w3 --emb-url http://$GB10:8091/v1 \
-  --heads dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz --out results/serve_e2e_w3.json
+  --heads dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz --out results/serve_e2e_w3.json
 # cache dolu, indeks yok
 mkdir data/w3warm && cp data/w3/tools.jsonl data/w3/sources.json data/w3warm/ && cp -R data/w3/cache data/w3warm/
 uv run python scripts/serve_e2e.py --data data/w3warm --emb-url http://$GB10:8091/v1 \
-  --heads dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz --skip-stdio --out results/serve_e2e_w3warm.json
+  --heads dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz --skip-stdio --out results/serve_e2e_w3warm.json
 # ingest'in ısıtması serve'ün cache'iyle aynı mı: "embedded 0 … 1862 already cached"
-uv run toolrank ingest openapi data/specs/petstore-expanded.yaml --out data/w3 --emb-url http://$GB10:8091/v1
+uv run callbus ingest openapi data/specs/petstore-expanded.yaml --out data/w3 --emb-url http://$GB10:8091/v1
 ```
 
 ## Ortam
@@ -197,7 +197,7 @@ uv run toolrank ingest openapi data/specs/petstore-expanded.yaml --out data/w3 -
 - Mac: Python 3.13; `mcp` 2.2.0, `httpx2` 2.13.1, Starlette 1.7, uvicorn 0.54.
 - GB10: vLLM pooling (NGC imajı), Qwen3-Embedding-8B, `--max-model-len 8192`, bf16, port 8091,
   Tailscale üzerinden (`$GB10`).
-- Head'ler: `toolrank-heads-qwen3-emb-8b-v0.1.npz` (fp16, sha256 `f3c10125…72f0`).
+- Head'ler: `callbus-heads-qwen3-emb-8b-v0.1.npz` (fp16, sha256 `f3c10125…72f0`).
 - Commit: soğuk koşu `4c85887`, cache-dolu koşu `372bba9`.
 
 ## Sapmalar ve açıklamalar
@@ -206,7 +206,7 @@ uv run toolrank ingest openapi data/specs/petstore-expanded.yaml --out data/w3 -
   Bu, ilk indeks kurulumunun 32'lik uzun metin batch'lerine de uygulanıyordu. Büyük katalogda ilk
   açılış indekssiz kalabilirdi. Kısıt artık yalnız sorgu gömmelerinde (10 sn, bir tekrar);
   indeksleme 600 sn'yi koruyor. Son başarısız denemeden sonra da artık beklenmiyor (`4c85887`).
-- **Düzeltilen: cache yeri.** `ingest --emb-url` cache'i `.cache/toolrank`'a, çağıranın kırpma
+- **Düzeltilen: cache yeri.** `ingest --emb-url` cache'i `.cache/callbus`'a, çağıranın kırpma
   değeriyle yazıyordu. Serve ise `DATA/cache`'i 8192 kırpmayla okuyordu. Isıtma serve'e hiç yaramıyordu.
   Artık üç komut da `DATA/cache`'i paylaşıyor. Isıtma varsayılan olarak serve'ün modelini ve
   kırpmasını kullanıyor (`372bba9`).
@@ -298,7 +298,7 @@ Anlamsal aramada sorgunun gömülmesi bu koşuda 140–554 ms sürdü (ağ ve GB
 ```bash
 mkdir data/w3cold && cp data/w3/tools.jsonl data/w3/sources.json data/w3cold/
 uv run python scripts/serve_e2e.py --data data/w3cold --emb-url http://$GB10:8091/v1 \
-  --heads dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz --out results/serve_e2e_w3cold_v2.json
+  --heads dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz --out results/serve_e2e_w3cold_v2.json
 ```
 
 ## Sonraki hafta

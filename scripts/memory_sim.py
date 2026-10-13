@@ -18,7 +18,7 @@ uv run python scripts/memory_sim.py [--share 0.7 --seed 0] [--out results/memory
     --truncate 8192 --tool-format documentation --query-format instruct_query --with-inst --cut-margin 0.2
 
 ``--out PREFIX`` writes PREFIX.json (the grid, the picks, the tables' numbers) and
-PREFIX_{base,memory,memory_safe}_runs.jsonl for ``toolrank compare --paired`` on the held-out queries.
+PREFIX_{base,memory,memory_safe}_runs.jsonl for ``callbus compare --paired`` on the held-out queries.
 """
 
 from __future__ import annotations
@@ -33,13 +33,13 @@ from typing import Any
 
 import numpy as np
 
-from toolrank.build import build_scorer
-from toolrank.cli import build_parser
-from toolrank.cut import rule_from_flags
-from toolrank.datasets.jsonl import load_queries, load_tools
-from toolrank.domain import Query, RankedList
-from toolrank.eval.metrics import evaluate_cut, evaluate_query
-from toolrank.eval.runner import _runs_row, summarize
+from callbus.build import build_scorer
+from callbus.cli import build_parser
+from callbus.cut import rule_from_flags
+from callbus.datasets.jsonl import load_queries, load_tools
+from callbus.domain import Query, RankedList
+from callbus.eval.metrics import evaluate_cut, evaluate_query
+from callbus.eval.runner import _runs_row, summarize
 
 DEPTH = 100  # the protocol's top-100
 BETAS = (
@@ -189,9 +189,7 @@ def report(queries: list[Query], rows: list[dict[str, float]]) -> dict[str, Any]
 def main() -> None:
     argv = sys.argv[1:]
     if "--" not in argv:
-        sys.exit(
-            "usage: memory_sim.py [--share 0.7 --seed 0 --noise 0 --out PREFIX] -- <toolrank eval flags>"
-        )
+        sys.exit("usage: memory_sim.py [--share 0.7 --seed 0 --noise 0 --out PREFIX] -- <callbus eval flags>")
     at = argv.index("--")
     ap = argparse.ArgumentParser()
     ap.add_argument("--share", type=float, default=0.7, help="of the queries played as traffic (learn_sim's)")

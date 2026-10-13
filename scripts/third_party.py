@@ -1,5 +1,5 @@
 """Write THIRD_PARTY_NOTICES.md: the Python packages the Docker images install
-(``toolrank[mcp,openapi,stem]`` as locked in uv.lock, for Linux) with the license each package's
+(``callbus[mcp,openapi,stem]`` as locked in uv.lock, for Linux) with the license each package's
 own metadata states, then the models, the other extras and the images' base layers.
 
     uv run python scripts/third_party.py --write     # after a dependency change
@@ -34,14 +34,14 @@ LINUX = {
 
 HEAD = """# Third-party notices
 
-toolrank is licensed under the Apache License 2.0 (`LICENSE`); `NOTICE` credits the projects it
-takes code or text from. This file lists what toolrank installs and runs alongside. It is generated
+callbus is licensed under the Apache License 2.0 (`LICENSE`); `NOTICE` credits the projects it
+takes code or text from. This file lists what callbus installs and runs alongside. It is generated
 by `scripts/third_party.py`; each license is the one the package's own metadata states, so check a
 package's distribution for its full terms.
 
 ## Python packages in the Docker images
 
-`toolrank[mcp,openapi,stem]`, the versions locked in `uv.lock` (Linux):
+`callbus[mcp,openapi,stem]`, the versions locked in `uv.lock` (Linux):
 
 | Package | Version | License |
 | --- | --- | --- |
@@ -50,7 +50,7 @@ package's distribution for its full terms.
 TAIL = """
 ## Other optional extras
 
-Installed only when asked for (`pip install "toolrank[<extra>]"`), never in the images:
+Installed only when asked for (`pip install "callbus[<extra>]"`), never in the images:
 
 | Extra | Packages | Licenses |
 | --- | --- | --- |
@@ -64,23 +64,23 @@ Installed only when asked for (`pip install "toolrank[<extra>]"`), never in the 
 
 ## Models
 
-- **yasinyaman/toolrank-emb-8b** v0.2 (Apache-2.0): the default embedding backbone, Qwen3-Embedding-8B
+- **yasinyaman/callbus-emb-8b** v0.2 (Apache-2.0): the default embedding backbone, Qwen3-Embedding-8B
   with a merged LoRA trained on ToolRet-Training-20w, whose dataset card states no license; see
   `docs/backbone/MODEL_CARD.md`. vLLM downloads it at run time; no image or package includes its
   weights.
 - **Qwen/Qwen3-Embedding-8B** (Apache-2.0): its base model, and the backbone of the v0.1 heads.
   Downloaded the same way.
-- **toolrank heads v0.1** (`toolrank-heads-qwen3-emb-8b-v0.1.npz`, Apache-2.0): trained on
+- **callbus heads v0.1** (`callbus-heads-qwen3-emb-8b-v0.1.npz`, Apache-2.0): trained on
   ToolRet-Training-20w, whose dataset card states no license; see `docs/heads/MODEL_CARD.md`.
   Images built with the heads (`--build-context heads=...`) include the file.
 
 ## Container images
 
-- **toolrank** (`deploy/docker/Dockerfile`): based on `python:3.12-slim-bookworm`, whose Debian
+- **callbus** (`deploy/docker/Dockerfile`): based on `python:3.12-slim-bookworm`, whose Debian
   packages carry their own licenses (`/usr/share/doc/*/copyright` in the image). It adds Node.js
   (MIT; npm is Artistic-2.0) from the official `node` image, for MCP servers started with `npx`,
   and uv (Apache-2.0 or MIT), for those started with `uvx`.
-- **toolrank-vllm** (`deploy/docker/Dockerfile.vllm`): based on `vllm/vllm-openai`: vLLM
+- **callbus-vllm** (`deploy/docker/Dockerfile.vllm`): based on `vllm/vllm-openai`: vLLM
   (Apache-2.0), PyTorch (BSD-3-Clause) and NVIDIA CUDA libraries under NVIDIA's CUDA license
   terms, on Ubuntu. Builds on NVIDIA's NGC vLLM image are for local use only and are not published.
 """

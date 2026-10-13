@@ -2,7 +2,7 @@
 
 ## Sonuç (tek cümle)
 
-`toolrank learn` çalışıyor: kullanım günlüğü, istek metni olmadan, vektör üzerinden eğitim çiftine
+`callbus learn` çalışıyor: kullanım günlüğü, istek metni olmadan, vektör üzerinden eğitim çiftine
 dönüyor; gerçek günlük (`data/w3`, bu haftanın e2e koşuları) henüz 6 çift veriyor, yani ilk gerçek
 eğitim trafik biriktikten sonra.
 
@@ -16,7 +16,7 @@ döndürülmüş ve gürültülü kopyası, 16 boyut, taze skip head'ler):
 | Başlangıç (birim head'ler) | düşük (döndürme öğrenilmemiş) | — |
 | En iyi epoch | başlangıcı geçiyor | `published`; `.npz` `NumpyHeads` ile yükleniyor |
 
-Gerçek günlük, `toolrank learn --data data/w3 --dry-run`:
+Gerçek günlük, `callbus learn --data data/w3 --dry-run`:
 
 | | |
 | --- | ---: |
@@ -34,8 +34,8 @@ değeri gerçek, çeşitli trafikle ölçülecek.
 ## Komutlar
 
 ```bash
-uv run toolrank learn --data data/w3 --dry-run            # madencilik ve vektör eşleme raporu, torch'suz
-uv run toolrank learn --data data/w3 --dev data/livemcpbench_server   # trafik birikince: eğitim + koruma seti
+uv run callbus learn --data data/w3 --dry-run            # madencilik ve vektör eşleme raporu, torch'suz
+uv run callbus learn --data data/w3 --dev data/livemcpbench_server   # trafik birikince: eğitim + koruma seti
 uv run pytest -q tests/test_learn.py tests/test_usage.py
 ```
 
@@ -51,7 +51,7 @@ uv run pytest -q tests/test_learn.py tests/test_usage.py
   nedeniyle ayrıca `--dev` benchmark koruması var. Küçük günlüklerde Recall@5 kaba adımlarla oynar;
   rapor bunu uyarı olarak yazıyor.
 - Servisin çalışırken head değiştirmesi ve %10 A/B (Hafta 3–4) henüz yok: yayınlanan `.npz`
-  `TOOLRANK_HEADS` ile veriliyor.
+  `CALLBUS_HEADS` ile veriliyor.
 
 ## Sonraki hafta
 

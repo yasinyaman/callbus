@@ -6,7 +6,7 @@ tokenizer, not transformers 5's rewrites), hashes the weights and stages a READM
 ``docs/backbone/MODEL_CARD.md`` under the Hub's metadata header. With ``--upload`` it creates the
 repo, uploads the directory and the card, tags the commit with the revision (so the served weights
 never change under a name), lists the tagged files back, and sets ``BACKBONE_PUBLISHED = True`` in
-``src/toolrank/build.py`` for you to commit. Without ``--upload`` nothing leaves the machine.
+``src/callbus/build.py`` for you to commit. Without ``--upload`` nothing leaves the machine.
 
 Run it where the weights are (the GB10; 16 GB); the upload needs ``huggingface_hub`` and a login
 with write access done by the maintainer (``uvx --from huggingface_hub hf auth login``).
@@ -99,7 +99,7 @@ def with_published(source: str) -> str:
 
 def main() -> None:
     sys.path.insert(0, str(ROOT / "src"))
-    from toolrank.build import BACKBONE_REPO, BACKBONE_REVISION
+    from callbus.build import BACKBONE_REPO, BACKBONE_REVISION
 
     p = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
     p.add_argument("--model", required=True, help="the merged directory (scripts/lora_train.py's merged/)")
@@ -139,7 +139,7 @@ def main() -> None:
         folder_path=str(model),
         repo_id=a.repo,
         ignore_patterns=list(SKIP),
-        commit_message=f"Qwen3-Embedding-8B + toolrank LoRA {a.revision} (model.safetensors sha256 {digest})",
+        commit_message=f"Qwen3-Embedding-8B + callbus LoRA {a.revision} (model.safetensors sha256 {digest})",
     )
     commit = api.upload_file(
         path_or_fileobj=str(stage / "README.md"),
@@ -157,7 +157,7 @@ def main() -> None:
     lfs = getattr(listed["model.safetensors"], "lfs", None)
     if lfs is not None and getattr(lfs, "sha256", digest) != digest:
         sys.exit(f"{a.repo}@{a.revision}: the Hub's sha256 of model.safetensors differs: nothing was written")
-    module = ROOT / "src" / "toolrank" / "build.py"
+    module = ROOT / "src" / "callbus" / "build.py"
     module.write_text(with_published(module.read_text()))
     print(
         f"published {a.repo}@{a.revision}; set BACKBONE_PUBLISHED = True in {module.relative_to(ROOT)}: commit it"

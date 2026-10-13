@@ -29,8 +29,8 @@ jobs:
         run: uv run pytest
       - name: Smoke eval (synthetic, BM25)
         run: |
-          uv run toolrank data synth --out data/synthetic
-          uv run toolrank eval --data data/synthetic --scorer bm25 --tool-format schema --limit 50
+          uv run callbus data synth --out data/synthetic
+          uv run callbus eval --data data/synthetic --scorer bm25 --tool-format schema --limit 50
 
   docs:
     runs-on: ubuntu-26.04
@@ -60,12 +60,12 @@ jobs:
         run: |
           uv venv /tmp/wheel
           uv pip install --python /tmp/wheel/bin/python dist/pypi/*.whl
-          /tmp/wheel/bin/toolrank --version
-          /tmp/wheel/bin/toolrank data synth --out /tmp/synthetic
-          /tmp/wheel/bin/toolrank eval --data /tmp/synthetic --scorer bm25 --limit 20
+          /tmp/wheel/bin/callbus --version
+          /tmp/wheel/bin/callbus data synth --out /tmp/synthetic
+          /tmp/wheel/bin/callbus eval --data /tmp/synthetic --scorer bm25 --limit 20
           # without the [mcp] extra, serve says what to install instead of failing on an import
-          if /tmp/wheel/bin/toolrank serve --data /tmp/synthetic 2> /tmp/serve.err; then exit 1; fi
-          grep -F "pip install 'toolrank[mcp]'" /tmp/serve.err
+          if /tmp/wheel/bin/callbus serve --data /tmp/synthetic 2> /tmp/serve.err; then exit 1; fi
+          grep -F "pip install 'callbus[mcp]'" /tmp/serve.err
 
   image:
     runs-on: ubuntu-26.04
@@ -73,9 +73,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Build the slim image (no heads, no push)
-        run: docker build -f deploy/docker/Dockerfile -t toolrank:ci .
+        run: docker build -f deploy/docker/Dockerfile -t callbus:ci .
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: "3.12"
       - name: Smoke test against a fake embedding server
-        run: uv run --no-project --with numpy python scripts/container_smoke.py toolrank:ci
+        run: uv run --no-project --with numpy python scripts/container_smoke.py callbus:ci

@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
-# Jev (TypeSafe AI) next to toolrank's own scorers, same protocol, same sets, same tool text
+# Jev (TypeSafe AI) next to callbus's own scorers, same protocol, same sets, same tool text
 # (`docs/reports/faz1-jev.md`). Per set: the packaged heads reranked by Jev over the top 100
 # (name_desc option text) and over the top 20 (the full documentation, cut to 3000 characters),
 # BM25 top 30 reranked by Jev (TypeSafe's own re-ranking recipe), zero-shot Qwen3-Embedding-8B
 # reranked the same two ways (is the fine-tune still needed under Jev?), and on the MCP sets Jev
 # alone (chunked Choice questions). The base rows (bm25, qwen3emb, heads) are `readme_results.sh`'s.
 # Restartable: a run whose results file exists is skipped; Jev answers are cached in
-# .cache/toolrank/jev.sqlite, so a rerun asks nothing. On the GB10, from ~/toolrank, 8091 up:
+# .cache/callbus/jev.sqlite, so a rerun asks nothing. On the GB10, from ~/callbus, 8091 up:
 #
 #   export TYPESAFE_API_KEY=...          # the key never leaves the shell; .env is not synced
 #   LIMIT=50 TAG=jevsmoke bash scripts/jev_compare.sh      # the smoke test: a few cents
 #   PYTHONUNBUFFERED=1 nohup bash scripts/jev_compare.sh > data/logs/jev_compare.log 2>&1 &
-#   # then, on the Mac: scp 'gb10:toolrank/results/jev_*.json' results/
+#   # then, on the Mac: scp 'gb10:callbus/results/jev_*.json' results/
 set -uo pipefail
 cd "$(dirname "$0")/.."
 [[ -n ${TYPESAFE_API_KEY:-} ]] || { echo "set TYPESAFE_API_KEY" >&2; exit 1; }
 
 UV=${UV:-$HOME/.local/bin/uv}
-HEADS=${HEADS:-dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz}
+HEADS=${HEADS:-dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz}
 EMB_URL=${EMB_URL:-http://127.0.0.1:8091/v1}
 EMB_MODEL=${EMB_MODEL:-qwen3-emb}
 TAG=${TAG:-jev}
@@ -32,10 +32,10 @@ LIM=()
 [[ $LIMIT -gt 0 ]] && LIM=(--limit "$LIMIT")
 
 for d in livemcpbench mcp_zero; do
-  [[ -s data/${d}_server/tools.jsonl ]] || "$UV" run toolrank data server-names "data/$d"
+  [[ -s data/${d}_server/tools.jsonl ]] || "$UV" run callbus data server-names "data/$d"
 done
 
-run() { # run <row> <set> <toolrank eval args...> -> results/<TAG>_<set>_<row>.json
+run() { # run <row> <set> <callbus eval args...> -> results/<TAG>_<set>_<row>.json
   local row=$1 out="results/${TAG}_$2_$1.json"
   shift 2
   [[ " $ROWS " == *" $row "* ]] || return 0
@@ -44,7 +44,7 @@ run() { # run <row> <set> <toolrank eval args...> -> results/<TAG>_<set>_<row>.j
     return
   fi
   echo "== $(date -Is) $out"
-  "$UV" run toolrank eval "$@" "${LIM[@]}" --out "$out" || echo "FAILED $out"
+  "$UV" run callbus eval "$@" "${LIM[@]}" --out "$out" || echo "FAILED $out"
 }
 
 for d in $SETS; do

@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from toolrank.datasets.livemcpbench import INSTRUCTION, convert, tool_names
-from toolrank.formats import tool_format
+from callbus.datasets.livemcpbench import INSTRUCTION, convert, tool_names
+from callbus.formats import tool_format
 
 
 def test_livemcpbench_tool_names():
@@ -49,7 +49,7 @@ def test_livemcpbench_convert_maps_names_to_every_server_and_drops_unmatched_tas
 
 
 def test_mcp_zero_input_schema_expands_condensed_parameters():
-    from toolrank.datasets.mcp_zero import input_schema
+    from callbus.datasets.mcp_zero import input_schema
 
     s = input_schema(
         {
@@ -92,7 +92,7 @@ def _mcp_servers():
 
 
 def test_mcp_zero_convert_keys_tools_by_readme_and_builds_prompts():
-    from toolrank.datasets.mcp_zero import convert
+    from callbus.datasets.mcp_zero import convert
 
     tools, prompts, duplicates = convert(_mcp_servers())
     assert [t.id for t in tools] == ["reference/slack/send", "community/Slack/send", "community/Mail/send"]
@@ -104,7 +104,7 @@ def test_mcp_zero_convert_keys_tools_by_readme_and_builds_prompts():
 
 
 def test_mcp_zero_queries_count_same_server_and_tool_name_as_relevant():
-    from toolrank.datasets.mcp_zero import INSTRUCTION, convert, make_queries, parse_request
+    from callbus.datasets.mcp_zero import INSTRUCTION, convert, make_queries, parse_request
 
     ok = "<think>\n\n</think>\n<tool_assistant>\nserver: Slack chat\ntool: send a message\n</tool_assistant>"
     assert parse_request(ok) == ("Slack chat", "send a message")
@@ -125,7 +125,7 @@ def test_mcp_zero_queries_count_same_server_and_tool_name_as_relevant():
 
 
 def test_mcp_zero_generate_resumes_from_its_cache(tmp_path):
-    from toolrank.datasets.mcp_zero import SYSTEM_PROMPT, generate
+    from callbus.datasets.mcp_zero import SYSTEM_PROMPT, generate
 
     class FakeChat:
         name = "chat/fake"
@@ -152,9 +152,9 @@ def test_mcp_zero_generate_resumes_from_its_cache(tmp_path):
 def test_server_name_sets_are_faz0s_byte_for_byte(tmp_path):
     import random
 
-    from toolrank.cli import main
-    from toolrank.datasets.jsonl import write_queries, write_tools
-    from toolrank.datasets.synthetic import make_queries, make_tools
+    from callbus.cli import main
+    from callbus.datasets.jsonl import write_queries, write_tools
+    from callbus.datasets.synthetic import make_queries, make_tools
 
     tools = make_tools(12, random.Random(1))
     src = tmp_path / "bench"
@@ -177,9 +177,9 @@ def test_server_name_sets_are_faz0s_byte_for_byte(tmp_path):
 
 
 def test_a_split_keeps_the_tools_and_shares_no_query(tmp_path, capsys):
-    from toolrank.cli import main
-    from toolrank.datasets.jsonl import load_queries
-    from toolrank.datasets.synthetic import write_synthetic
+    from callbus.cli import main
+    from callbus.datasets.jsonl import load_queries
+    from callbus.datasets.synthetic import write_synthetic
 
     write_synthetic(tmp_path / "d", n_tools=20, n_queries=41, seed=1)
     src = tmp_path / "d"

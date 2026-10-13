@@ -20,8 +20,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: toolrank version
-      description: The output of `toolrank --version`.
+      label: callbus version
+      description: The output of `callbus --version`.
     validations:
       required: true
   - type: dropdown
@@ -30,8 +30,8 @@ body:
       label: Installed with
       options:
         - pip / uv
-        - Docker image (toolrank)
-        - Docker image (toolrank-vllm)
+        - Docker image (callbus)
+        - Docker image (callbus-vllm)
         - From a checkout
     validations:
       required: true

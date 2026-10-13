@@ -9,11 +9,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from toolrank.adapters.dense import DenseScorer
-from toolrank.datasets.jsonl import write_tools
-from toolrank.domain import Tool
-from toolrank.retriever import Retriever
-from toolrank.tenants import Tenant, check_sources, load_tenants, parse_tenants
+from callbus.adapters.dense import DenseScorer
+from callbus.datasets.jsonl import write_tools
+from callbus.domain import Tool
+from callbus.retriever import Retriever
+from callbus.tenants import Tenant, check_sources, load_tenants, parse_tenants
 
 FIXTURE = str(Path(__file__).parent / "fixtures" / "mcp_server.py")
 
@@ -66,7 +66,7 @@ def test_the_keys_file_takes_plain_keys_and_tenant_objects(tmp_path, monkeypatch
 
 
 def test_scopes_say_what_a_key_may_do():
-    from toolrank.tenants import may
+    from callbus.tenants import may
 
     keys = parse_tenants({"reader": {"key": "r", "scopes": ["search"]}, "all": "a"})
     assert keys["reader"].scopes == frozenset({"search"}) and keys["all"].scopes is None
@@ -86,10 +86,10 @@ def test_a_call_links_only_to_its_own_keys_searches(tmp_path):
     'abc'; and link() matched by session or a passed search id whoever's key made the search."""
     from types import SimpleNamespace
 
-    from toolrank.adapters.mcp_proxy import TENANT_KEY
-    from toolrank.adapters.rest import identity
-    from toolrank.retriever import Hit, SearchResult
-    from toolrank.usage import UsageLog
+    from callbus.adapters.mcp_proxy import TENANT_KEY
+    from callbus.adapters.rest import identity
+    from callbus.retriever import Hit, SearchResult
+    from callbus.usage import UsageLog
 
     def session(tenant, header):
         scope = {TENANT_KEY: tenant} if tenant else {}
@@ -189,8 +189,8 @@ def test_tenant_credentials_ride_only_on_their_own_openapi_calls():
     import anyio
     import httpx2
 
-    from toolrank.adapters.backends import Backends
-    from toolrank.ingest.mcp import OpenAPIBackend
+    from callbus.adapters.backends import Backends
+    from callbus.ingest.mcp import OpenAPIBackend
 
     seen = []
 
@@ -228,8 +228,8 @@ def test_a_tenants_header_replaces_the_configs_whatever_its_case():
     import anyio
     import httpx2
 
-    from toolrank.adapters.backends import Backends, merge_headers
-    from toolrank.ingest.mcp import OpenAPIBackend
+    from callbus.adapters.backends import Backends, merge_headers
+    from callbus.ingest.mcp import OpenAPIBackend
 
     assert merge_headers({"Authorization": "a", "X-Keep": "k"}, {"authorization": "b"}) == {
         "X-Keep": "k",
@@ -262,16 +262,16 @@ def test_a_tenant_with_env_gets_a_server_process_of_its_own():
     pytest.importorskip("mcp")
     import anyio
 
-    from toolrank.adapters.backends import Backends
-    from toolrank.ingest.mcp import ServerConfig
+    from callbus.adapters.backends import Backends
+    from callbus.ingest.mcp import ServerConfig
 
     cfg = ServerConfig("fx", "stdio", command=sys.executable, args=(FIXTURE, "--mode", "extra"))
-    team = Tenant("team", "k1", env={"fx": {"TOOLRANK_TENANT_SECRET": "team-only"}})
+    team = Tenant("team", "k1", env={"fx": {"CALLBUS_TENANT_SECRET": "team-only"}})
     backends = Backends([cfg], tenants={"team": team, "ops": Tenant("ops", "k2")}, call_timeout=20)
     assert backends.backend_for("fx", "ops") is backends.mcp["fx"] is backends.backend_for("fx", None)
     own = backends.backend_for("fx", "team")
     assert own is not backends.mcp["fx"] and own is backends.backend_for("fx", "team")
-    assert own.cfg.env["TOOLRANK_TENANT_SECRET"] == "team-only" and "TOOLRANK_TENANT_SECRET" not in cfg.env
+    assert own.cfg.env["CALLBUS_TENANT_SECRET"] == "team-only" and "CALLBUS_TENANT_SECRET" not in cfg.env
 
     def tool(name):
         return Tool(id=f"fx/{name}", doc={"server": "fx", "name": name}, category="fx")
@@ -280,7 +280,7 @@ def test_a_tenant_with_env_gets_a_server_process_of_its_own():
         async with backends.running():
             got = {}
             for tenant in ("team", "ops", None):
-                secret = await backends.call(tool("env"), {"name": "TOOLRANK_TENANT_SECRET"}, tenant)
+                secret = await backends.call(tool("env"), {"name": "CALLBUS_TENANT_SECRET"}, tenant)
                 pid = await backends.call(tool("pid"), {}, tenant)
                 got[tenant] = (
                     secret.result.content[0].text if secret.result.content else "",
@@ -298,10 +298,10 @@ def test_a_limited_key_cannot_call_another_sources_tool(tmp_path):
     import anyio
     import httpx2
 
-    from toolrank.adapters.backends import Backends
-    from toolrank.adapters.mcp_proxy import dispatch_call
-    from toolrank.ingest.mcp import OpenAPIBackend
-    from toolrank.usage import UsageLog, read_events
+    from callbus.adapters.backends import Backends
+    from callbus.adapters.mcp_proxy import dispatch_call
+    from callbus.ingest.mcp import OpenAPIBackend
+    from callbus.usage import UsageLog, read_events
 
     _catalogue(tmp_path, n_big=2)
     http = {"method": "GET", "path": "/x", "base_url": "https://api.example.com", "args": {}}
@@ -351,7 +351,7 @@ def test_a_limited_key_cannot_call_another_sources_tool(tmp_path):
 def test_a_limited_key_hears_only_its_own_counts(tmp_path):
     """search_tools' description told a key limited to some sources how big the whole catalogue is."""
     pytest.importorskip("mcp")
-    from toolrank.adapters.mcp_proxy import tool_definitions
+    from callbus.adapters.mcp_proxy import tool_definitions
 
     tools = [
         Tool(id=f"{s}/t{i}", doc={"name": f"t{i}", "description": "x"}, category=s)

@@ -1,6 +1,6 @@
 # Quick start
 
-toolrank needs an embedding model to rank tools: its backbone, Qwen3-Embedding-8B trained further
+CallBus needs an embedding model to rank tools: its backbone, Qwen3-Embedding-8B trained further
 on tool retrieval, served by vLLM on a GPU with at least 16 GB of memory (without one,
 [it runs as a GGUF in Ollama](guides/local.md)), or any OpenAI-compatible
 `/v1/embeddings` endpoint serving it. The
@@ -9,11 +9,11 @@ Docker path starts both; the pip path uses an endpoint you already run.
 ## With Docker (one GPU host)
 
 ```bash
-git clone https://github.com/yasinyaman/toolrank && cd toolrank/deploy/docker
-cp .env.example .env              # set TOOLRANK_API_KEY
+git clone https://github.com/yasinyaman/callbus && cd callbus/deploy/docker
+cp .env.example .env              # set CALLBUS_API_KEY
 ```
 
-List the MCP servers you want to put behind toolrank in `toolrank.json` (the same format as an MCP
+List the MCP servers you want to put behind callbus in `callbus.json` (the same format as an MCP
 client's config file). It starts with one:
 
 ```json
@@ -27,15 +27,15 @@ client's config file). It starts with one:
 Index them, then start the stack:
 
 ```bash
-docker compose run --rm toolrank ingest mcp --config /config/toolrank.json --out /data
+docker compose run --rm callbus ingest mcp --config /config/callbus.json --out /data
 docker compose up -d
 ```
 
-The first start downloads the model (16 GB). toolrank then listens on `127.0.0.1:8765`: MCP at
+The first start downloads the model (16 GB). CallBus then listens on `127.0.0.1:8765`: MCP at
 `/mcp`, REST at `/v1`, both behind the key from `.env`.
 
 ```bash
-curl -s -H "Authorization: Bearer $TOOLRANK_API_KEY" \
+curl -s -H "Authorization: Bearer $CALLBUS_API_KEY" \
   -d '{"query": "what time is it in Tokyo?"}' http://127.0.0.1:8765/v1/search
 ```
 
@@ -44,37 +44,37 @@ curl -s -H "Authorization: Bearer $TOOLRANK_API_KEY" \
 ## With pip
 
 ```bash
-pip install "toolrank[mcp]"           # add ,openapi for YAML specs; ,stem for a stemmed BM25 fallback
+pip install "callbus[mcp]"           # add ,openapi for YAML specs; ,stem for a stemmed BM25 fallback
 ```
 
-Serve the backbone on a GPU host, as `toolrank-emb-v0.2` on port 8091 (the default toolrank uses;
-`--quantization fp8` halves its memory, served then as `toolrank-emb-v0.2-fp8`):
+Serve the backbone on a GPU host, as `callbus-emb-v0.2` on port 8091 (the default callbus uses;
+`--quantization fp8` halves its memory, served then as `callbus-emb-v0.2-fp8`):
 
 ```bash
-vllm serve yasinyaman/toolrank-emb-8b --revision v0.2 --served-model-name toolrank-emb-v0.2 \
+vllm serve yasinyaman/callbus-emb-8b --revision v0.2 --served-model-name callbus-emb-v0.2 \
   --runner pooling --max-model-len 8192 --port 8091 \
   --no-enable-chunked-prefill --max-num-batched-tokens 8192
 ```
 
 (Without the last two flags, a long tool text batched next to short ones can hang a pooling engine.)
 
-With the base `Qwen/Qwen3-Embedding-8B` served as `qwen3-emb` instead, `toolrank heads pull` fetches
+With the base `Qwen/Qwen3-Embedding-8B` served as `qwen3-emb` instead, `callbus heads pull` fetches
 the heads that go with it (60 MB) and `--emb-model qwen3-emb` selects it.
 
-On another machine, point toolrank at it with `--emb-url http://HOST:8091/v1` or
-`TOOLRANK_EMB_URL`; an endpoint that wants a key gets `TOOLRANK_EMB_API_KEY` (toolrank sends
+On another machine, point callbus at it with `--emb-url http://HOST:8091/v1` or
+`CALLBUS_EMB_URL`; an endpoint that wants a key gets `CALLBUS_EMB_API_KEY` (callbus sends
 `OPENAI_API_KEY` only to `api.openai.com`). Then index your tools and search them:
 
 ```bash
-toolrank ingest mcp --server time="uvx mcp-server-time" --out tools/
-toolrank ingest openapi https://petstore3.swagger.io/api/v3/openapi.json --name petstore --out tools/
-toolrank search --data tools/ "list the pets tagged dog"
+CallBus ingest mcp --server time="uvx mcp-server-time" --out tools/
+CallBus ingest openapi https://petstore3.swagger.io/api/v3/openapi.json --name petstore --out tools/
+CallBus search --data tools/ "list the pets tagged dog"
 ```
 
 And serve them to agents:
 
 ```bash
-toolrank serve --data tools/ --config toolrank.json     # MCP at http://127.0.0.1:8765/mcp
+CallBus serve --data tools/ --config callbus.json     # MCP at http://127.0.0.1:8765/mcp
 ```
 
 `--config` tells `serve` how to reach the MCP servers when an agent calls one of their tools; the
@@ -82,13 +82,13 @@ catalogue itself comes from `ingest`. See [Serve them to agents](guides/serve.md
 
 ## Connect an agent
 
-Any MCP client can use toolrank as one server:
+Any MCP client can use callbus as one server:
 
 === "Claude Code"
 
     ```bash
-    claude mcp add --transport http toolrank http://127.0.0.1:8765/mcp \
-      --header "Authorization: Bearer $TOOLRANK_API_KEY"
+    claude mcp add --transport http callbus http://127.0.0.1:8765/mcp \
+      --header "Authorization: Bearer $CALLBUS_API_KEY"
     ```
 
 === "Claude Desktop (stdio)"
@@ -99,10 +99,10 @@ Any MCP client can use toolrank as one server:
     ```json
     {
       "mcpServers": {
-        "toolrank": {
-          "command": "/path/to/venv/bin/toolrank",
+        "callbus": {
+          "command": "/path/to/venv/bin/callbus",
           "args": ["serve", "--stdio", "--data", "/path/to/tools",
-                   "--config", "/path/to/toolrank.json", "--emb-url", "http://127.0.0.1:8091/v1"]
+                   "--config", "/path/to/callbus.json", "--emb-url", "http://127.0.0.1:8091/v1"]
         }
       }
     }

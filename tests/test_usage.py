@@ -7,9 +7,9 @@ from hashlib import sha256
 
 import pytest
 
-from toolrank.domain import Tool
-from toolrank.retriever import Hit, SearchResult
-from toolrank.usage import UsageLog, mask_pii
+from callbus.domain import Tool
+from callbus.retriever import Hit, SearchResult
+from callbus.usage import UsageLog, mask_pii
 
 
 def _result(tools=("gh/a", "gh/b"), query="open an issue", **kw):
@@ -169,7 +169,7 @@ def test_mask_pii_replaces_addresses_and_numbers_but_not_dates(tmp_path):
 def test_unknown_tool_names_are_request_text_and_the_key_is_never_short(tmp_path):
     """An unknown tool name is what the agent typed (it can carry what a user said): a digest unless
     --log-text, then masked like a request. An empty or short .key (a write cut short) is refused."""
-    from toolrank.usage import read_events, read_key
+    from callbus.usage import read_events, read_key
 
     log = UsageLog(tmp_path / "plain")
     log.call(

@@ -1,10 +1,10 @@
-site_name: toolrank
+site_name: CallBus
 site_description: Tool retrieval for LLM agents with hundreds of tools
-site_url: https://yaman.dev/toolrank/
-repo_url: https://github.com/yasinyaman/toolrank
-repo_name: yasinyaman/toolrank
+site_url: https://yaman.dev/callbus/
+repo_url: https://github.com/yasinyaman/callbus
+repo_name: yasinyaman/callbus
 edit_uri: edit/main/docs/
-copyright: Copyright 2026 Toolrank contributors. Apache-2.0.
+copyright: Copyright 2026 CallBus contributors. Apache-2.0.
 
 docs_dir: docs
 # docs/ also holds the project's plans and weekly reports (in Turkish) and the raw data behind the

@@ -1,7 +1,7 @@
 # Architecture
 
-toolrank is organised as ports and adapters. The core (domain types, text formats, evaluation,
-ingestion, the retriever and the usage log) never imports an adapter; `toolrank.build` is the one
+callbus is organised as ports and adapters. The core (domain types, text formats, evaluation,
+ingestion, the retriever and the usage log) never imports an adapter; `callbus.build` is the one
 place that turns command-line flags into a scorer, an encoder, heads and a vector index, and the
 CLI, the evaluation and the server all go through it. Heavy dependencies (torch, the MCP SDK,
 FAISS, Postgres, the vendors' SDKs) are optional extras, imported inside the functions that need
@@ -34,7 +34,7 @@ flowchart TB
 ```mermaid
 sequenceDiagram
   participant A as Agent
-  participant P as toolrank serve
+  participant P as callbus serve
   participant R as Retriever
   participant E as vLLM (Qwen3-Embedding-8B)
   participant B as MCP server / HTTP API
@@ -60,7 +60,7 @@ sequenceDiagram
 - **Vector indexes.** Rows are keyed by a hash of the encoder settings, the heads file and the tool
   text, so a persistent index embeds and projects only new or changed tools. `NumpyIndex` is an
   exact scan (the default), `FaissIndex` HNSW, `PgVectorIndex` Postgres.
-- **The server.** `toolrank serve` is the MCP SDK's low-level server with two tools, plus REST routes
+- **The server.** `callbus serve` is the MCP SDK's low-level server with two tools, plus REST routes
   on the same Starlette app, behind one guard for tokens, the Host and Origin checks and a body
   limit. Calls go to long-lived MCP client sessions (opened lazily, reopened after a crash, an
   in-flight call never resent) or to OpenAPI operations over HTTP (GET and HEAD unless allowed,
@@ -78,7 +78,7 @@ flowchart LR
   jsonl --> run[run_eval: index once, rank in batches]
   run --> metrics[trec_eval-compatible metrics]
   metrics --> report[EvalReport JSON]
-  report --> compare[toolrank compare]
+  report --> compare[callbus compare]
   report --> table[README / benchmarks table]
 ```
 
@@ -102,7 +102,7 @@ against a sha256 when downloaded.
   else: `[mcp]` for serving and MCP ingestion, `[openapi]` for YAML specs, `[stem]`, `[faiss]`,
   `[pgvector]`, `[clm]` (torch, training only), `[data]` (benchmark downloads), and one per
   integration.
-- **The `toolrank` image** is the package with `[mcp,openapi,stem]` at the versions locked in
+- **The `callbus` image** is the package with `[mcp,openapi,stem]` at the versions locked in
   `uv.lock`, plus Node.js and uv for stdio MCP servers, and the packaged heads.
-- **The `toolrank-vllm` image** (built locally, not published) adds the embedding backbone: it
-  starts vLLM on loopback, waits for it, then runs toolrank.
+- **The `callbus-vllm` image** (built locally, not published) adds the embedding backbone: it
+  starts vLLM on loopback, waits for it, then runs callbus.

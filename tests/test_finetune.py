@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
 
-from toolrank.domain import Query, TrainPair
-from toolrank.finetune import Batches, TrainConfig, pair_texts, split_pairs, train_heads
-from toolrank.formats import query_format, tool_format
+from callbus.domain import Query, TrainPair
+from callbus.finetune import Batches, TrainConfig, pair_texts, split_pairs, train_heads
+from callbus.formats import query_format, tool_format
 
 
 def test_split_drops_benchmark_requests_and_is_deterministic():
@@ -25,7 +25,7 @@ def test_pair_texts_format_like_the_benchmark():
 
 def test_train_heads_learns_a_toy_mapping_and_saves_clm_checkpoints(tmp_path):
     torch = pytest.importorskip("torch")
-    from toolrank.adapters.clm import CLMHeads
+    from callbus.adapters.clm import CLMHeads
 
     rng = np.random.default_rng(0)
     dim, n_tools = 32, 64
@@ -53,7 +53,7 @@ def test_train_heads_learns_a_toy_mapping_and_saves_clm_checkpoints(tmp_path):
         init=str(tmp_path / "heads.pt"),
         log=lambda _: None,
     )
-    from toolrank.adapters.heads_np import sha256_file
+    from callbus.adapters.heads_np import sha256_file
 
     # a file name and its hash, never a local path (the cfg ships inside packaged heads)
     assert (again["cfg"]["trained_from"], again["cfg"]["init_sha256"]) == (
@@ -64,7 +64,7 @@ def test_train_heads_learns_a_toy_mapping_and_saves_clm_checkpoints(tmp_path):
 
 def test_skip_heads_start_as_the_identity(tmp_path):
     torch = pytest.importorskip("torch")
-    from toolrank.adapters.clm import CLMHeads
+    from callbus.adapters.clm import CLMHeads
 
     rng = np.random.default_rng(1)
     tools = rng.standard_normal((32, 16)).astype(np.float32)
@@ -144,9 +144,9 @@ def test_selection_on_a_dev_metric_keeps_the_earliest_best_and_never_ships_worse
 
 def test_training_continues_from_packaged_npz_heads(tmp_path):
     torch = pytest.importorskip("torch")
+    from callbus.adapters.heads_np import NumpyHeads, sha256_file
+    from callbus.finetune import _heads_from
     from test_heads_np import GOLDEN, _case_npz
-    from toolrank.adapters.heads_np import NumpyHeads, sha256_file
-    from toolrank.finetune import _heads_from
 
     npz = _case_npz(tmp_path, "gelu_layernorm_skip", dtype="float16", serving={"truncate": 8192})
     with np.load(GOLDEN, allow_pickle=False) as z:
@@ -162,7 +162,7 @@ def test_training_continues_from_packaged_npz_heads(tmp_path):
 
 
 def test_leaks_per_source_and_missing_instructions_filled():
-    from toolrank.finetune import leaks, with_instruction
+    from callbus.finetune import leaks, with_instruction
 
     pairs = [
         TrainPair(id="1", text="Find a hotel", positives=("a",)),
@@ -177,16 +177,16 @@ def test_leaks_per_source_and_missing_instructions_filled():
     assert n == 1 and [p.instruction for p in filled] == ["Given an agent's request", "Given a travel task"]
 
 
-def test_dev_curve_scores_exactly_like_toolrank_eval():
+def test_dev_curve_scores_exactly_like_callbus_eval():
     import dataclasses
     import hashlib
     import random
 
-    from toolrank.adapters.dense import DenseScorer
-    from toolrank.datasets.synthetic import make_queries, make_tools
-    from toolrank.eval.runner import run_eval
-    from toolrank.finetune import EvalSet, curve_metrics
-    from toolrank.formats import QUERY_FORMATS, TOOL_FORMATS
+    from callbus.adapters.dense import DenseScorer
+    from callbus.datasets.synthetic import make_queries, make_tools
+    from callbus.eval.runner import run_eval
+    from callbus.finetune import EvalSet, curve_metrics
+    from callbus.formats import QUERY_FORMATS, TOOL_FORMATS
 
     class _Hash:
         name = "hash"

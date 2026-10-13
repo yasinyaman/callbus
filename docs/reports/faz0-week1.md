@@ -11,7 +11,7 @@ tamamen raporlama farkı — makalenin BM25s ayarı (stemming yok, `str(doc)`) v
 ## Tablo
 
 Protokol (ToolRet'in yayımlanan kodu: tüm korpusta top-100, sorgular üzerinde mikro ortalama) ve
-yanında makale usulü ortalama (`cat-macro`), `toolrank compare`:
+yanında makale usulü ortalama (`cat-macro`), `callbus compare`:
 
 | Run | dataset | inst | n | NDCG@10 | Recall@10 | Comprehensiveness@10 | NDCG@10 cat-macro | p50 ms |
 | --- | --- | :-: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -30,11 +30,11 @@ ortalaması, her kategori skoru da o kategorideki görevlerin düz ortalaması:
 | Makale, BM25s | n | — | 22.32 | 18.98 | 21.20 | 26.76 |
 | `str(doc)`, stemming yok (makale ayarı) | n | 29.05 | **22.34** | 19.05 | 21.21 | 26.76 |
 | `documentation`, `--no-stem` | n | 29.01 | 22.24 | 18.88 | 21.19 | 26.66 |
-| `documentation`, stemming (toolrank varsayılanı) | n | 30.29 | 23.94 | 19.81 | 21.00 | 31.01 |
+| `documentation`, stemming (callbus varsayılanı) | n | 30.29 | 23.94 | 19.81 | 21.00 | 31.01 |
 | Makale, BM25s | y | — | 36.46 | 26.33 | 41.90 | 41.16 |
 | `str(doc)`, stemming yok (makale ayarı) | y | 39.30 | **36.47** | 26.33 | 41.91 | 41.16 |
 | `documentation`, `--no-stem` | y | 39.27 | 36.41 | 26.17 | 41.90 | 41.16 |
-| `documentation`, stemming (toolrank varsayılanı) | y | 40.74 | 38.40 | 27.88 | 41.73 | 45.58 |
+| `documentation`, stemming (callbus varsayılanı) | y | 40.74 | 38.40 | 27.88 | 41.73 | 45.58 |
 
 Comprehensiveness@10 da tutuyor: `--no-stem` cat-macro 22.05 / 39.03, makale 22.19 / 39.03.
 
@@ -46,21 +46,21 @@ toplama farkı.
 
 ```bash
 # Mac → GB10: izlenen dosyalar (git Mac'te kalır)
-git ls-files -z | COPYFILE_DISABLE=1 tar --null -T - --no-xattrs --no-mac-metadata -cf - | ssh gb10 'mkdir -p ~/toolrank && tar -xf - -C ~/toolrank'
+git ls-files -z | COPYFILE_DISABLE=1 tar --null -T - --no-xattrs --no-mac-metadata -cf - | ssh gb10 'mkdir -p ~/callbus && tar -xf - -C ~/callbus'
 
-# GB10, ~/toolrank
+# GB10, ~/callbus
 ~/.local/bin/uv venv && ~/.local/bin/uv pip install -e ".[dev,data]"
-~/.local/bin/uv run toolrank data pull toolret --out data/toolret
-~/.local/bin/uv run toolrank eval --data data/toolret --scorer bm25 --tool-format documentation --out results/toolret_bm25.json
-~/.local/bin/uv run toolrank eval --data data/toolret --scorer bm25 --tool-format documentation --with-inst --out results/toolret_bm25_inst.json
-~/.local/bin/uv run toolrank eval --data data/toolret --scorer bm25 --tool-format documentation --no-stem --out results/toolret_bm25_nostem.json
-~/.local/bin/uv run toolrank eval --data data/toolret --scorer bm25 --tool-format documentation --no-stem --with-inst --out results/toolret_bm25_nostem_inst.json
+~/.local/bin/uv run callbus data pull toolret --out data/toolret
+~/.local/bin/uv run callbus eval --data data/toolret --scorer bm25 --tool-format documentation --out results/toolret_bm25.json
+~/.local/bin/uv run callbus eval --data data/toolret --scorer bm25 --tool-format documentation --with-inst --out results/toolret_bm25_inst.json
+~/.local/bin/uv run callbus eval --data data/toolret --scorer bm25 --tool-format documentation --no-stem --out results/toolret_bm25_nostem.json
+~/.local/bin/uv run callbus eval --data data/toolret --scorer bm25 --tool-format documentation --no-stem --with-inst --out results/toolret_bm25_nostem_inst.json
 ~/.local/bin/uv run python scripts/toolret_paper_avg.py                                   # makale ayarı
-~/.local/bin/uv run python scripts/toolret_paper_avg.py --tool-text documentation --stem   # toolrank varsayılanı
+~/.local/bin/uv run python scripts/toolret_paper_avg.py --tool-text documentation --stem   # callbus varsayılanı
 
 # Mac
-scp 'gb10:toolrank/results/toolret_bm25*.json' results/
-toolrank compare results/toolret_bm25.json results/toolret_bm25_inst.json results/toolret_bm25_nostem.json results/toolret_bm25_nostem_inst.json
+scp 'gb10:callbus/results/toolret_bm25*.json' results/
+callbus compare results/toolret_bm25.json results/toolret_bm25_inst.json results/toolret_bm25_nostem.json results/toolret_bm25_nostem_inst.json
 ```
 
 ## Ortam
@@ -83,7 +83,7 @@ toolrank compare results/toolret_bm25.json results/toolret_bm25_inst.json result
   olduğu apigen (56.2) ve toolace (57.1) sorguların %25'ini oluşturuyor; 500'den az sorgulu
   görevlerin ortalaması 21.2. Bu yüzden mikro sayı makaledekinden w/o inst 7–8, w/ inst 3–4 puan
   yüksek. Protokol değişmedi. Karar (29 Eyl): raporlar ikisini birlikte taşır; mikro ortalama
-  protokolün sayısı, `cat-macro` (makale usulü) yanında (`toolrank compare` sütunu, `toolrank
+  protokolün sayısı, `cat-macro` (makale usulü) yanında (`callbus compare` sütunu, `callbus
   eval` tablosunda kategori satırları).
 - **BM25 ayarı.** Makalenin BM25s'i stemming kullanmıyor ve `str(doc)` (sözlüğün Python repr'i)
   indeksliyor; bizim varsayılanımız PyStemmer kuruluysa Snowball stemming ve `documentation`
@@ -118,7 +118,7 @@ yazılmadığı ortaya çıktı; `03047f1` ile düzeltildi.
 - CLM head'leri: `CLM_v0.1-8B.pt` (18.9M parametre, width 1536, depth 3, LayerNorm), GB10
   GPU'sunda çalışıyor (torch 2.14.0+cu130; sm_121 sorunsuz). Mimari, embedder ve metin düzeni
   referans repodaki (`Contrastive-LM/CLM`: `heads.py`, `embedder.py`, `schema.py`) ile birebir.
-- Smoke testi `clm-serve` yerine `toolrank eval --scorer clm` ile yapıldı (handoff O2'deki gibi):
+- Smoke testi `clm-serve` yerine `callbus eval --scorer clm` ile yapıldı (handoff O2'deki gibi):
   10 tool'luk sentetik alt küme ve 300 tool'luk tam sentetik set.
 
 Sentetik set, w/o inst, `name_desc` (`dense/emb/qwen3-8b` satırı clm-raw, yani head'siz CLM):
@@ -151,24 +151,24 @@ Soğuk gecikmenin neredeyse tamamı tek bir 8B ileri geçişi. bf16'da ~16 GB a�
 maddesi). Skor adımı 300 tool'da önemsiz, 44k tool'da da birkaç ms mertebesinde kalır.
 
 ```bash
-# GB10, ~/toolrank
+# GB10, ~/callbus
 .venv/bin/hf download Qwen/Qwen3-8B & .venv/bin/hf download Qwen/Qwen3-Embedding-8B & wait
 .venv/bin/hf download Contrastive-LM/CLM-v0.1-8B CLM_v0.1-8B.pt --local-dir ~/.cache/clm
 ~/.local/bin/uv pip install -e ".[dev,data,clm]"
 docker compose -f deploy/spark/compose.yaml up -d
-~/.local/bin/uv run toolrank data synth --out data/synthetic
-~/.local/bin/uv run toolrank data synth --out data/synthetic10 --n-tools 10 --n-queries 20
+~/.local/bin/uv run callbus data synth --out data/synthetic
+~/.local/bin/uv run callbus data synth --out data/synthetic10 --n-tools 10 --n-queries 20
 E8090="--emb-url http://127.0.0.1:8090/v1 --emb-model qwen3-8b --truncate 2048"
 E8091="--emb-url http://127.0.0.1:8091/v1 --emb-model qwen3-emb"
-~/.local/bin/uv run toolrank eval --data data/synthetic10 --scorer clm $E8090 --out results/synthetic10_clm.json
-~/.local/bin/uv run toolrank eval --data data/synthetic --scorer clm $E8090 --out results/synthetic_clm.json
-~/.local/bin/uv run toolrank eval --data data/synthetic --scorer dense $E8090 --out results/synthetic_clmraw.json
-~/.local/bin/uv run toolrank eval --data data/synthetic --scorer dense $E8091 --out results/synthetic_qwen3emb.json
-~/.local/bin/uv run toolrank eval --data data/synthetic --scorer bm25 --tool-format name_desc --out results/synthetic_bm25_name_desc.json
-~/.local/bin/uv run toolrank eval --data data/synthetic --scorer clm $E8090 --batch 1 --limit 100 --cache-dir '' --out results/lat_clm_cold.json
-~/.local/bin/uv run toolrank eval --data data/synthetic --scorer clm $E8090 --batch 1 --limit 100 --out results/lat_clm_warm.json
-~/.local/bin/uv run toolrank eval --data data/synthetic --scorer dense $E8091 --batch 1 --limit 100 --cache-dir '' --out results/lat_qwen3emb_cold.json
-~/.local/bin/uv run toolrank eval --data data/synthetic --scorer dense $E8091 --batch 1 --limit 100 --out results/lat_qwen3emb_warm.json
+~/.local/bin/uv run callbus eval --data data/synthetic10 --scorer clm $E8090 --out results/synthetic10_clm.json
+~/.local/bin/uv run callbus eval --data data/synthetic --scorer clm $E8090 --out results/synthetic_clm.json
+~/.local/bin/uv run callbus eval --data data/synthetic --scorer dense $E8090 --out results/synthetic_clmraw.json
+~/.local/bin/uv run callbus eval --data data/synthetic --scorer dense $E8091 --out results/synthetic_qwen3emb.json
+~/.local/bin/uv run callbus eval --data data/synthetic --scorer bm25 --tool-format name_desc --out results/synthetic_bm25_name_desc.json
+~/.local/bin/uv run callbus eval --data data/synthetic --scorer clm $E8090 --batch 1 --limit 100 --cache-dir '' --out results/lat_clm_cold.json
+~/.local/bin/uv run callbus eval --data data/synthetic --scorer clm $E8090 --batch 1 --limit 100 --out results/lat_clm_warm.json
+~/.local/bin/uv run callbus eval --data data/synthetic --scorer dense $E8091 --batch 1 --limit 100 --cache-dir '' --out results/lat_qwen3emb_cold.json
+~/.local/bin/uv run callbus eval --data data/synthetic --scorer dense $E8091 --batch 1 --limit 100 --out results/lat_qwen3emb_warm.json
 ```
 
 Ortam: NGC `nvcr.io/nvidia/vllm:26.01-py3` (vLLM 0.13.0, CUDA 13.1), sürücü 580.178.04. Kod

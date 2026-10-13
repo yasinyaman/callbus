@@ -9,6 +9,6 @@
 !THIRD_PARTY_NOTICES.md
 !src/
 !deploy/docker/entrypoint-vllm.sh
-!deploy/docker/as-toolrank.sh
+!deploy/docker/as-callbus.sh
 **/__pycache__
 **/.DS_Store

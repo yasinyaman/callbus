@@ -1,17 +1,17 @@
-"""Smoke-test the toolrank image without a GPU: a fake embedding server on this machine
+"""Smoke-test the callbus image without a GPU: a fake embedding server on this machine
 (tests/fixtures/fake_embeddings.py), the image ingesting a small OpenAPI spec and serving it, then
 the checks a user would make: healthy, a search through the published port, the Host check, an MCP
 initialize, the runtimes stdio MCP servers need (node, npx, uvx) and the version. Everything it
 starts is removed at the end.
 
-``--bundle`` is for the toolrank-vllm image: the fake server goes inside the container as its
+``--bundle`` is for the callbus-vllm image: the fake server goes inside the container as its
 ``vllm`` (first on the PATH), so the image's own entrypoint starts it, waits for it and runs
-toolrank, and four more checks see who runs what: a bind-mounted directory keeps its owner, vLLM
-runs as root, toolrank and its files as the ``toolrank`` user, and a file root left on the volume is
+callbus, and four more checks see who runs what: a bind-mounted directory keeps its owner, vLLM
+runs as root, callbus and its files as the ``callbus`` user, and a file root left on the volume is
 handed over; the runtimes are checked as that user.
 
-    uv run python scripts/container_smoke.py toolrank:dev [--version 0.1.0]
-    uv run python scripts/container_smoke.py toolrank-vllm:dev --bundle
+    uv run python scripts/container_smoke.py callbus:dev [--version 0.1.0]
+    uv run python scripts/container_smoke.py callbus-vllm:dev --bundle
 """
 
 from __future__ import annotations
@@ -78,15 +78,15 @@ def request(url: str, body: dict | None = None, host: str | None = None) -> tupl
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("image")
-    p.add_argument("--version", default=None, help="the toolrank version the image must report")
+    p.add_argument("--version", default=None, help="the callbus version the image must report")
     p.add_argument("--port", type=int, default=18765, help="published on 127.0.0.1")
-    p.add_argument("--bundle", action="store_true", help="the toolrank-vllm image, with a fake vllm inside")
+    p.add_argument("--bundle", action="store_true", help="the callbus-vllm image, with a fake vllm inside")
     a = p.parse_args()
     tag = uuid.uuid4().hex[:8]
-    volume, name = f"toolrank-smoke-{tag}", f"toolrank-smoke-{tag}"
+    volume, name = f"callbus-smoke-{tag}", f"callbus-smoke-{tag}"
     fake, logs = None, ""
     # what the container's user (not this one) must read: 0755 / 0644 whatever the umask
-    shared = Path(tempfile.mkdtemp(prefix="toolrank-smoke-"))
+    shared = Path(tempfile.mkdtemp(prefix="callbus-smoke-"))
     checks: list[tuple[str, bool, str]] = []
     try:
         (shared / "specs").mkdir()
@@ -101,19 +101,19 @@ def main() -> None:
         else:
             fake, _ = serve("0.0.0.0")
             emb = f"http://host.docker.internal:{fake.server_address[1]}/v1"
-            env = ["-e", f"TOOLRANK_EMB_URL={emb}", "-e", "TOOLRANK_EMB_MODEL=fake"]
+            env = ["-e", f"CALLBUS_EMB_URL={emb}", "-e", "CALLBUS_EMB_MODEL=fake"]
             run = ["--add-host", "host.docker.internal:host-gateway", *env]
-        run += ["-e", f"TOOLRANK_API_KEY={KEY}", "-v", f"{shared / 'specs'}:/specs:ro"]
+        run += ["-e", f"CALLBUS_API_KEY={KEY}", "-v", f"{shared / 'specs'}:/specs:ro"]
         data = ["-v", f"{volume}:/data"]
         for f in shared.rglob("*"):
             f.chmod(0o755 if f.is_dir() or f.name == "vllm" else 0o644)
         shared.chmod(0o755)
         version = docker("run", "--rm", a.image, "--version")
-        checks.append(("version", a.version is None or version == f"toolrank {a.version}", version))
+        checks.append(("version", a.version is None or version == f"callbus {a.version}", version))
         ingest = ["ingest", "openapi", "/specs/billing.json", "--name", "billing", "--out", "/data"]
         out = docker("run", "--rm", *run, *data, a.image, *ingest)
         checks.append(("ingest + warm-up", "embedded 2 new or changed texts" in out, out.splitlines()[-1]))
-        if a.bundle:  # this user's directory, bind-mounted: toolrank runs as its owner and it stays theirs
+        if a.bundle:  # this user's directory, bind-mounted: callbus runs as its owner and it stays theirs
             docker("run", "--rm", *run, "-v", f"{shared / 'data'}:/data", a.image, *ingest)
             mine = [shared / "data", *(shared / "data").rglob("*")]
             owners = sorted({f.stat().st_uid for f in mine})
@@ -144,9 +144,9 @@ def main() -> None:
         }
         code, _ = request(f"{base}/mcp", init)
         checks.append(("MCP initialize", code == 200, str(code)))
-        # as the user toolrank runs as (the bundle's `docker exec` is root), with a cache uv can write
+        # as the user callbus runs as (the bundle's `docker exec` is root), with a cache uv can write
         runtimes = docker(
-            "exec", name, *(["as-toolrank"] if a.bundle else []), "sh", "-c", RUNTIMES, check=False
+            "exec", name, *(["as-callbus"] if a.bundle else []), "sh", "-c", RUNTIMES, check=False
         )
         checks.append(("node, npx, uvx", len(runtimes.splitlines()) == 3, " | ".join(runtimes.splitlines())))
         health = request(f"{base}/healthz")[1]
@@ -155,25 +155,25 @@ def main() -> None:
             procs = docker("exec", name, "sh", "-c", PROCESSES, check=False).splitlines()
             who = {
                 label: sorted({line.split()[0] for line in procs if marker in line})
-                for label, marker in (("vllm", "fake_embeddings.py"), ("toolrank", "toolrank serve"))
+                for label, marker in (("vllm", "fake_embeddings.py"), ("callbus", "callbus serve"))
             }
             checks.append(
                 (
-                    "vLLM as root, toolrank as its user",
-                    who == {"vllm": ["root"], "toolrank": ["toolrank"]},
+                    "vLLM as root, callbus as its user",
+                    who == {"vllm": ["root"], "callbus": ["callbus"]},
                     str(who),
                 )
             )
-            # what a root `docker exec` leaves on the volume goes to that user with the next toolrank command
+            # what a root `docker exec` leaves on the volume goes to that user with the next callbus command
             docker("exec", name, "sh", "-c", "echo x > /data/by-root", check=False)
-            docker("exec", name, "toolrank", "--version", check=False)
+            docker("exec", name, "callbus", "--version", check=False)
             stray = docker("exec", name, "stat", "-c", "%U", "/data/by-root", check=False)
-            checks.append(("root's stray file is handed over", stray == "toolrank", stray))
+            checks.append(("root's stray file is handed over", stray == "callbus", stray))
             owners = docker(
                 "exec", name, "sh", "-c", "find /data -printf '%u\\n' | sort | uniq -c", check=False
             )
             checks.append(
-                ("/data belongs to toolrank", owners.split()[1:] == ["toolrank"], " ".join(owners.split()))
+                ("/data belongs to callbus", owners.split()[1:] == ["callbus"], " ".join(owners.split()))
             )
     finally:
         if docker("ps", "-aq", "-f", f"name={name}", check=False):

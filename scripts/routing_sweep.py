@@ -2,7 +2,7 @@
 
 Does a "which server?" decision before "which tool?" help on a catalogue of many servers? Every
 tool's server is its ``category``. The script scores each query against every tool once with the
-scorer the ``toolrank eval`` flags after ``--`` describe, gives each server a score per query, and
+scorer the ``callbus eval`` flags after ``--`` describe, gives each server a score per query, and
 prints the metrics of the tool ranking re-scored by a grid of rules:
 
   server score   centroid   cosine with the mean of the server's tool vectors (no new text)
@@ -18,7 +18,7 @@ catalogue without the servers of its gold tools (it has none), and each threshol
 answerable requests it would turn away and the share of unanswerable ones it would catch.
 
 uv run python scripts/routing_sweep.py --weights 0.1,0.2,0.3 --hard 1,3,5 --gate -- \
-    --data data/mcp_zero_server --scorer clm --clm-ckpt dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz \
+    --data data/mcp_zero_server --scorer clm --clm-ckpt dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz \
     --emb-url http://127.0.0.1:8091/v1 --emb-model qwen3-emb --truncate 8192 --tool-format documentation \
     --query-format instruct_query --with-inst
 """
@@ -33,12 +33,12 @@ from pathlib import Path
 
 import numpy as np
 
-from toolrank.adapters.embeddings_api import l2_normalize
-from toolrank.build import build_scorer
-from toolrank.cli import build_parser
-from toolrank.datasets.jsonl import load_queries, load_tools
-from toolrank.domain import Tool
-from toolrank.eval.metrics import aggregate, evaluate_query
+from callbus.adapters.embeddings_api import l2_normalize
+from callbus.build import build_scorer
+from callbus.cli import build_parser
+from callbus.datasets.jsonl import load_queries, load_tools
+from callbus.domain import Tool
+from callbus.eval.metrics import aggregate, evaluate_query
 
 KS = (1, 5, 10)
 SUMMARY_CHARS = 4000
@@ -96,7 +96,7 @@ def metrics(scores: np.ndarray, ids: list[str], queries: list) -> dict[str, floa
 def main() -> None:
     argv = sys.argv[1:]
     if "--" not in argv:
-        sys.exit("usage: routing_sweep.py [grid flags] -- <toolrank eval flags>")
+        sys.exit("usage: routing_sweep.py [grid flags] -- <callbus eval flags>")
     cut = argv.index("--")
     ap = argparse.ArgumentParser()
     ap.add_argument("--servers", default="centroid,summary,top3", help="server scores to try")

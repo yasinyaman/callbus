@@ -3,8 +3,8 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from toolrank.adapters.clm import CLMHeads, CLMScorer, make_head  # noqa: E402
-from toolrank.domain import Query, Tool  # noqa: E402
+from callbus.adapters.clm import CLMHeads, CLMScorer, make_head  # noqa: E402
+from callbus.domain import Query, Tool  # noqa: E402
 
 
 def _fake_checkpoint(path, width=64, depth=3, proj=16, hidden=32):
@@ -50,7 +50,7 @@ def test_heads_load_and_project(tmp_path):
 
 def test_checkpoints_load_weights_only(tmp_path, monkeypatch):
     """A .pt is a download: said explicitly, since torch before 2.6 unpickles anything by default."""
-    from toolrank.finetune import load_checkpoint
+    from callbus.finetune import load_checkpoint
 
     ck = tmp_path / "heads.pt"
     _fake_checkpoint(ck)

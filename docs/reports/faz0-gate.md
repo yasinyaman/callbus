@@ -150,7 +150,7 @@ CLM adapter'ı ve checkpoint yükleyicisi repo'da kalıyor: skip head'ler aynı 
 `docs/plan/faz-1.md` ve `faz-2.md` buna göre güncellendi; tarih değişmedi.
 
 - Faz 1 Hafta 2'deki "Faz 0'ın kazanan head'ini paketle" maddesi CLM checkpoint'i yerine
-  Qwen3-Embedding-8B + skip head olur (`toolrank eval --clm-ckpt` ile yüklenen aynı format; iki
+  Qwen3-Embedding-8B + skip head olur (`callbus eval --clm-ckpt` ile yüklenen aynı format; iki
   head toplam 29.9M parametre).
 - Varsayılan dağıtım için FP8 backbone adayı. CLM backbone'unda (Qwen3-8B) kalite aynı kaldı,
   gecikme yarıya indi. Qwen3-Embedding-8B'nin FP8 kopyası ölçülmedi, paketlemeden önce ölçülür.

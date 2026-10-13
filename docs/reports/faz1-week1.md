@@ -4,7 +4,7 @@ Takvimde 2–6 Kasım; kapı kararından sonra erken başlandı.
 
 ## Sonuç (tek cümle)
 
-`toolrank ingest` MCP sunucularını (stdio ve streamable HTTP) ve OpenAPI 3.x spec'lerini, Faz 0'da
+`callbus ingest` MCP sunucularını (stdio ve streamable HTTP) ve OpenAPI 3.x spec'lerini, Faz 0'da
 ölçülen metin biçimiyle tek bir dizine indeksliyor. Gerçek kaynaklarla denendi: üç resmi MCP
 sunucusu (16 tool, 2.5 sn) ve GitHub REST + Stripe (1.843 işlem, her biri 0.1 sn'nin altında).
 Tekrar çalıştırma hiçbir şeyi yeniden gömmüyor (0 token, 0.3 sn); tek bir değişiklik yalnız o
@@ -97,22 +97,22 @@ curl -sfL -o data/specs/github.json https://raw.githubusercontent.com/github/res
 curl -sfL -o data/specs/stripe.json https://raw.githubusercontent.com/stripe/openapi/db67eb25e0ca80f12ffffb8f04dc1ba8289cd10f/openapi/spec3.json
 
 S=(--server time="uvx mcp-server-time" --server fetch="uvx mcp-server-fetch" --server everything="npx -y @modelcontextprotocol/server-everything")
-uv run toolrank ingest mcp "${S[@]}" --out data/mytools
-uv run toolrank ingest openapi data/specs/github.json --name github --out data/mytools
-uv run toolrank ingest openapi data/specs/stripe.json --name stripe --out data/mytools
-uv run toolrank ingest openapi data/specs/petstore-expanded.yaml --out data/mytools
-uv run toolrank ingest mcp "${S[@]}" --out data/mytools                                  # hepsi "="
-uv run toolrank ingest openapi data/specs/petstore-expanded.yaml --name time --out data/mytools  # tür koruması, çıkış 1
+uv run callbus ingest mcp "${S[@]}" --out data/mytools
+uv run callbus ingest openapi data/specs/github.json --name github --out data/mytools
+uv run callbus ingest openapi data/specs/stripe.json --name stripe --out data/mytools
+uv run callbus ingest openapi data/specs/petstore-expanded.yaml --out data/mytools
+uv run callbus ingest mcp "${S[@]}" --out data/mytools                                  # hepsi "="
+uv run callbus ingest openapi data/specs/petstore-expanded.yaml --name time --out data/mytools  # tür koruması, çıkış 1
 PORT=3917 npx -y @modelcontextprotocol/server-everything streamableHttp &
-uv run toolrank ingest mcp --server everything-http=http://localhost:3917/mcp --out data/mytools
-uv run toolrank ingest drop fetch --out data/mytools
+uv run callbus ingest mcp --server everything-http=http://localhost:3917/mcp --out data/mytools
+uv run callbus ingest drop fetch --out data/mytools
 
-# GB10, ~/toolrank (specs scp ile kopyalandı)
+# GB10, ~/callbus (specs scp ile kopyalandı)
 E="--emb-url http://127.0.0.1:8091/v1 --emb-model qwen3-emb --truncate 8192"
-~/.local/bin/uv run toolrank ingest openapi data/specs/github.json --name github --out data/mytools $E
-~/.local/bin/uv run toolrank ingest openapi data/specs/stripe.json --name stripe --out data/mytools $E   # iki kez
+~/.local/bin/uv run callbus ingest openapi data/specs/github.json --name github --out data/mytools $E
+~/.local/bin/uv run callbus ingest openapi data/specs/stripe.json --name stripe --out data/mytools $E   # iki kez
 python3 -c "import json; s=json.load(open('data/specs/stripe.json')); s['paths']['/v1/customers']['post']['summary']='Create a new customer'; json.dump(s, open('/tmp/stripe_changed.json','w'))"
-~/.local/bin/uv run toolrank ingest openapi /tmp/stripe_changed.json --name stripe --out data/mytools $E
+~/.local/bin/uv run callbus ingest openapi /tmp/stripe_changed.json --name stripe --out data/mytools $E
 ~/.local/bin/uv run python scripts/truncation_side.py --tools data/mytools/tools.jsonl
 ```
 

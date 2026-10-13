@@ -1,16 +1,16 @@
 # Index your tools
 
-`toolrank ingest` turns MCP servers and OpenAPI specs into an ingest directory (see
+`callbus ingest` turns MCP servers and OpenAPI specs into an ingest directory (see
 [Concepts](../concepts.md#the-ingest-directory)). Run it again whenever a source changes: it
 prints what was added, changed and removed, and embeds only the new and changed tools.
 
 ## MCP servers
 
 ```bash
-toolrank ingest mcp --server time="uvx mcp-server-time" --out tools/            # stdio: NAME=COMMAND
-toolrank ingest mcp --server docs=https://mcp.example.com/mcp --out tools/       # streamable HTTP: NAME=URL
-toolrank ingest mcp --config ~/.config/claude/mcp.json --out tools/              # an MCP client's config file
-toolrank ingest mcp --config mcp.json --only github,jira --out tools/            # some of its servers
+callbus ingest mcp --server time="uvx mcp-server-time" --out tools/            # stdio: NAME=COMMAND
+callbus ingest mcp --server docs=https://mcp.example.com/mcp --out tools/       # streamable HTTP: NAME=URL
+callbus ingest mcp --config ~/.config/claude/mcp.json --out tools/              # an MCP client's config file
+callbus ingest mcp --config mcp.json --only github,jira --out tools/            # some of its servers
 ```
 
 Needs the `[mcp]` extra. Servers are listed concurrently, each within `--timeout`; one that fails
@@ -20,8 +20,8 @@ and neither env vars nor headers are written to `sources.json`.
 ## OpenAPI specs
 
 ```bash
-toolrank ingest openapi https://petstore3.swagger.io/api/v3/openapi.json --name petstore --out tools/
-toolrank ingest openapi specs/billing.yaml --name billing --out tools/ --dry-run   # the diff only
+callbus ingest openapi https://petstore3.swagger.io/api/v3/openapi.json --name petstore --out tools/
+callbus ingest openapi specs/billing.yaml --name billing --out tools/ --dry-run   # the diff only
 ```
 
 OpenAPI 3.x, JSON or YAML (`[openapi]` for YAML), from a path or a URL. Each operation becomes a
@@ -42,17 +42,17 @@ is.
 ## Removing a source
 
 ```bash
-toolrank ingest drop billing --out tools/
+callbus ingest drop billing --out tools/
 ```
 
 ## Embedding ahead of time
 
-With `--emb-url` (or `TOOLRANK_EMB_URL`), ingest embeds the new and changed tools into
+With `--emb-url` (or `CALLBUS_EMB_URL`), ingest embeds the new and changed tools into
 `tools/cache/` right away, with the model and truncation `search` and `serve` use, so their first
 index is all cache hits:
 
 ```bash
-toolrank ingest mcp --config mcp.json --out tools/ --emb-url http://gpu-host:8091/v1
+callbus ingest mcp --config mcp.json --out tools/ --emb-url http://gpu-host:8091/v1
 ```
 
 Use the same URL string `serve` will use: the cache is keyed by it.

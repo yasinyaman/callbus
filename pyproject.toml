@@ -1,12 +1,12 @@
 [project]
-name = "toolrank"
+name = "callbus"
 dynamic = ["version"]
 description = "Tool retrieval for LLM agents with hundreds of tools: an embedding model plus small learned heads picks the few tools a request needs, served over MCP and REST."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
-authors = [{ name = "Toolrank contributors" }]
+authors = [{ name = "CallBus contributors" }]
 keywords = ["llm", "agents", "tool-retrieval", "tool-search", "mcp", "embeddings", "retrieval"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -25,7 +25,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# `toolrank data pull toolret` needs the Hugging Face datasets library (run once, on a machine with Hub access).
+# `callbus data pull toolret` needs the Hugging Face datasets library (run once, on a machine with Hub access).
 data = ["datasets>=2.19", "huggingface_hub>=0.23"]
 # Snowball stemming for BM25 (the ToolRet paper's BM25s baseline is unstemmed: --no-stem).
 stem = ["PyStemmer>=2.2"]
@@ -33,11 +33,11 @@ stem = ["PyStemmer>=2.2"]
 clm = ["torch>=2.2"]
 # LoRA fine-tuning of the embedding backbone itself (scripts/lora_train.py, GPU, Faz 2).
 lora = ["torch>=2.2", "transformers>=4.51", "peft>=0.14", "accelerate>=1.0"]
-# `toolrank ingest mcp` (list tools from MCP servers) and `toolrank serve` (MCP proxy + REST).
+# `callbus ingest mcp` (list tools from MCP servers) and `callbus serve` (MCP proxy + REST).
 mcp = ["mcp>=2.2,<3"]
-# `toolrank ingest openapi` on YAML specs (JSON needs nothing).
+# `callbus ingest openapi` on YAML specs (JSON needs nothing).
 openapi = ["pyyaml>=6"]
-# Agent-platform integrations (toolrank.integrations never imports the SDKs; the examples do).
+# Agent-platform integrations (callbus.integrations never imports the SDKs; the examples do).
 anthropic = ["anthropic>=1.9"]
 openai = ["openai>=3.22"]
 # Framework adapters: LangGraph tools (langgraph-bigtool is installed apart: its release needs
@@ -72,28 +72,28 @@ dev = [
 docs = ["mkdocs>=1.6,<2", "mkdocs-material>=9.7,<10", "mkdocstrings[python]>=1.0,<2"]
 
 [project.scripts]
-toolrank = "toolrank.cli:main"
+callbus = "callbus.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/yasinyaman/toolrank"
-Documentation = "https://yaman.dev/toolrank/"
-Repository = "https://github.com/yasinyaman/toolrank"
-Issues = "https://github.com/yasinyaman/toolrank/issues"
-Changelog = "https://github.com/yasinyaman/toolrank/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/yasinyaman/callbus"
+Documentation = "https://yaman.dev/callbus/"
+Repository = "https://github.com/yasinyaman/callbus"
+Issues = "https://github.com/yasinyaman/callbus/issues"
+Changelog = "https://github.com/yasinyaman/callbus/blob/main/CHANGELOG.md"
 
 [build-system]
 requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
-path = "src/toolrank/__init__.py"
+path = "src/callbus/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/toolrank"]
+packages = ["src/callbus"]
 
 # The sdist carries what builds and tests the package, not the repo's plans, benchmarks or deploy files.
 [tool.hatch.build.targets.sdist]
-include = ["/src/toolrank", "/tests", "/README.md", "/LICENSE", "/NOTICE", "/CHANGELOG.md"]
+include = ["/src/callbus", "/tests", "/README.md", "/LICENSE", "/NOTICE", "/CHANGELOG.md"]
 
 [tool.ruff]
 line-length = 110

@@ -13,13 +13,13 @@ birimi, hangi yön iyi). Sıralama ölçüleri yüzde, "fark" sütunları yüzde
 ## Ön kayıt (koşudan önce doldurulur)
 
 Karar kuralı koşudan ÖNCE yazılır: hangi set, hangi ölçü, hangi eşik ve her olası sonuçta ne
-yapılacağı. İki koşu aynı sorgularda karşılaşıyorsa `toolrank compare --paired A B` çıktısı tabloya
+yapılacağı. İki koşu aynı sorgularda karşılaşıyorsa `callbus compare --paired A B` çıktısı tabloya
 girer ve p değeri kararın parçası olur; "1 puan fark" tek başına karar verdirmez (LiveMCPBench'in
 94 sorgusunda top-1 farkının anlamlı olması için 8,5–12,8 puan gerekir).
 
 ## Tablo
 
-`toolrank compare results/<...>.json` çıktısı buraya, başlıklarında ok ve birimle; her satırın komutu
+`callbus compare results/<...>.json` çıktısı buraya, başlıklarında ok ve birimle; her satırın komutu
 aşağıda.
 
 ## Komutlar

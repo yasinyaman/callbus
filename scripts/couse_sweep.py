@@ -3,7 +3,7 @@
 A usage log says which tools were called after the same search. From it: for a tool A, the tools B
 that were called along with it in at least ``--min-count`` searches and in at least ``--min-p`` of
 the searches where A was called. The script ranks the queries of a data dir with the scorer the
-``toolrank eval`` flags after ``--`` describe, cuts each list with the adaptive-K rule of those
+``callbus eval`` flags after ``--`` describe, cuts each list with the adaptive-K rule of those
 flags, and then appends up to ``--extra`` such partners of the tools shown; it prints, per setting,
 the mean number of tools handed over and Recall, Precision and Comprehensiveness of the list, next
 to plain adaptive K at larger ``max`` values (the same budget spent on the ranking itself).
@@ -12,7 +12,7 @@ The log is a simulated one (scripts/learn_sim.py): the data dir must be queries 
 served, e.g. its ``heldout/``.
 
 uv run python scripts/couse_sweep.py --log data/sim/toolret/runs/n0/usage --min-count 2,3 --min-p 0.3,0.5 -- \
-    --data data/sim/toolret/heldout --scorer clm --clm-ckpt dist/heads/toolrank-heads-qwen3-emb-8b-v0.1.npz \
+    --data data/sim/toolret/heldout --scorer clm --clm-ckpt dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz \
     --emb-url http://127.0.0.1:8091/v1 --emb-model qwen3-emb --truncate 8192 --tool-format documentation \
     --query-format instruct_query --with-inst --cut-margin 0.2
 """
@@ -24,13 +24,13 @@ import sys
 from dataclasses import replace
 from pathlib import Path
 
-from toolrank.build import build_scorer
-from toolrank.cli import build_parser
-from toolrank.couse import co_use, expand
-from toolrank.cut import AdaptiveK, rule_from_flags
-from toolrank.datasets.jsonl import load_queries, load_tools
-from toolrank.eval.metrics import aggregate, evaluate_cut
-from toolrank.learn import read_events
+from callbus.build import build_scorer
+from callbus.cli import build_parser
+from callbus.couse import co_use, expand
+from callbus.cut import AdaptiveK, rule_from_flags
+from callbus.datasets.jsonl import load_queries, load_tools
+from callbus.eval.metrics import aggregate, evaluate_cut
+from callbus.learn import read_events
 
 
 def _floats(s: str) -> list[float]:
@@ -40,7 +40,7 @@ def _floats(s: str) -> list[float]:
 def main() -> None:
     argv = sys.argv[1:]
     if "--" not in argv:
-        sys.exit("usage: couse_sweep.py --log DIR [grid flags] -- <toolrank eval flags>")
+        sys.exit("usage: couse_sweep.py --log DIR [grid flags] -- <callbus eval flags>")
     cut = argv.index("--")
     ap = argparse.ArgumentParser()
     ap.add_argument("--log", required=True, help="a usage log directory (usage-*.jsonl)")

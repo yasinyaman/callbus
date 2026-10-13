@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from toolrank.ingest.mcp import ServerConfig, load_config, parse_server, tool_from_mcp, tools_from_listing
+from callbus.ingest.mcp import ServerConfig, load_config, parse_server, tool_from_mcp, tools_from_listing
 
 
 def test_parse_server_url_is_http_anything_else_a_stdio_command():
@@ -83,9 +83,9 @@ def test_importing_the_cli_loads_no_optional_dependency():
         "'llama_index', 'litellm', 'langchain'}"
     )
     modules = (
-        "toolrank.cli, toolrank.adapters.mcp_proxy, toolrank.adapters.rest, toolrank.adapters.backends, "
-        "toolrank.client, toolrank.names, toolrank.integrations.anthropic, toolrank.integrations.openai, "
-        "toolrank.integrations.langgraph, toolrank.integrations.litellm, toolrank.integrations.langchain"
+        "callbus.cli, callbus.adapters.mcp_proxy, callbus.adapters.rest, callbus.adapters.backends, "
+        "callbus.client, callbus.names, callbus.integrations.anthropic, callbus.integrations.openai, "
+        "callbus.integrations.langgraph, callbus.integrations.litellm, callbus.integrations.langchain"
     )
     code = f"import sys, {modules}; print(sorted({heavy} & set(sys.modules)))"
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout

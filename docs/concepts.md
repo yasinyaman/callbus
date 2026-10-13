@@ -8,10 +8,10 @@ agent describes what it wants to do, and only the tools that fit are loaded.
 
 ## Backbone and heads
 
-toolrank ranks with an embedding model, the **backbone**, served by vLLM (or any OpenAI-compatible
+CallBus ranks with an embedding model, the **backbone**, served by vLLM (or any OpenAI-compatible
 embeddings endpoint). A request and a tool's text become vectors, and the tools whose vectors are
 closest to the request's come first. The default backbone is Qwen3-Embedding-8B with a LoRA trained
-on ToolRet's training pairs (`yasinyaman/toolrank-emb-8b`, served as `toolrank-emb-v0.2`;
+on ToolRet's training pairs (`yasinyaman/callbus-emb-8b`, served as `callbus-emb-v0.2`;
 [model card](backbone/MODEL_CARD.md)): the best single stage we measured. Its gain is in requests
 that need several tools (on generated two- and three-tool tasks over an API catalogue of our own,
 NDCG@10 71 → 83 and 55 → 75); a request for one tool it finds about as well as the base model.
@@ -20,9 +20,9 @@ The base Qwen3-Embedding-8B can be served instead (as `qwen3-emb`). On it sit tw
 one for requests and one for tools (29.9M parameters together). Each is `x + MLP(x)`: it starts as
 the identity, so it can only move the backbone's vectors where training showed it helps. The
 packaged heads (v0.1) were trained on ToolRet's training pairs; they run in numpy, without torch,
-and ship as a 60 MB `.npz` ([model card](heads/MODEL_CARD.md)). toolrank applies them only on the
+and ship as a 60 MB `.npz` ([model card](heads/MODEL_CARD.md)). CallBus applies them only on the
 base model they were trained on: on the LoRA backbone they cost 0.2–3.9 points, and heads trained on
-top of it learn nothing. `toolrank finetune` and `toolrank learn` train your own.
+top of it learn nothing. `callbus finetune` and `callbus learn` train your own.
 
 The backbone reads an **instruction** in front of each request
 (`Instruct: Given an agent's request for a tool, retrieve the MCP tool that fulfills it`), and each
@@ -32,12 +32,12 @@ name alone is worth several points on MCP benchmarks.
 ## Adaptive K
 
 A fixed top-k either misses tools that a multi-step request needs or wastes context on tools it
-does not. By default toolrank returns the tools within **0.2 cosine of the best one, at most 10**:
+does not. By default callbus returns the tools within **0.2 cosine of the best one, at most 10**:
 a precise request gets one or two tools, a broad one more. `--k N` asks for a fixed number instead.
 
 ## The ingest directory
 
-`toolrank ingest` writes one directory, which `search` and `serve` read:
+`callbus ingest` writes one directory, which `search` and `serve` read:
 
 | Path | What it holds |
 | --- | --- |
@@ -52,12 +52,12 @@ and embeds only new or changed tools. A running server notices the new `tools.js
 index without a restart.
 
 Because the embedding cache is keyed by the endpoint's URL as written, `ingest --emb-url` must use
-the same URL string as `search` and `serve` for them to find the vectors (`TOOLRANK_EMB_URL` sets it
+the same URL string as `search` and `serve` for them to find the vectors (`CALLBUS_EMB_URL` sets it
 for all three).
 
 ## Search, rank, call
 
-- **Search**: a request against the whole catalogue (`toolrank search`, MCP `search_tools`,
+- **Search**: a request against the whole catalogue (`callbus search`, MCP `search_tools`,
   `POST /v1/search`). Each search gets a `search_id`.
 - **Rank**: tools the caller brings, scored for a request, not the catalogue (`POST /v1/rank`, which
   the LiteLLM filter uses).

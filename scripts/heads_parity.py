@@ -1,6 +1,6 @@
 """Do two head checkpoints rank alike? (Faz 1 Hafta 2: the packaged ``.npz`` vs the torch ``.pt``.)
 
-Builds the scorer the ``toolrank eval`` flags after ``--`` describe twice, once per checkpoint,
+Builds the scorer the ``callbus eval`` flags after ``--`` describe twice, once per checkpoint,
 and prints the cosine between the two projections of every tool and query (min, mean) and, per
 query, the top-10 overlap and whether the top-1 agrees.
 
@@ -19,15 +19,15 @@ from pathlib import Path
 
 import numpy as np
 
-from toolrank.build import build_scorer
-from toolrank.cli import build_parser
-from toolrank.datasets.jsonl import load_queries, load_tools
+from callbus.build import build_scorer
+from callbus.cli import build_parser
+from callbus.datasets.jsonl import load_queries, load_tools
 
 
 def main() -> None:
     argv = sys.argv[1:]
     if "--" not in argv:
-        sys.exit("usage: heads_parity.py --a CKPT --b CKPT -- <toolrank eval flags>")
+        sys.exit("usage: heads_parity.py --a CKPT --b CKPT -- <callbus eval flags>")
     split = argv.index("--")
     ap = argparse.ArgumentParser()
     ap.add_argument("--a", required=True)

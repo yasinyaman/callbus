@@ -1,9 +1,9 @@
 # CLI reference
 
-Generated from `toolrank`'s argument parser by `scripts/cli_reference.py`; `toolrank <command>
+Generated from `callbus`'s argument parser by `scripts/cli_reference.py`; `callbus <command>
 --help` shows the same. Every command also takes `-h` / `--help`.
 
-## `toolrank eval`
+## `callbus eval`
 
 index a tool set and score a query set
 
@@ -25,12 +25,12 @@ index a tool set and score a query set
 | `--emb-model EMB_MODEL` | `qwen3-8b` |  |
 | `--emb-batch EMB_BATCH` | `32` |  |
 | `--truncate TRUNCATE` |  | vLLM truncate_prompt_tokens (CLM reference: 2048) |
-| `--cache-dir CACHE_DIR` | `.cache/toolrank` | embedding cache directory (default: .cache/toolrank; '' = none) |
+| `--cache-dir CACHE_DIR` | `.cache/callbus` | embedding cache directory (default: .cache/callbus; '' = none) |
 | `--clm-ckpt CLM_CKPT` |  |  |
 | `--index INDEX` | `numpy` | vector index for dense/clm: numpy \| faiss \| pgvector |
 | `--index-dir INDEX_DIR` |  | keep the index on disk here (default: in memory) |
-| `--pg-dsn PG_DSN` |  | pgvector: Postgres DSN (default: $TOOLRANK_PG_DSN) |
-| `--pg-table PG_TABLE` | `toolrank_eval` | pgvector: not a served catalogue's table (its rows go) |
+| `--pg-dsn PG_DSN` |  | pgvector: Postgres DSN (default: $CALLBUS_PG_DSN) |
+| `--pg-table PG_TABLE` | `callbus_eval` | pgvector: not a served catalogue's table (its rows go) |
 | `--hybrid` |  | fuse BM25 (request without instruction) by RRF |
 | `--rrf-k RRF_K` | `60` | RRF constant |
 | `--rrf-depth RRF_DEPTH` | `100` | list depth taken from each arm |
@@ -65,7 +65,7 @@ index a tool set and score a query set
 | `--out OUT` |  | results JSON path |
 | `--runs-out RUNS_OUT` |  | per-query rows (top-20 ids, P@1, hit@5, NDCG@10) for compare --paired |
 
-## `toolrank compare`
+## `callbus compare`
 
 markdown table across result files
 
@@ -74,11 +74,11 @@ markdown table across result files
 | `files` | required |  |
 | `--paired` |  | two runs files (eval --runs-out): sign and paired permutation tests per query |
 | `--data DATA` |  | with --paired: the dataset dir whose queries give each query's task and category, for per-category and cat-macro rows (runs rows carry them since 0.3.0; this is for older files) |
-| `--subset SUBSET` |  | with --paired: pair only the queries of this dataset dir, e.g. one half of toolrank data split |
+| `--subset SUBSET` |  | with --paired: pair only the queries of this dataset dir, e.g. one half of callbus data split |
 | `--metrics METRICS` | `NDCG@10,Recall@10,Comprehensiveness@10` |  |
 | `--cat-macro CAT_MACRO` |  | metrics to add as category macro-averages (the ToolRet paper's Average); default: the first --metrics entry, '' for none |
 
-## `toolrank data pull`
+## `callbus data pull`
 
 download a benchmark and convert it to JSONL
 
@@ -93,7 +93,7 @@ download a benchmark and convert it to JSONL
 | `--gen-max-tokens GEN_MAX_TOKENS` | `256` |  |
 | `--gen-extra GEN_EXTRA` | `{"chat_template_kwargs": {"enable_thinking": false}}` | JSON merged into every chat request (default turns off Qwen3 thinking on vLLM; '{}' for none) |
 
-## `toolrank data gen-queries`
+## `callbus data gen-queries`
 
 Make a selection set that shares no query with a benchmark: sample tools evenly over the sources of an ingest (or benchmark) dir and let a chat model write one request per tool, in three styles. The result is a benchmark-format dir for eval, finetune --dev and learn --dev.
 
@@ -112,7 +112,7 @@ Make a selection set that shares no query with a benchmark: sample tools evenly 
 | `--gen-max-tokens GEN_MAX_TOKENS` | `256` |  |
 | `--gen-extra GEN_EXTRA` | `{"chat_template_kwargs": {"enable_thinking": false}}` | JSON merged into every chat request (default turns off Qwen3 thinking on vLLM; '{}' for none) |
 
-## `toolrank data server-names`
+## `callbus data server-names`
 
 copy a benchmark set with each tool's server name in its text (the _server sets)
 
@@ -121,7 +121,7 @@ copy a benchmark set with each tool's server name in its text (the _server sets)
 | `src` | required | a benchmark dir (tools.jsonl + queries.jsonl), e.g. data/mcp_zero |
 | `--out OUT` |  | default: <src>_server |
 
-## `toolrank data split`
+## `callbus data split`
 
 A seeded share of the queries to --out-a (pick checkpoints, epochs or settings on it), the rest to --out-b (score the choice there, never pick on it). Both keep the whole tools.jsonl.
 
@@ -133,7 +133,7 @@ A seeded share of the queries to --out-a (pick checkpoints, epochs or settings o
 | `--share SHARE` | `0.5` |  |
 | `--seed SEED` |  |  |
 
-## `toolrank data synth`
+## `callbus data synth`
 
 write a small synthetic tool set + queries
 
@@ -144,7 +144,7 @@ write a small synthetic tool set + queries
 | `--n-queries N_QUERIES` | `200` |  |
 | `--seed SEED` | `7` |  |
 
-## `toolrank ingest mcp`
+## `callbus ingest mcp`
 
 list tools from MCP servers (stdio or streamable HTTP)
 
@@ -165,7 +165,7 @@ list tools from MCP servers (stdio or streamable HTTP)
 | `--truncate TRUNCATE` |  | vLLM truncate_prompt_tokens (CLM reference: 2048) |
 | `--cache-dir CACHE_DIR` |  | embedding cache directory (default: DIR/cache, next to tools.jsonl; '' = none) |
 
-## `toolrank ingest openapi`
+## `callbus ingest openapi`
 
 one tool per operation of an OpenAPI 3.x spec (path or URL)
 
@@ -185,7 +185,7 @@ one tool per operation of an OpenAPI 3.x spec (path or URL)
 | `--truncate TRUNCATE` |  | vLLM truncate_prompt_tokens (CLM reference: 2048) |
 | `--cache-dir CACHE_DIR` |  | embedding cache directory (default: DIR/cache, next to tools.jsonl; '' = none) |
 
-## `toolrank ingest drop`
+## `callbus ingest drop`
 
 remove whole sources
 
@@ -194,9 +194,9 @@ remove whole sources
 | `names` | required |  |
 | `--out OUT` | required |  |
 
-## `toolrank search`
+## `callbus search`
 
-Rank the tools of an ingest dir for one request. Defaults: the toolrank backbone on 127.0.0.1:8091 (toolrank-emb-v0.2), no heads, adaptive K (margin 0.2, max 10), a persistent index in DIR/index.
+Rank the tools of an ingest dir for one request. Defaults: the callbus backbone on 127.0.0.1:8091 (callbus-emb-v0.2), no heads, adaptive K (margin 0.2, max 10), a persistent index in DIR/index.
 
 | Argument | Default | Description |
 | --- | --- | --- |
@@ -211,8 +211,8 @@ Rank the tools of an ingest dir for one request. Defaults: the toolrank backbone
 | `--query-format {plain,concat,instruct_query,clm}` |  |  |
 | `--index INDEX` | `numpy` | numpy \| faiss \| pgvector |
 | `--index-dir INDEX_DIR` |  | default: DATA/index |
-| `--pg-dsn PG_DSN` |  | pgvector: Postgres DSN (default: $TOOLRANK_PG_DSN) |
-| `--pg-table PG_TABLE` | `toolrank_tools` |  |
+| `--pg-dsn PG_DSN` |  | pgvector: Postgres DSN (default: $CALLBUS_PG_DSN) |
+| `--pg-table PG_TABLE` | `callbus_tools` |  |
 | `--hybrid` |  | fuse BM25 by RRF (helps agent-written requests only) |
 | `--rrf-k RRF_K` | `60` |  |
 | `--rrf-depth RRF_DEPTH` | `100` |  |
@@ -225,7 +225,7 @@ Rank the tools of an ingest dir for one request. Defaults: the toolrank backbone
 | `--cut-threshold CUT_THRESHOLD` |  | keep tools at or above this cosine |
 | `--cut-max CUT_MAX` | `10` |  |
 | `--cut-min CUT_MIN` | `1` |  |
-| `--min-confidence Q` |  | turn away a request less sure than this share of answerable ones (an empty list and a note; e.g. 0.05); needs DATA/calibration.json (toolrank calibrate) |
+| `--min-confidence Q` |  | turn away a request less sure than this share of answerable ones (an empty list and a note; e.g. 0.05); needs DATA/calibration.json (callbus calibrate) |
 | `--rerank {cross,jev}` |  | cross: a local cross-encoder behind vLLM's score API (Qwen3-Reranker-8B); jev: TypeSafe AI's hosted Jev (key in $TYPESAFE_API_KEY; the request text leaves the machine) |
 | `--rerank-depth RERANK_DEPTH` | `20` | tools reranked per request |
 | `--rerank-emb-url RERANK_EMB_URL` |  | cross: the reranker's /v1 endpoint |
@@ -245,13 +245,13 @@ Rank the tools of an ingest dir for one request. Defaults: the toolrank backbone
 | `--truncate TRUNCATE` |  | vLLM truncate_prompt_tokens (CLM reference: 2048) |
 | `--cache-dir CACHE_DIR` |  | embedding cache directory (default: DIR/cache, next to tools.jsonl; '' = none) |
 
-## `toolrank calibrate`
+## `callbus calibrate`
 
-Rank requests written for the catalogue's own tools (toolrank data gen-queries --data DIR) the way search and serve do, with the same flags, and keep their best scores in DIR/calibration.json. Searches by that first stage, heads and instruction then carry a confidence (the share of these answerable requests that scored lower), and --min-confidence turns away requests below a share. Calibrate again after the backbone, the heads (toolrank ab) or the instruction change.
+Rank requests written for the catalogue's own tools (callbus data gen-queries --data DIR) the way search and serve do, with the same flags, and keep their best scores in DIR/calibration.json. Searches by that first stage, heads and instruction then carry a confidence (the share of these answerable requests that scored lower), and --min-confidence turns away requests below a share. Calibrate again after the backbone, the heads (callbus ab) or the instruction change.
 
 | Argument | Default | Description |
 | --- | --- | --- |
-| `--requests REQUESTS` |  | a toolrank data gen-queries dir over this catalogue |
+| `--requests REQUESTS` |  | a callbus data gen-queries dir over this catalogue |
 | `--from-log` |  | calibrate on what serve answered instead: the requests whose call landed on a tool (their vectors come from the embedding cache; generated requests score higher than real traffic) |
 | `--since SINCE` |  | --from-log: an ISO date or timestamp, searches from it on |
 | `--tenant TENANT` |  | --from-log: one API key's searches |
@@ -265,8 +265,8 @@ Rank requests written for the catalogue's own tools (toolrank data gen-queries -
 | `--query-format {plain,concat,instruct_query,clm}` |  |  |
 | `--index INDEX` | `numpy` | numpy \| faiss \| pgvector |
 | `--index-dir INDEX_DIR` |  | default: DATA/index |
-| `--pg-dsn PG_DSN` |  | pgvector: Postgres DSN (default: $TOOLRANK_PG_DSN) |
-| `--pg-table PG_TABLE` | `toolrank_tools` |  |
+| `--pg-dsn PG_DSN` |  | pgvector: Postgres DSN (default: $CALLBUS_PG_DSN) |
+| `--pg-table PG_TABLE` | `callbus_tools` |  |
 | `--hybrid` |  | fuse BM25 by RRF (helps agent-written requests only) |
 | `--rrf-k RRF_K` | `60` |  |
 | `--rrf-depth RRF_DEPTH` | `100` |  |
@@ -279,7 +279,7 @@ Rank requests written for the catalogue's own tools (toolrank data gen-queries -
 | `--cut-threshold CUT_THRESHOLD` |  | keep tools at or above this cosine |
 | `--cut-max CUT_MAX` | `10` |  |
 | `--cut-min CUT_MIN` | `1` |  |
-| `--min-confidence Q` |  | turn away a request less sure than this share of answerable ones (an empty list and a note; e.g. 0.05); needs DATA/calibration.json (toolrank calibrate) |
+| `--min-confidence Q` |  | turn away a request less sure than this share of answerable ones (an empty list and a note; e.g. 0.05); needs DATA/calibration.json (callbus calibrate) |
 | `--rerank {cross,jev}` |  | cross: a local cross-encoder behind vLLM's score API (Qwen3-Reranker-8B); jev: TypeSafe AI's hosted Jev (key in $TYPESAFE_API_KEY; the request text leaves the machine) |
 | `--rerank-depth RERANK_DEPTH` | `20` | tools reranked per request |
 | `--rerank-emb-url RERANK_EMB_URL` |  | cross: the reranker's /v1 endpoint |
@@ -299,7 +299,7 @@ Rank requests written for the catalogue's own tools (toolrank data gen-queries -
 | `--truncate TRUNCATE` |  | vLLM truncate_prompt_tokens (CLM reference: 2048) |
 | `--cache-dir CACHE_DIR` |  | embedding cache directory (default: DIR/cache, next to tools.jsonl; '' = none) |
 
-## `toolrank serve`
+## `callbus serve`
 
 One MCP server with two tools, search_tools and call_tool, in front of every tool of an ingest dir; calls go to the MCP servers of --config/--server and to OpenAPI operations (GET/HEAD unless --allow-write). HTTP by default (MCP at /mcp), or --stdio for desktop clients.
 
@@ -314,8 +314,8 @@ One MCP server with two tools, search_tools and call_tool, in front of every too
 | `--query-format {plain,concat,instruct_query,clm}` |  |  |
 | `--index INDEX` | `numpy` | numpy \| faiss \| pgvector |
 | `--index-dir INDEX_DIR` |  | default: DATA/index |
-| `--pg-dsn PG_DSN` |  | pgvector: Postgres DSN (default: $TOOLRANK_PG_DSN) |
-| `--pg-table PG_TABLE` | `toolrank_tools` |  |
+| `--pg-dsn PG_DSN` |  | pgvector: Postgres DSN (default: $CALLBUS_PG_DSN) |
+| `--pg-table PG_TABLE` | `callbus_tools` |  |
 | `--hybrid` |  | fuse BM25 by RRF (helps agent-written requests only) |
 | `--rrf-k RRF_K` | `60` |  |
 | `--rrf-depth RRF_DEPTH` | `100` |  |
@@ -328,7 +328,7 @@ One MCP server with two tools, search_tools and call_tool, in front of every too
 | `--cut-threshold CUT_THRESHOLD` |  | keep tools at or above this cosine |
 | `--cut-max CUT_MAX` | `10` |  |
 | `--cut-min CUT_MIN` | `1` |  |
-| `--min-confidence Q` |  | turn away a request less sure than this share of answerable ones (an empty list and a note; e.g. 0.05); needs DATA/calibration.json (toolrank calibrate) |
+| `--min-confidence Q` |  | turn away a request less sure than this share of answerable ones (an empty list and a note; e.g. 0.05); needs DATA/calibration.json (callbus calibrate) |
 | `--rerank {cross,jev}` |  | cross: a local cross-encoder behind vLLM's score API (Qwen3-Reranker-8B); jev: TypeSafe AI's hosted Jev (key in $TYPESAFE_API_KEY; the request text leaves the machine) |
 | `--rerank-depth RERANK_DEPTH` | `20` | tools reranked per request |
 | `--rerank-emb-url RERANK_EMB_URL` |  | cross: the reranker's /v1 endpoint |
@@ -352,9 +352,9 @@ One MCP server with two tools, search_tools and call_tool, in front of every too
 | `--stdio` |  | speak MCP over stdin/stdout instead of HTTP |
 | `--host HOST` | `127.0.0.1` |  |
 | `--port PORT` | `8765` |  |
-| `--api-key API_KEY` |  | bearer token for /mcp and /v1 (default: $TOOLRANK_API_KEY) |
+| `--api-key API_KEY` |  | bearer token for /mcp and /v1 (default: $CALLBUS_API_KEY) |
 | `--api-keys FILE` |  | JSON {name: key}, one bearer token per client or team; the name is logged as the tenant |
-| `--allowed-host ALLOWED_HOST` |  | extra Host header value to accept, e.g. the name a proxy or container network uses (also $TOOLRANK_ALLOWED_HOSTS, comma-separated) (repeatable) |
+| `--allowed-host ALLOWED_HOST` |  | extra Host header value to accept, e.g. the name a proxy or container network uses (also $CALLBUS_ALLOWED_HOSTS, comma-separated) (repeatable) |
 | `--allow-write` |  | let call_tool send non-GET OpenAPI requests |
 | `--timeout TIMEOUT` | `60.0` | seconds per backend call and connection |
 | `--usage-log USAGE_LOG` |  | usage log directory (default: DATA/usage) |
@@ -363,9 +363,9 @@ One MCP server with two tools, search_tools and call_tool, in front of every too
 | `--log-text` |  | also log request and error text |
 | `--mask-pii` |  | with --log-text: mask e-mail, phone, card and IBAN numbers |
 
-## `toolrank finetune`
+## `callbus finetune`
 
-Embed the pairs once (only what the cache lacks), train heads on the frozen backbone's vectors, pick the epoch on --dev (a benchmark-format set that is not reported), then run toolrank eval with the saved heads on --dev and every --eval set. Defaults: the setting of the released heads (skip heads, lr 1e-5, batch 512, 5 epochs, in-batch negatives only) and the encoder of the released heads (the base model as qwen3-emb on 8091, documentation + instruct_query, truncate 8192), whose heads search and serve take with --emb-model qwen3-emb.
+Embed the pairs once (only what the cache lacks), train heads on the frozen backbone's vectors, pick the epoch on --dev (a benchmark-format set that is not reported), then run callbus eval with the saved heads on --dev and every --eval set. Defaults: the setting of the released heads (skip heads, lr 1e-5, batch 512, 5 epochs, in-batch negatives only) and the encoder of the released heads (the base model as qwen3-emb on 8091, documentation + instruct_query, truncate 8192), whose heads search and serve take with --emb-model qwen3-emb.
 
 | Argument | Default | Description |
 | --- | --- | --- |
@@ -406,11 +406,11 @@ Embed the pairs once (only what the cache lacks), train heads on the frozen back
 | `--emb-model EMB_MODEL` |  |  |
 | `--emb-batch EMB_BATCH` | `128` |  |
 | `--truncate TRUNCATE` | `8192` | vLLM truncate_prompt_tokens (CLM reference: 2048) |
-| `--cache-dir CACHE_DIR` | `.cache/toolrank` | embedding cache directory (default: .cache/toolrank; '' = none) |
+| `--cache-dir CACHE_DIR` | `.cache/callbus` | embedding cache directory (default: .cache/callbus; '' = none) |
 
-## `toolrank learn`
+## `callbus learn`
 
-From an ingest dir toolrank serve has served: the log's searches and calls become request -> tool pairs (a call that ended ok is a positive, a tool_error a weak one, tools shown but not called are hard negatives), the requests' vectors come from DATA/cache through the log's key, never their text, and the heads train from the served ones. The newest 20% of requests are the dev set (Recall@5 of the called tool over the catalogue); the heads are written only when they beat the starting ones there, and, with --dev, do not fall on a benchmark set.
+From an ingest dir callbus serve has served: the log's searches and calls become request -> tool pairs (a call that ended ok is a positive, a tool_error a weak one, tools shown but not called are hard negatives), the requests' vectors come from DATA/cache through the log's key, never their text, and the heads train from the served ones. The newest 20% of requests are the dev set (Recall@5 of the called tool over the catalogue); the heads are written only when they beat the starting ones there, and, with --dev, do not fall on a benchmark set.
 
 | Argument | Default | Description |
 | --- | --- | --- |
@@ -450,7 +450,7 @@ From an ingest dir toolrank serve has served: the log's searches and calls becom
 | `--truncate TRUNCATE` |  | vLLM truncate_prompt_tokens (CLM reference: 2048) |
 | `--cache-dir CACHE_DIR` |  | embedding cache directory (default: DIR/cache, next to tools.jsonl; '' = none) |
 
-## `toolrank ab`
+## `callbus ab`
 
 Since DATA/heads/candidate.npz appeared, a share of the requests was answered with it. Per arm: the searches, how many led to a call, and how high the called tool stood (mrr: the mean of 1/rank over all the arm's searches). The candidate becomes current.npz when its mrr is --margin above the control's with --min-searches on both sides, is set aside when it is that much below, and keeps running otherwise. A running server follows the files.
 
@@ -466,7 +466,7 @@ Since DATA/heads/candidate.npz appeared, a share of the requests was answered wi
 | `--rollback` |  | roll back now |
 | `--results RESULTS` | `results` | where the report goes |
 
-## `toolrank heads export`
+## `callbus heads export`
 
 a torch .pt checkpoint -> the .npz that runs without torch
 
@@ -481,14 +481,14 @@ a torch .pt checkpoint -> the .npz that runs without torch
 | `--truncate TRUNCATE` |  |  |
 | `--instruction INSTRUCTION` |  |  |
 
-## `toolrank heads pull`
+## `callbus heads pull`
 
 download the packaged heads into the cache (sha256-checked); search and serve use them on the backbone they were trained on (--emb-model qwen3-emb or qwen3-emb-fp8)
 
 | Argument | Default | Description |
 | --- | --- | --- |
-| `--url URL` |  | a mirror of the file (default: TOOLRANK_HEADS_URL, then the release) |
+| `--url URL` |  | a mirror of the file (default: CALLBUS_HEADS_URL, then the release) |
 
-## `toolrank formats`
+## `callbus formats`
 
 list tool / query text formats

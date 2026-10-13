@@ -1,6 +1,6 @@
 """Pre-release check of the loop on a real server: traffic over HTTP, then learn, calibrate and ab.
 
-Starts ``toolrank serve`` on an ingest dir with the release stack, plays generated requests through
+Starts ``callbus serve`` on an ingest dir with the release stack, plays generated requests through
 ``POST /v1/search`` the way an agent would, reports each top hit back through ``POST /v1/feedback``
 (the client ran the tool itself, so nothing outside is touched), stops the server, and then runs the
 loop over the log it wrote: ``learn --dry-run`` (how many pairs the log gave), ``calibrate
@@ -65,7 +65,7 @@ def main() -> int:
         [
             "uv",
             "run",
-            "toolrank",
+            "callbus",
             "serve",
             "--data",
             str(data),
@@ -80,7 +80,7 @@ def main() -> int:
             "--host",
             "127.0.0.1",
         ],  # fmt: skip
-        env={**os.environ, "TOOLRANK_API_KEY": token},
+        env={**os.environ, "CALLBUS_API_KEY": token},
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -138,7 +138,7 @@ def main() -> int:
     def run(label: str, args: list[str]) -> str:
         print(f"\n=== {label} ===")
         r = subprocess.run(
-            ["uv", "run", "toolrank", *args], capture_output=True, text=True, timeout=1800, check=False
+            ["uv", "run", "callbus", *args], capture_output=True, text=True, timeout=1800, check=False
         )
         text = (r.stdout + r.stderr).strip()
         print("\n".join(text.splitlines()[-14:]))

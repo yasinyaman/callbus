@@ -10,14 +10,14 @@ import pytest
 
 pytest.importorskip("mcp")
 
-from toolrank.adapters.mcp_client import (  # noqa: E402
+from callbus.adapters.mcp_client import (  # noqa: E402
     MCPListingError,
     MCPServerSource,
     fetch_many,
     fetch_tools,
     list_all,
 )
-from toolrank.ingest.mcp import ServerConfig  # noqa: E402
+from callbus.ingest.mcp import ServerConfig  # noqa: E402
 
 FIXTURE = str(Path(__file__).parent / "fixtures" / "mcp_server.py")
 

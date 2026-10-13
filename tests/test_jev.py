@@ -11,7 +11,7 @@ import urllib.error
 
 import pytest
 
-from toolrank.adapters.jev import (
+from callbus.adapters.jev import (
     MAX_OPTIONS,
     JevClient,
     JevReranker,
@@ -19,9 +19,9 @@ from toolrank.adapters.jev import (
     choice_question,
     option_key,
 )
-from toolrank.cli import main
-from toolrank.domain import Query, RankedList, Tool
-from toolrank.formats import TOOL_FORMATS
+from callbus.cli import main
+from callbus.domain import Query, RankedList, Tool
+from callbus.formats import TOOL_FORMATS
 
 _WORD = re.compile(r"[a-z0-9_]+")
 
@@ -134,8 +134,8 @@ def test_cache_answers_a_repeated_request_without_a_call(fake_jev, tmp_path):
 
 
 def test_standalone_scorer_chunks_the_corpus_and_reranks_the_winners(fake_jev, tmp_path):
-    from toolrank.datasets.jsonl import load_queries, load_tools
-    from toolrank.datasets.synthetic import write_synthetic
+    from callbus.datasets.jsonl import load_queries, load_tools
+    from callbus.datasets.synthetic import write_synthetic
 
     write_synthetic(tmp_path, n_tools=60, n_queries=8, seed=3)
     tools, queries = load_tools(tmp_path / "tools.jsonl"), load_queries(tmp_path / "queries.jsonl")
@@ -200,7 +200,7 @@ def test_post_retries_429_with_retry_after_and_shows_a_400_body(monkeypatch):
 
 
 def test_eval_cli_reranks_bm25_and_records_the_jev_block(fake_jev, tmp_path, capsys):
-    from toolrank.datasets.synthetic import write_synthetic
+    from callbus.datasets.synthetic import write_synthetic
 
     write_synthetic(tmp_path / "d", n_tools=40, n_queries=6, seed=1)
     out = tmp_path / "r.json"
@@ -232,7 +232,7 @@ def test_eval_cli_reranks_bm25_and_records_the_jev_block(fake_jev, tmp_path, cap
 
 
 def test_eval_cli_refuses_to_start_without_a_key(monkeypatch, tmp_path):
-    from toolrank.datasets.synthetic import write_synthetic
+    from callbus.datasets.synthetic import write_synthetic
 
     monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
     write_synthetic(tmp_path, n_tools=10, n_queries=2, seed=1)
@@ -241,7 +241,7 @@ def test_eval_cli_refuses_to_start_without_a_key(monkeypatch, tmp_path):
 
 
 def test_search_and_serve_ask_for_the_key_only_for_typesafe(monkeypatch, tmp_path):
-    from toolrank.cli import _check_rerank, build_parser
+    from callbus.cli import _check_rerank, build_parser
 
     monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
     for cmd in ("search", "serve"):
@@ -313,7 +313,7 @@ def test_standalone_scorer_never_sends_a_one_option_question(fake_jev):
 
 
 def test_eval_cli_reranks_through_a_local_endpoint_without_a_key(fake_jev, tmp_path, monkeypatch):
-    from toolrank.datasets.synthetic import write_synthetic
+    from callbus.datasets.synthetic import write_synthetic
 
     monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
     write_synthetic(tmp_path / "d", n_tools=20, n_queries=3, seed=1)

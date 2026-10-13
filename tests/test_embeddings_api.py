@@ -6,7 +6,7 @@ import urllib.request
 import numpy as np
 import pytest
 
-from toolrank.adapters.embeddings_api import OpenAIEmbeddings
+from callbus.adapters.embeddings_api import OpenAIEmbeddings
 
 
 def _encoder(cache_dir, calls):
@@ -69,13 +69,13 @@ def test_a_servers_short_timeout_applies_to_queries_only(monkeypatch):
         ("https://api.openai.com/v1", {"OPENAI_API_KEY": "sk-agent"}, "Bearer sk-agent"),
         (
             "http://127.0.0.1:8091/v1",
-            {"OPENAI_API_KEY": "sk-agent", "TOOLRANK_EMB_API_KEY": "own"},
+            {"OPENAI_API_KEY": "sk-agent", "CALLBUS_EMB_API_KEY": "own"},
             "Bearer own",
         ),
     ],
 )
 def test_the_openai_key_goes_to_openai_only(monkeypatch, url, env, sent):
-    for k in ("OPENAI_API_KEY", "TOOLRANK_EMB_API_KEY"):
+    for k in ("OPENAI_API_KEY", "CALLBUS_EMB_API_KEY"):
         monkeypatch.delenv(k, raising=False)
     for k, v in env.items():
         monkeypatch.setenv(k, v)
@@ -91,7 +91,7 @@ def test_the_openai_key_goes_to_openai_only(monkeypatch, url, env, sent):
 
 
 def test_the_key_does_not_follow_a_redirect(monkeypatch):
-    monkeypatch.setenv("TOOLRANK_EMB_API_KEY", "own")
+    monkeypatch.setenv("CALLBUS_EMB_API_KEY", "own")
     sent = []
 
     def fake_urlopen(req, timeout):
@@ -109,7 +109,7 @@ def test_the_key_does_not_follow_a_redirect(monkeypatch):
 
 
 def test_a_refusal_without_a_key_names_the_variable_to_set(monkeypatch):
-    monkeypatch.delenv("TOOLRANK_EMB_API_KEY", raising=False)
+    monkeypatch.delenv("CALLBUS_EMB_API_KEY", raising=False)
     monkeypatch.setenv("OPENAI_API_KEY", "sk-agent")  # not sent to a third party, so nothing was sent
 
     def refused(req, timeout):
@@ -117,7 +117,7 @@ def test_a_refusal_without_a_key_names_the_variable_to_set(monkeypatch):
 
     monkeypatch.setattr("urllib.request.urlopen", refused)
     monkeypatch.setattr("time.sleep", lambda s: None)
-    with pytest.raises(RuntimeError, match="set TOOLRANK_EMB_API_KEY"):
+    with pytest.raises(RuntimeError, match="set CALLBUS_EMB_API_KEY"):
         OpenAIEmbeddings("m", "https://embeddings.example.com/v1").encode(["a"])
 
 
@@ -159,11 +159,11 @@ def test_a_dropped_keep_alive_is_retried_like_a_network_error(monkeypatch):
 def test_the_rest_client_turns_a_dropped_connection_into_its_own_error(monkeypatch):
     import http.client
 
-    from toolrank.client import ToolrankClient, ToolrankError
+    from callbus.client import CallBusClient, CallBusError
 
     def dropped(self, req, timeout=None):
         raise http.client.RemoteDisconnected("closed")
 
     monkeypatch.setattr(urllib.request.OpenerDirector, "open", dropped)
-    with pytest.raises(ToolrankError, match="connection lost"):
-        ToolrankClient("http://127.0.0.1:9").search("x")
+    with pytest.raises(CallBusError, match="connection lost"):
+        CallBusClient("http://127.0.0.1:9").search("x")

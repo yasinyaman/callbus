@@ -1,12 +1,12 @@
-# Contributing to toolrank
+# Contributing to callbus
 
 Bug reports, benchmark results, new adapters and documentation fixes are all welcome. Please follow
-the [code of conduct](https://github.com/yasinyaman/toolrank/blob/main/CODE_OF_CONDUCT.md).
+the [code of conduct](https://github.com/yasinyaman/callbus/blob/main/CODE_OF_CONDUCT.md).
 
 ## Set up
 
 ```bash
-git clone https://github.com/yasinyaman/toolrank && cd toolrank
+git clone https://github.com/yasinyaman/callbus && cd callbus
 uv sync                               # the project and its dev group; --extra clm adds the torch tests
 ```
 
@@ -36,13 +36,13 @@ honest:
 
 ## Adding things
 
-- **A scorer:** one file in `src/toolrank/adapters/` implementing the `Scorer` protocol
-  (`src/toolrank/ports.py`) with `tool_format` and `query_format` attributes, a branch in
+- **A scorer:** one file in `src/callbus/adapters/` implementing the `Scorer` protocol
+  (`src/callbus/ports.py`) with `tool_format` and `query_format` attributes, a branch in
   `build.build_scorer`, its name in the `--scorer` choices, and a test on the synthetic set.
-- **A benchmark:** a converter in `src/toolrank/datasets/` that writes the JSONL pair
-  (`datasets/jsonl.py`), plus a `toolrank data pull` choice. Evaluation never touches the network.
-- **An integration:** a module in `src/toolrank/integrations/` that talks to `toolrank serve`
-  through `toolrank.client.ToolrankClient`, imports its framework only when used, and has tests
+- **A benchmark:** a converter in `src/callbus/datasets/` that writes the JSONL pair
+  (`datasets/jsonl.py`), plus a `callbus data pull` choice. Evaluation never touches the network.
+- **An integration:** a module in `src/callbus/integrations/` that talks to `callbus serve`
+  through `callbus.client.CallBusClient`, imports its framework only when used, and has tests
   against the framework's real classes.
 
 ## Documentation

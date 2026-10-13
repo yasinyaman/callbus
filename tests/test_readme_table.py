@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from toolrank.eval.table import END, START, TableError, render, splice
+from callbus.eval.table import END, START, TableError, render, splice
 
 ROOT = Path(__file__).resolve().parents[1]
 if not (ROOT / "docs" / "results.toml").exists():  # the sdist ships no docs
@@ -18,8 +18,8 @@ def test_the_readme_and_the_docs_show_the_table_the_curated_reports_make():
         assert splice(text, table) == text, (
             f"stale {page.name}: uv run python scripts/readme_table.py --write"
         )
-    assert "| Qwen3-Embedding-8B + toolrank heads v0.1 | 54.03 | 47.13 |" in table
-    assert "| toolrank backbone v0.2 in FP8 (the default) | **59.02** | **54.53** |" in table
+    assert "| Qwen3-Embedding-8B + callbus heads v0.1 | 54.03 | 47.13 |" in table
+    assert "| callbus backbone v0.2 in FP8 (the default) | **59.02** | **54.53** |" in table
 
 
 def _spec(tmp_path, **row_extra):
@@ -84,7 +84,7 @@ def test_rows_and_columns_must_match_their_reports(tmp_path):
 
 
 def test_the_leaderboard_sheets_come_from_checked_reports():
-    from toolrank.eval.table import LeaderboardRow, leaderboard, leaderboard_latex
+    from callbus.eval.table import LeaderboardRow, leaderboard, leaderboard_latex
 
     def load(name):
         return json.loads((ROOT / "docs" / "results" / name).read_text())

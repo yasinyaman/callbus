@@ -1,4 +1,4 @@
-"""``toolrank learn``: pairs mined from the usage log, the requests' vectors found through the log's
+"""``callbus learn``: pairs mined from the usage log, the requests' vectors found through the log's
 key, the newest requests held out, and heads published only when they help."""
 
 import json
@@ -7,13 +7,13 @@ import random
 import numpy as np
 import pytest
 
-from toolrank.adapters.embeddings_api import OpenAIEmbeddings
-from toolrank.cli import main
-from toolrank.datasets.jsonl import write_queries, write_tools
-from toolrank.datasets.synthetic import make_queries, make_tools
-from toolrank.domain import Tool
-from toolrank.formats import tool_format
-from toolrank.learn import (
+from callbus.adapters.embeddings_api import OpenAIEmbeddings
+from callbus.cli import main
+from callbus.datasets.jsonl import write_queries, write_tools
+from callbus.datasets.synthetic import make_queries, make_tools
+from callbus.domain import Tool
+from callbus.formats import tool_format
+from callbus.learn import (
     Job,
     LogPair,
     apply,
@@ -26,8 +26,8 @@ from toolrank.learn import (
     split,
     state_vectors,
 )
-from toolrank.retriever import Hit, SearchResult
-from toolrank.usage import UsageLog
+from callbus.retriever import Hit, SearchResult
+from callbus.usage import UsageLog
 
 URL, MODEL = "http://unused/v1", "fake"
 
@@ -133,7 +133,7 @@ def test_split_holds_out_the_newest_requests_and_batches_index_the_catalogue():
 
 
 def _served(tmp_path, n_requests=60, dim=16, seed=0, model=MODEL):
-    """An ingest dir toolrank serve could have written: tools.jsonl, a cache with every vector and a
+    """An ingest dir callbus serve could have written: tools.jsonl, a cache with every vector and a
     usage log of searches and calls. A request is a noisy, rotated copy of its tool's vector, so the
     starting (identity) heads rank it poorly and training can learn the rotation."""
     rng = np.random.default_rng(seed)
@@ -224,7 +224,7 @@ def test_learn_dry_run_reports_the_pairs_without_torch(tmp_path, capsys):
         == 0
     )
     assert "not enough pairs" in capsys.readouterr().out
-    # a candidate that toolrank ab has not decided on is not trained over
+    # a candidate that callbus ab has not decided on is not trained over
     waiting = heads_home(tmp_path) / "candidate.npz"
     waiting.parent.mkdir()
     waiting.write_bytes(b"still judged")
@@ -234,15 +234,15 @@ def test_learn_dry_run_reports_the_pairs_without_torch(tmp_path, capsys):
 
 def test_learn_publishes_heads_that_beat_the_start_on_the_logs_newest_requests(tmp_path):
     torch = pytest.importorskip("torch")
-    from toolrank.adapters.heads_np import NumpyHeads
-    from toolrank.finetune import TrainConfig
+    from callbus.adapters.heads_np import NumpyHeads
+    from callbus.finetune import TrainConfig
 
     tools, tool_vecs, _ = _served(tmp_path)
     dev_q = make_queries(tools, 20, random.Random(3))  # a benchmark-format guard, scored alongside
     write_tools(tmp_path / "bench" / "tools.jsonl", tools)
     write_queries(tmp_path / "bench" / "queries.jsonl", dev_q)
     enc = _enc(tmp_path)
-    from toolrank.formats import query_format
+    from callbus.formats import query_format
 
     enc.cache.put_many(
         [query_format("instruct_query")(q) for q in dev_q],
@@ -427,11 +427,11 @@ def test_ab_cli_reports_and_moves_only_when_decided(tmp_path, capsys):
 
 def test_learn_writes_the_candidate_and_mixes_in_general_pairs(tmp_path):
     pytest.importorskip("torch")
-    from toolrank.adapters.heads_np import NumpyHeads
-    from toolrank.datasets.jsonl import write_pairs
-    from toolrank.domain import TrainPair
-    from toolrank.finetune import TrainConfig
-    from toolrank.formats import query_format
+    from callbus.adapters.heads_np import NumpyHeads
+    from callbus.datasets.jsonl import write_pairs
+    from callbus.domain import TrainPair
+    from callbus.finetune import TrainConfig
+    from callbus.formats import query_format
 
     _served(tmp_path)
     general = [
@@ -445,7 +445,7 @@ def test_learn_writes_the_candidate_and_mixes_in_general_pairs(tmp_path):
     write_pairs(tmp_path / "pairs.jsonl", general)
     enc, tf, qf = _enc(tmp_path), tool_format("documentation"), query_format("instruct_query")
     rng = np.random.default_rng(9)
-    from toolrank.domain import Query
+    from callbus.domain import Query
 
     texts = [qf(Query(id=p.id, text=p.text, qrels={}, instruction="Find the tool.")) for p in general]
     docs = sorted(
@@ -486,11 +486,11 @@ def test_replay_pairs_bring_no_negatives_and_none_the_dev_set_asks_about(tmp_pat
     """Replay rows: positives only (their mined negatives are never even encoded: their docs are not
     cached, so encoding them would fail), and a pair whose request the --dev set asks about is dropped."""
     pytest.importorskip("torch")
-    import toolrank.learn as learn_mod
-    from toolrank.datasets.jsonl import load_tools, write_pairs, write_queries
-    from toolrank.domain import Query, TrainPair
-    from toolrank.finetune import TrainConfig
-    from toolrank.formats import query_format
+    import callbus.learn as learn_mod
+    from callbus.datasets.jsonl import load_tools, write_pairs, write_queries
+    from callbus.domain import Query, TrainPair
+    from callbus.finetune import TrainConfig
+    from callbus.formats import query_format
 
     _served(tmp_path)
     doc = lambda i: json.dumps({"name": f"g{i % 7}", "description": "x"})  # noqa: E731
@@ -547,23 +547,23 @@ def test_replay_pairs_bring_no_negatives_and_none_the_dev_set_asks_about(tmp_pat
 
 
 def test_learn_starts_from_the_heads_a_server_would_serve(tmp_path, monkeypatch):
-    from toolrank.learn import resolve_init
+    from callbus.learn import resolve_init
 
-    monkeypatch.delenv("TOOLRANK_HEADS", raising=False)
-    assert resolve_init("default", "toolrank-emb-v0.2") is None  # fresh skip heads: the backbone alone
-    assert resolve_init("x.npz", "toolrank-emb-v0.2") == "x.npz" and resolve_init(None, "qwen3-emb") is None
+    monkeypatch.delenv("CALLBUS_HEADS", raising=False)
+    assert resolve_init("default", "callbus-emb-v0.2") is None  # fresh skip heads: the backbone alone
+    assert resolve_init("x.npz", "callbus-emb-v0.2") == "x.npz" and resolve_init(None, "qwen3-emb") is None
     heads = tmp_path / "h.npz"
     heads.write_bytes(b"")
-    monkeypatch.setenv("TOOLRANK_HEADS", str(heads))
+    monkeypatch.setenv("CALLBUS_HEADS", str(heads))
     assert resolve_init("default", "qwen3-emb") == str(heads)
-    assert resolve_init("default", "toolrank-emb-v0.2") == str(heads)  # asked for by name
+    assert resolve_init("default", "callbus-emb-v0.2") == str(heads)  # asked for by name
     # the promoted heads come first: learn continues from what is served, not the packaged ones
     data = tmp_path / "data"
     current = heads_home(data) / "current.npz"
     current.parent.mkdir(parents=True)
     current.write_bytes(b"promoted")
     assert resolve_init("default", "qwen3-emb", data=data) == str(current)
-    assert resolve_init("default", "toolrank-emb-v0.2", data=data) == str(current)
+    assert resolve_init("default", "callbus-emb-v0.2", data=data) == str(current)
     tenant_current = heads_home(data, "acme") / "current.npz"  # a tenant's own heads, for its log
     tenant_current.parent.mkdir(parents=True)
     tenant_current.write_bytes(b"tenant")
@@ -574,23 +574,23 @@ def test_learn_starts_from_the_heads_a_server_would_serve(tmp_path, monkeypatch)
 def test_learn_does_not_continue_from_heads_promoted_on_another_backbone(tmp_path, monkeypatch):
     """A current.npz promoted under 0.1.x (trained on Qwen3-Embedding-8B) has the v0.2 backbone's width:
     on v0.2 learn starts from identity instead; on the backbone it names, it continues from it."""
+    from callbus.learn import resolve_init
     from test_retriever import _npz_heads
-    from toolrank.learn import resolve_init
 
-    monkeypatch.delenv("TOOLRANK_HEADS", raising=False)
+    monkeypatch.delenv("CALLBUS_HEADS", raising=False)
     data = tmp_path / "data"
     current = heads_home(data) / "current.npz"
     _npz_heads(current, seed=1, backbone="Qwen/Qwen3-Embedding-8B")
-    assert resolve_init("default", "toolrank-emb-v0.2", data=data) is None
+    assert resolve_init("default", "callbus-emb-v0.2", data=data) is None
     assert resolve_init("default", "qwen3-emb", data=data) == str(current)
-    _npz_heads(current, seed=1, backbone="yasinyaman/toolrank-emb-8b")  # learned on v0.2 itself
-    assert resolve_init("default", "toolrank-emb-v0.2-fp8", data=data) == str(current)
+    _npz_heads(current, seed=1, backbone="yasinyaman/callbus-emb-8b")  # learned on v0.2 itself
+    assert resolve_init("default", "callbus-emb-v0.2-fp8", data=data) == str(current)
 
 
 def test_replay_sampling_covers_the_whole_file(tmp_path):
-    from toolrank.datasets.jsonl import iter_pairs, write_pairs
-    from toolrank.domain import TrainPair
-    from toolrank.learn import _reservoir
+    from callbus.datasets.jsonl import iter_pairs, write_pairs
+    from callbus.domain import TrainPair
+    from callbus.learn import _reservoir
 
     pairs = [TrainPair(id=str(i), text=f"r{i}", positives=("x",)) for i in range(200)]
     pairs.insert(100, TrainPair(id="no-pos", text="nope", positives=()))  # counts for nothing
@@ -606,14 +606,14 @@ def test_replay_sampling_covers_the_whole_file(tmp_path):
 
 def test_mine_skips_the_requests_another_backbone_answered():
     events = [
-        {**_search("s1", "A", ["t1"], 1, "2026-09-30T10:00:00"), "model": "toolrank-emb-v0.2"},
+        {**_search("s1", "A", ["t1"], 1, "2026-09-30T10:00:00"), "model": "callbus-emb-v0.2"},
         _call("t1", "s1"),
         {**_search("s2", "B", ["t2"], 1, "2026-09-30T11:00:00"), "model": "qwen3-emb-0.6b"},
         _call("t2", "s2"),
         _search("s3", "C", ["t3"], 1, "2026-09-30T12:00:00"),  # logged before the model field: kept
         _call("t3", "s3"),
     ]
-    pairs, counts = mine(events, model="toolrank-emb-v0.2")
+    pairs, counts = mine(events, model="callbus-emb-v0.2")
     assert [p.state for p in pairs] == ["A", "C"]
     assert counts["searches_of_other_models"] == 1 and counts["pairs"] == 2
     pairs, counts = mine(events)  # no model named: everything counts, as before
@@ -669,10 +669,10 @@ def test_mine_tells_the_backbone_of_old_searches_by_their_scorer_name():
     with model null still name the first stage's encoder in the scorer: emb/<served name>/."""
     names = {
         "s1": "clm[default]/emb/qwen3-emb/documentation/instruct_query",
-        "s2": "dense/emb/toolrank-emb-v0.2/documentation/instruct_query",
+        "s2": "dense/emb/callbus-emb-v0.2/documentation/instruct_query",
         "s3": "rerank[cross[qwen3-reranker,qwen3]/documentation<3000,d20]/dense/emb/qwen3-emb/documentation/x",
         "s4": "rerank[dense/emb/qwen3-emb/documentation/plain,d20]/hybrid[rrf60,d100]/dense/emb/"
-        "toolrank-emb-v0.2/documentation/instruct_query+bm25/documentation/plain",
+        "callbus-emb-v0.2/documentation/instruct_query+bm25/documentation/plain",
         "s5": "bm25/documentation/plain",  # no encoder named: nothing to tell
     }
     events = []
@@ -681,12 +681,12 @@ def test_mine_tells_the_backbone_of_old_searches_by_their_scorer_name():
             {**_search(sid, sid.upper(), ["t1"], 1, "2026-09-30T10:00:00"), "scorer": name},
             _call("t1", sid),
         ]
-    pairs, counts = mine(events, model="toolrank-emb-v0.2")
+    pairs, counts = mine(events, model="callbus-emb-v0.2")
     assert [p.state for p in pairs] == ["S2", "S4", "S5"] and counts["searches_of_other_models"] == 2
 
 
 def test_mine_and_judge_skip_searches_a_jev_second_stage_answered():
-    """MCA 2.3(b): an order TypeSafe's model gave trains and promotes nothing of toolrank's."""
+    """MCA 2.3(b): an order TypeSafe's model gave trains and promotes nothing of callbus's."""
     from collections import Counter
 
     jev = "jev[jev-1.13.0@api.typesafe.ai,d20,name_desc]/dense/emb/x"
@@ -713,7 +713,7 @@ def test_mine_and_judge_skip_searches_a_jev_second_stage_answered():
 
 def test_learn_uses_only_the_served_models_requests(tmp_path, capsys):
     _served(tmp_path)  # 60 requests logged without the model field (an older serve): kept
-    from toolrank.datasets.jsonl import load_tools
+    from callbus.datasets.jsonl import load_tools
 
     tools = load_tools(tmp_path / "tools.jsonl")
     other = OpenAIEmbeddings("qwen3-emb-0.6b", URL, cache_dir=tmp_path / "cache", truncate_prompt_tokens=8192)
@@ -764,13 +764,13 @@ def test_learn_on_a_headless_backbone_starts_from_identity(tmp_path, monkeypatch
     """v0.2 (no fitting packaged heads, none promoted): learn trains a fresh skip head, so epoch 0
     is the backbone's own score, not a random head's noise."""
     pytest.importorskip("torch")
-    import toolrank.learn as learn_mod
-    from toolrank.datasets.jsonl import load_tools
-    from toolrank.finetune import TrainConfig, recall_at
-    from toolrank.usage import read_events
+    import callbus.learn as learn_mod
+    from callbus.datasets.jsonl import load_tools
+    from callbus.finetune import TrainConfig, recall_at
+    from callbus.usage import read_events
 
-    monkeypatch.delenv("TOOLRANK_HEADS", raising=False)
-    _served(tmp_path, model="toolrank-emb-v0.2")
+    monkeypatch.delenv("CALLBUS_HEADS", raising=False)
+    _served(tmp_path, model="callbus-emb-v0.2")
     seen = {}
     real = learn_mod.train_heads
 
@@ -783,21 +783,21 @@ def test_learn_on_a_headless_backbone_starts_from_identity(tmp_path, monkeypatch
         data=tmp_path,
         out=tmp_path / "heads" / "learned.npz",
         emb_url=URL,
-        emb_model="toolrank-emb-v0.2",
+        emb_model="callbus-emb-v0.2",
         train=TrainConfig(epochs=1, batch=32, neg_per_pair=3, head_cfg={"width": 64, "depth": 3}),
     )
     report = run(job, log=lambda _: None)
     assert seen == {"init": None, "skip": True}
     # epoch 0 is the backbone alone: the raw (identity-mapped) vectors' Recall@5 on the dev split
     events = read_events(tmp_path / "usage")
-    pairs, _ = mine(events, model="toolrank-emb-v0.2")
+    pairs, _ = mine(events, model="callbus-emb-v0.2")
     key = (tmp_path / "usage" / ".key").read_bytes()
     states = state_vectors(tmp_path / "cache" / "embeddings.sqlite", key, {p.state for p in pairs})
     _, dev = split([p for p in pairs if p.state in states], 0.2)
     tools = load_tools(tmp_path / "tools.jsonl")
     index = {t.id: n for n, t in enumerate(tools)}
     tf = tool_format("documentation")
-    enc = _enc(tmp_path, "toolrank-emb-v0.2")
+    enc = _enc(tmp_path, "callbus-emb-v0.2")
     got = enc.cache.get_many([tf(t) for t in tools])
     tool_vecs = np.stack([got[i] for i in range(len(tools))])
     tool_vecs = tool_vecs / (np.linalg.norm(tool_vecs, axis=-1, keepdims=True) + 1e-12)

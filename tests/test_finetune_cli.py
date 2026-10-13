@@ -7,11 +7,11 @@ import sys
 import numpy as np
 import pytest
 
-from toolrank.adapters.embeddings_api import OpenAIEmbeddings
-from toolrank.cli import main
-from toolrank.datasets.jsonl import write_pairs, write_queries, write_tools
-from toolrank.datasets.synthetic import make_queries, make_tools
-from toolrank.domain import TrainPair
+from callbus.adapters.embeddings_api import OpenAIEmbeddings
+from callbus.cli import main
+from callbus.datasets.jsonl import write_pairs, write_queries, write_tools
+from callbus.datasets.synthetic import make_queries, make_tools
+from callbus.domain import TrainPair
 
 URL = "http://unused/v1"
 
@@ -103,8 +103,8 @@ def test_training_without_torch_says_what_to_install(tmp_path, sent, monkeypatch
 
 def test_finetune_selects_on_dev_saves_serving_heads_and_evaluates(tmp_path, sent):
     torch = pytest.importorskip("torch")
-    from toolrank.adapters.heads_np import NumpyHeads
-    from toolrank.build import DEFAULT_SERVING
+    from callbus.adapters.heads_np import NumpyHeads
+    from callbus.build import DEFAULT_SERVING
 
     pairs, dev, ev = _sets(tmp_path)
     npz = tmp_path / "heads.npz"

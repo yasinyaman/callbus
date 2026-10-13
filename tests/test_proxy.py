@@ -11,9 +11,9 @@ pytest.importorskip("mcp")
 import anyio  # noqa: E402
 import httpx2  # noqa: E402
 
-from toolrank.adapters.backends import Backends  # noqa: E402
-from toolrank.adapters.dense import DenseScorer  # noqa: E402
-from toolrank.adapters.mcp_proxy import (  # noqa: E402
+from callbus.adapters.backends import Backends  # noqa: E402
+from callbus.adapters.dense import DenseScorer  # noqa: E402
+from callbus.adapters.mcp_proxy import (  # noqa: E402
     SHRUNK_CHARS,
     TENANT_KEY,
     Guard,
@@ -22,11 +22,11 @@ from toolrank.adapters.mcp_proxy import (  # noqa: E402
     hit_json,
     identity,
 )
-from toolrank.datasets.jsonl import write_tools  # noqa: E402
-from toolrank.domain import Tool  # noqa: E402
-from toolrank.ingest.mcp import ServerConfig  # noqa: E402
-from toolrank.retriever import Hit, Retriever  # noqa: E402
-from toolrank.usage import UsageLog  # noqa: E402
+from callbus.datasets.jsonl import write_tools  # noqa: E402
+from callbus.domain import Tool  # noqa: E402
+from callbus.ingest.mcp import ServerConfig  # noqa: E402
+from callbus.retriever import Hit, Retriever  # noqa: E402
+from callbus.usage import UsageLog  # noqa: E402
 
 FIXTURE = str(Path(__file__).parent / "fixtures" / "mcp_server.py")
 ADD_SCHEMA = {
@@ -157,8 +157,8 @@ def test_proxy_search_then_call_mcp_and_openapi_tools(tmp_path):
 def test_a_search_that_no_tool_passes_says_so(tmp_path):
     from mcp import Client
 
-    from toolrank.adapters.mcp_proxy import EMPTY_NOTE
-    from toolrank.cut import AdaptiveK
+    from callbus.adapters.mcp_proxy import EMPTY_NOTE
+    from callbus.cut import AdaptiveK
 
     gate = AdaptiveK(margin=0.2, threshold=2.0, min_k=0)  # no cosine reaches 2: every request is turned away
     retriever = Retriever(_catalogue(tmp_path), lambda: DenseScorer(_HashEncoder(), "name_desc"), rule=gate)
@@ -259,8 +259,8 @@ def test_identity_of_stdio_and_http_callers():
 
 
 def test_a_search_only_key_is_not_offered_call_tool(tmp_path):
-    from toolrank.adapters.mcp_proxy import CALL_TOOL, SEARCH_TOOL, tool_definitions
-    from toolrank.tenants import parse_tenants
+    from callbus.adapters.mcp_proxy import CALL_TOOL, SEARCH_TOOL, tool_definitions
+    from callbus.tenants import parse_tenants
 
     retriever = Retriever(_catalogue(tmp_path), lambda: DenseScorer(_HashEncoder(), "name_desc"))
     keys = parse_tenants(

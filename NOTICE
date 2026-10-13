@@ -1,19 +1,19 @@
-toolrank
-Copyright 2026 Toolrank contributors
+callbus
+Copyright 2026 CallBus contributors
 
 This product is licensed under the Apache License, Version 2.0 (see LICENSE). It includes material
 from the following projects.
 
 CLM (https://github.com/Contrastive-LM/CLM)
-    src/toolrank/adapters/clm.py mirrors the architecture of CLM's state and action heads.
+    src/callbus/adapters/clm.py mirrors the architecture of CLM's state and action heads.
     Copyright the CLM authors. Licensed under the Apache License, Version 2.0.
 
 ToolRet (https://github.com/mangopy/tool-retrieval-benchmark)
-    src/toolrank/datasets/toolret.py contains ToolRet's task list and task-to-category map.
+    src/callbus/datasets/toolret.py contains ToolRet's task list and task-to-category map.
     Copyright the ToolRet authors. Licensed under the Apache License, Version 2.0.
 
 MCP-Zero (https://github.com/xfey/MCP-Zero)
-    src/toolrank/datasets/mcp_zero.py contains MCP-Zero's two query-generation prompts. They are
+    src/callbus/datasets/mcp_zero.py contains MCP-Zero's two query-generation prompts. They are
     used under the following license:
 
     MIT License
