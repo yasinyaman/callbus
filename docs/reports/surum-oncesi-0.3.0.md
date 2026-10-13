@@ -10,7 +10,7 @@ katalog `data/w3` (1.862 tool, 5 kaynak: time, everything, swagger-petstore, str
 
 ## Sonuç (tek cümle)
 
-Altı testin altısı da geçti: sunucu soğuk başlangıçta 134 sn'de hazır oldu ve o süre boyunca anahtar kelimeyle
+Altı test iki yığında da (bf16 ve gönderilen FP8) geçti: sunucu soğuk başlangıçta 134 sn'de hazır oldu ve o süre boyunca anahtar kelimeyle
 cevap verdi, gerçek MCP çağrıları çalıştı, 120 isteklik gerçek trafik günlükten 124 çift verdi, `learn`'ün kapısı
 öğrenilecek bir şey olmadığını görüp hiçbir şey yayımlamadı, `calibrate --from-log` bandı gerçek trafikten kurdu
 ve sonraki aramalar `confidence` taşıdı, dört çerçeve ve iki platform kancası doğru tool'u buldu, yayımlanan
@@ -108,6 +108,48 @@ turdan önce arıyor).
   arama yapabildiğini canlı olarak da gösteriyor.
 - Maliyet: üç koşu toplamda 8.203 girdi + 578 çıktı token'ı.
 
+## 7. Aynı altı test, gönderilen yığınla: FP8 (13 Eki akşamı)
+
+1.–6. bölümler `v0.2`'yi bf16 olarak kullandı; imajların varsayılanı FP8. Yani "gönderdiğimiz yığın test edildi"
+demek için hepsi FP8'de tekrarlandı: GB10'da `--profile lora-fp8` (8098, `qwen3-emb-lora-fp8`, ağırlık **7,64
+GiB**, bf16'nın 14,11'ine karşı), aynı katalog, aynı komutlar.
+
+| test | bf16 | FP8 |
+| --- | --- | --- |
+| `serve` hazır (soğuk, 1.862 tool) | 134,4 sn | 154,9 sn |
+| HTTP / MCP listesi | 1,02 / 1,32 sn | 0,82 / 1,09 sn |
+| REST arama (uçtan uca / sunucu içi) | 3,8 / 2,6 ms | 2,3 / 0,9 ms |
+| yedi çağrı yolu (ok, 404, POST reddi, kötü argüman, bilinmeyen tool) | hepsi beklendiği gibi | hepsi beklendiği gibi |
+| stdio `initialize` / tekrar arama | 1,05 sn / 3,4 ms | 0,61 sn / 3,2 ms |
+| döngü: 120 istek → çift | 124 | 124 |
+| günlükten kalibrasyon: %5 bandı | 0,510 | 0,513 |
+| sonraki aramanın `confidence`'ı | 0,379 | 0,371 |
+| aynı aramanın ilk tool'u / skoru | `time/convert_time` 0,6543 | `time/convert_time` 0,6457 |
+| çerçeveler (bigtool, LangChain, LlamaIndex, LiteLLM) | dördü doğru | dördü doğru |
+| platform kancaları (katalog, 3 arama, 2 çağrı) | geçti | geçti |
+| canlı Claude, inline + prefetch | 2 tur, 2.331 girdi token | 2 tur, 2.331 girdi token, cevap doğru |
+
+- **Kuantizasyon yolu değiştirmiyor.** Skorlar 0,009, güven 0,008 oynuyor; sıralamalar, çağrı sonuçları ve
+  canlı cevap aynı. Soğuk başlangıçtaki 20 sn'lik fark Tailscale üzerinden gömmenin oynaması (FP8 sunucu
+  tarafında daha hızlı), kalite farkı değil.
+- **Günlükteki model süzgeci canlı doğrulandı:** FP8 kalibrasyonu kurulurken aynı günlükteki 265 bf16 araması
+  `searches_of_other_models` olarak dışarıda bırakıldı — iki backbone'un vektörleri karışmadı.
+
+## 8. İki imaj yeniden kuruldu (0.2.0'dan beri girdileri değişmiş)
+
+Yayımlanan `0.2.0` imajı iki değişikliği taşımıyor: Dependabot'un uv 0.12.21 → 0.12.23 bump'ı (12 Eki merge) ve
+`dev` ekstrasının PEP 735 grubuna taşınması. İkisi de imajın kurulum satırlarına dokunuyor, o yüzden ikisi de
+güncel ağaçtan yeniden kuruldu ve duman testine girdi (GB10/arm64, GPU'suz):
+
+- `toolrank:dev` — sekiz kontrol `ok` (sürüm, ingest + ısıtma, sağlık, arama, yabancı Host 421, MCP, node/npx/uvx
+  — `uvx 0.12.23` görüldü, scorer).
+- `toolrank-vllm:dev` (paket imajı, sahte vLLM içinde) — on iki kontrol `ok`: **servis edilen ad
+  `toolrank-emb-v0.2-fp8`**, yani FP8 varsayılanı imajın kendisinde teyit edildi; ayrıca vLLM root, toolrank
+  kendi kullanıcısıyla, bind mount sahibini koruyor, `/data` toolrank'e geçiyor.
+
+Yirmi kontrolün hepsi geçti, sıfır hata. Bu, sürüm öncesi paketin asıl keşfiydi: imajların yeniden kurulması
+gerektiği ancak bu kontrolle görüldü.
+
 ## Açık kalanlar
 
 - **Helm chart'ının gerçek kurulumu** (`scripts/helm_smoke.py`, kind): Mac'te Docker kapalı, GB10'da k3s sudo
@@ -116,8 +158,7 @@ turdan önce arıyor).
 - **OpenAI tarafının canlı koşusu:** `platforms_e2e --live` ve `examples/openai_client_tool_search.py`
   (Faz 1 Hafta 4'te iade görevi TPM sınırına takılmıştı; D2.4'ün kısaltılmış şemalarıyla yeniden koşulacak).
   Claude tarafı 6. bölümde koşuldu; OpenAI anahtarı ve onayı duruyor.
-- Bu testler v0.2'yi **bf16** olarak GB10'dan kullandı; imajların varsayılanı FP8. FP8'in kalite denkliği
-  ayrıca ölçülmüştü (Faz 2 Hafta 7 ve 11 Eki'nin v0.30.0 koşusu), burada tekrar edilmedi.
+- ~~Bu testler v0.2'yi bf16 olarak kullandı~~: 7. bölümde altısı da FP8'de tekrarlandı.
 
 ## Komutlar
 
@@ -141,4 +182,14 @@ TOOLRANK_API_KEY=$(python3 -c 'import secrets;print(secrets.token_urlsafe(16))')
   --config /tmp/w3_config.json --emb-url http://$GB10:8097/v1 --emb-model qwen3-emb-lora --clm-ckpt none --port 8765
 uv run --extra anthropic python examples/anthropic_tool_reference.py "What time is it in Tokyo right now?" \
   --inline --prefetch --yes          # the beta; drop --inline --prefetch for the deferred path
+
+# the shipped stack: the same six against FP8 (GB10; the reranker and Ollama stopped to make room)
+TOOLRANK_LORA=$HOME/toolrank/data/lora/qwen3-emb-lora-20k/merged \
+  docker compose -f deploy/spark/compose.yaml --profile lora-fp8 up -d qwen3-emb-lora-fp8   # 8098
+#   then every command above with --emb-url http://$GB10:8098/v1 --emb-model qwen3-emb-lora-fp8
+# both images from the current tree, with their smoke tests (data/image_rebuild.sh, untracked)
+docker build -f deploy/docker/Dockerfile --build-context heads=dist/heads -t toolrank:dev .
+uv run python scripts/container_smoke.py toolrank:dev --version 0.2.0
+docker build -f deploy/docker/Dockerfile.vllm --build-context heads=dist/heads -t toolrank-vllm:dev .
+uv run python scripts/container_smoke.py toolrank-vllm:dev --bundle
 ```
