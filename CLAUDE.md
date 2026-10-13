@@ -153,10 +153,6 @@ callbus ingest drop stripe --out data/mytools
 # (the v0.1 heads sit on qwen3-emb, so a run with them names the base model:)
 CALLBUS_HEADS=dist/heads/callbus-heads-qwen3-emb-8b-v0.1.npz callbus search --emb-model qwen3-emb --data data/mytools "refund this payment"
 callbus eval --data data/toolret --scorer clm ... --index faiss|pgvector --hybrid --cut-margin 0.2 --instruction "..."
-callbus eval --data data/toolret --scorer clm ... --rerank jev --rerank-depth 100   # TypeSafe AI's Jev over the top K
-# (key in TYPESAFE_API_KEY, sent to api.typesafe.ai only; answers cached in .cache/callbus/jev.sqlite, another
-# --jev-url /systemone endpoint is asked without a key into jev-<host>.sqlite); --scorer jev = Jev alone, chunked, MCP sets only.
-# GB10, key exported in the shell: LIMIT=50 TAG=jevsmoke bash scripts/jev_compare.sh, then the full run under nohup
 callbus eval ... --rerank clm|dense|cross --rerank-depth 20 --rerank-emb-url ... --rerank-tool-format documentation \
   --rerank-max-chars 3000 [--rerank-template qwen3|bge]   # a local second scorer over the shortlist (scripts/clm_rerank.sh, cross_rerank.sh)
 docker compose -f deploy/spark/compose.yaml --profile rerank up -d qwen3-reranker bge-reranker   # 8095 / 8096, vLLM score API
@@ -371,17 +367,17 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   `scripts/publish_backbone.py` (run on the GB10, dry run without `--upload`) uploads a merged directory, tags the
   revision and flips the flag. New weights get a new tag and served name (the cache is keyed by the name). `entrypoint-vllm.sh`, `deploy/docker/compose.yaml` and the chart's `embedding.backbone` carry the same
   names (a test ties the entrypoint to `build`). finetune keeps `qwen3-emb` as its default.
-- **Second stage while serving** (Faz 2 week 7): `search` / `serve --rerank cross|jev` (`cli._add_serve_rerank_args`:
-  depth 20, documentation cut to 3,000 characters, Qwen3-Reranker as `qwen3-reranker`; Jev reads the same text)
-  goes through the same `scorer_factory` wrapping as eval. Both rerankers have `rank_pairs` (reranked, first
+- **Second stage while serving** (Faz 2 week 7): `search` / `serve --rerank cross` (`cli._add_serve_rerank_args`:
+  depth 20, documentation cut to 3,000 characters, Qwen3-Reranker as `qwen3-reranker`)
+  goes through the same `scorer_factory` wrapping as eval. The reranker has `rank_pairs` (reranked, first
   stage's cosine list) that writes no shared state (`last_base` is eval's), so the retriever's adaptive cut
-  counts on the cosines and shows the reranked order. Jev in serve sends request text out: logged at start.
+  counts on the cosines and shows the reranked order.
   `Retriever.search` / `rank` `tidy` the request and an own instruction (NFC, blank runs, ends), never eval;
   `retriever.second` is the second stage's client, whose `scored()` feeds `callbus_rerank_candidates_total`.
   The retriever sets `ports.rerank_failures` around a search: a failing second stage (`--rerank-timeout` 10 s
-  × 2 attempts, `rerank.Slots` = `--rerank-workers` / `--jev-workers` calls in flight, the wait counted)
+  × 2 attempts, `rerank.Slots` = `--rerank-workers` calls in flight, the wait counted)
   answers with the first stage's list (`SearchResult.rerank_error` → log, `note`, metric); eval sets no list
-  and raises. `/v1/rank` (`score_tools`) is the first stage's cosines under either reranker.
+  and raises. `/v1/rank` (`score_tools`) is the first stage's cosines, reranker or not.
 - **Confidence** (backlog D2.14, `calibration.py`): `callbus calibrate` ranks gen-queries requests over the
   catalogue with the search flags (`Retriever.settled`: current heads if any, never the candidate) and keeps
   their best first-stage scores (and those of "twins", the gold tools' sources hidden) in `DATA/calibration.json`,
@@ -417,26 +413,16 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   JSON at 4 characters a token; a search's saving is the catalogue's total minus what it returned, and the
   catalogue is sized in a background thread (searches meanwhile claim nothing). No request text, arguments or
   key names in labels (`arm_kind`); the counters are server-wide and reset with the process.
-- **Jev** (TypeSafe AI's "System One" model, `adapters/jev.py`): no text, one Choice question over
-  up to 255 options returns a probability per option. `--rerank jev` wraps any scorer (BM25, dense,
-  clm, hybrid): the base top `--rerank-depth` becomes one Choice per query, probabilities are the
-  scores, ties keep the base order, the base list continues below the depth, so top-100 metrics
-  stay complete. `--scorer jev` is Jev alone: chunks of `--jev-chunk` tools, the chunk winners
-  re-ranked once (feasible for the MCP sets, not ToolRet's 44k). State = `{"request"}`, the
-  benchmark instruction leads the question, option text = `--jev-tool-format` cut to
-  `--jev-max-chars` (32k tokens for state + longest question). `TYPESAFE_API_KEY` goes to `api.typesafe.ai`
-  only (`jev.is_typesafe`); any other `--jev-url` (a self-hosted `/systemone`) is asked without a key and
-  cached in its own `jev-<host>.sqlite` with the URL in the key (the cross-encoder's cache keys the URL too).
-  Pinned
-  `jev-1.13.0` (aliases move), answers cached by request body so a rerun ranks the same for free;
-  the report's `config["jev"]` has calls, cached hits, billed tokens and per-call p50. MCA 2.3(b)
-  forbids training on its output or building a competing product with it: eval and an optional
-  adapter only, never a training signal (`usage.may_learn_from`: learn, ab and co-use skip and count
-  Jev-served searches). The same seat for local models: `--rerank dense|clm|cross`
-  (`adapters/rerank.py`, the second scorer's own `--rerank-*` flags, `--rerank-max-chars` = Jev's
-  text cut) and `adapters/cross_encoder.py` (vLLM `/score`; the request is in every pair, so it is
-  cut to `--rerank-query-chars` and the rerankers serve an 8192-token window). CLM in that seat
-  breaks the list (ToolRet 54 → 15); the cross-encoders are the real local candidates.
+- **The second stage's seat** (`adapters/rerank.py`): `--rerank dense|clm|cross` wraps any scorer (BM25,
+  dense, clm, hybrid) with a second scorer over the base top `--rerank-depth`: its scores become the
+  ranking, ties keep the base order, the base list continues below the depth, so top-100 metrics stay
+  complete. The second scorer has `--rerank-*` flags of its own (endpoint, model, tool format,
+  `--rerank-max-chars`, `--rerank-template qwen3|bge`). `adapters/cross_encoder.py` is the real candidate
+  (vLLM `/score`, SQLite answer cache keyed by the URL; the request is in every pair, so it is cut to
+  `--rerank-query-chars` and the rerankers serve an 8192-token window). CLM in that seat breaks the list
+  (ToolRet 54 → 15). A hosted model (TypeSafe AI's Jev) sat here through 0.3.1 and was then removed: its terms
+  forbade training on its output, so `usage.may_learn_from` and `learn._WRAPPERS` still skip searches an
+  older version's log says it answered.
 - **Packaged heads**: `NumpyHeads` reads `.npz` checkpoints (`allow_pickle=False`) and runs
   `make_head`'s forward in numpy; the `.npz` `cfg` carries serving defaults (backbone, formats,
   truncate, instruction) that `build.py` applies; `build.heads_mismatch` compares the cfg's backbone with
@@ -555,7 +541,7 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   the embedding cache's keys with `DATA/usage/.key` and matching `emb_hmac`, and the tools' vectors come from
   `tools.jsonl` through the same cache. `mine` keeps only the served model's searches (the log's `model`,
   else the first stage's `emb/<model>/` in the scorer name; others counted as `searches_of_other_models`) and
-  no Jev-served ones (`usage.may_learn_from`). Training is `finetune.train_heads` (lr 1e-5,
+  only searches it may learn from (`usage.may_learn_from`; `searches_not_for_training`). Training is `finetune.train_heads` (lr 1e-5,
   5 shown negatives, `neg_filter` 0.95) from `resolve_init("default")`: what a server would serve —
   `DATA/heads/current.npz` (the tenant's own with `--tenant`) if its cfg names this backbone, else the
   packaged heads where they fit, else fresh skip heads (identity: epoch 0 is the backbone alone, the v0.2
@@ -602,7 +588,6 @@ src/callbus/adapters/embeddings_api.py  OpenAIEmbeddings (+ EmbeddingCache, SQLi
 src/callbus/adapters/dense.py    DenseScorer (+ row_hash; tool vectors in a VectorIndex), topk_dot
 src/callbus/adapters/index_numpy.py, index_faiss.py, index_pgvector.py   the VectorIndex adapters
 src/callbus/adapters/hybrid.py   HybridScorer (RRF)
-src/callbus/adapters/jev.py      JevClient (+ SQLite answer cache), JevReranker (Jev over a scorer's top K), JevScorer (Jev alone, chunked)
 src/callbus/adapters/rerank.py   ScorerReranker (a second dense/clm/cross scorer over a scorer's top K), cut_formatter
 src/callbus/adapters/cross_encoder.py  CrossEncoderScorer + ScoreClient (vLLM /score; qwen3 and bge prompt templates, SQLite cache)
 src/callbus/adapters/clm.py      CLMHeads (mirrors clm/heads.py; torch), CLMScorer
@@ -660,7 +645,7 @@ scripts/                          run_matrix.sh; toolret_paper_avg.py; truncatio
                                   per_task_diff.py (per-task diffs between two eval reports);
                                   publish_heads.py (the Hub, pinned to a tag), leaderboard_table.py (ToolRet leaderboard sheets),
                                   launch_metrics.py (the Faz 1 gate's numbers);
-                                  jev_compare.sh, clm_rerank.sh, cross_rerank.sh (second-stage rows: Jev, CLM, cross-encoders),
+                                  clm_rerank.sh, cross_rerank.sh (second-stage rows: CLM and the cross-encoders),
                                   lora_train.py (LoRA on the embedding backbone, [lora] extra), lora_soup.py (adapters averaged into
                                   merged weights), rerank_report.py (faz2-rerank.md's tables, --write);
                                   learn_sim.py (split a benchmark, play its queries as logged traffic), learn_sim.sh (learn + eval per traffic size);
@@ -759,8 +744,8 @@ examples/                         anthropic_tool_reference.py, openai_client_too
   in that seat does not. Heads' top 20 with the documentation cut to 3000 characters: ToolRet NDCG@10
   54.03 → Qwen3-Reranker-8B 58.05 (cat-macro 52.93), LiveMCPBench 53.95 → 62.68, MCP-Zero top-1 79.87 →
   91.26; bge-reranker-v2-gemma 53.96 on ToolRet and breaks the MCP lists (36.19, 48.24); CLM_v0.1-8B in
-  the seat 15.36 / 28.94 (top 100 / top 20), fine-tuned 34.20. Jev was measured in the same seat; its
-  results stay out of every tracked file (the provider's terms; removed 5 Oct 2026). **LoRA on the
+  the seat 15.36 / 28.94 (top 100 / top 20), fine-tuned 34.20. A hosted model was measured in the same seat; its
+  results never entered a tracked file (the provider's terms) and the adapter is gone. **LoRA on the
   backbone** (`scripts/lora_train.py`: rank 16, 20k ToolRet-train pairs, in-batch InfoNCE, 625 steps,
   8.6 h on the GB10, picked on MCP-Zero `_server`): ToolRet 58.90 / cat-macro 54.36 in one stage (the
   Faz 0 gate's 50, StackOne v2's 54.4), Recall@20 75.25 (heads 72.51), LiveMCPBench 55.74 (+2, held

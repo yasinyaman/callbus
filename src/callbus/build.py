@@ -154,26 +154,14 @@ def build_scorer(a: Any) -> Any:
     return make()
 
 
-def jev_client(a: Any) -> Any:
-    """A ``JevClient`` from the ``--jev-*`` flags; TypeSafe itself needs ``TYPESAFE_API_KEY``, a
-    local or self-hosted ``/systemone`` endpoint is asked without one."""
-    from callbus.adapters.jev import JevClient, is_typesafe
-
-    if is_typesafe(a.jev_url) and not os.environ.get("TYPESAFE_API_KEY"):
-        raise ValueError("Jev needs a key: set TYPESAFE_API_KEY (https://console.typesafe.ai/keys)")
-    return JevClient(
-        a.jev_model, a.jev_url, cache_dir=a.cache_dir or None, workers=a.jev_workers, **second_limits(a)
-    )
-
-
 def second_limits(a: Any) -> dict[str, Any]:
     """search / serve (``--rerank-timeout``): a second stage's client waits that long per attempt,
-    tries twice and keeps ``--rerank-workers`` (Jev: ``--jev-workers``) calls in flight at most, so a
+    tries twice and keeps ``--rerank-workers`` calls in flight at most, so a
     request falls back to the first stage's list in seconds; eval keeps the long, patient defaults."""
     timeout = getattr(a, "rerank_timeout", None)
     if not timeout:
         return {}
-    workers = a.jev_workers if a.rerank == "jev" else getattr(a, "rerank_workers", None)
+    workers = getattr(a, "rerank_workers", None)
     return {"timeout": float(timeout), "max_retries": 2, "slots": workers or 1}
 
 
@@ -181,10 +169,10 @@ def scorer_factory(
     a: Any, *, query_timeout: float | None = None, query_attempts: int | None = None
 ) -> tuple[Callable[[], Any], dict[str, Any]]:
     """Resolve the flags, load the heads and open the encoder once; -> (a function that makes fresh
-    scorers sharing them, info: ``serving`` cfg, ``encoder``, ``heads_path``, and ``jev``, the
-    client, when Jev is in the stack). A server makes a new scorer (with a new index object) for
-    every catalogue reload and swaps it in whole. ``--rerank jev`` wraps whatever the other flags
-    build (BM25, dense, clm, hybrid) in a ``JevReranker``."""
+    scorers sharing them, info: ``serving`` cfg, ``encoder`` and ``heads_path``). A server makes a
+    new scorer (with a new index object) for every catalogue reload and swaps it in whole.
+    ``--rerank`` wraps whatever the other flags build (BM25, dense, clm, hybrid) in a second
+    stage."""
     make, info = _base_factory(a, query_timeout=query_timeout, query_attempts=query_attempts)
     rerank = getattr(a, "rerank", None)
     if rerank is None:
@@ -206,24 +194,7 @@ def scorer_factory(
             )
 
         return reranked, info
-    if rerank != "jev":
-        raise ValueError(f"unknown reranker {rerank!r}")
-    from callbus.adapters.jev import JevReranker
-
-    client = jev_client(a)
-    info["jev"] = client
-    base = make
-
-    def wrapped() -> Any:
-        return JevReranker(
-            base(),
-            client,
-            depth=a.rerank_depth,
-            tool_format=a.jev_tool_format or "name_desc",
-            max_chars=a.jev_max_chars,
-        )
-
-    return wrapped, info
+    raise ValueError(f"unknown reranker {rerank!r}")
 
 
 RERANK_FLAGS = (
@@ -295,18 +266,6 @@ def _base_factory(
                 max_query_chars=getattr(a, "cross_query_chars", None) or 6000,
             )
         ), {"serving": {}, "encoder": None, "heads_path": None, "cross": client}
-    if a.scorer == "jev":
-        from callbus.adapters.jev import JevScorer
-
-        if getattr(a, "hybrid", False):
-            raise ValueError("--hybrid fuses BM25 into a dense or clm scorer")
-        client = jev_client(a)
-        tf = a.tool_format or "name_desc"
-        return (
-            lambda: JevScorer(
-                client, tf, chunk=a.jev_chunk, per_chunk=a.jev_per_chunk, max_chars=a.jev_max_chars
-            )
-        ), {"serving": {}, "encoder": None, "heads_path": None, "jev": client}
     if a.scorer not in ("dense", "clm"):
         raise ValueError(f"unknown scorer {a.scorer}")
 
@@ -435,10 +394,10 @@ def build_retriever(
             raise ValueError("--co-use reads the usage log: it cannot be combined with --no-usage-log")
         co_use = CoUseTable(getattr(a, "usage_log", None) or Path(a.data) / "usage")
         if notify is not None:
-            skipped = co_use.counts()["searches_with_jev"]
+            skipped = co_use.counts()["searches_not_for_training"]
             notify(
                 f"co-use: {len(co_use.table())} tools have partners in the usage log (up to {extra} added)"
-                + (f"; {skipped} Jev-served searches shape no table" if skipped else "")
+                + (f"; {skipped} searches ordered outside callbus shape no table" if skipped else "")
             )
     retriever = Retriever(
         Path(a.data),
@@ -464,7 +423,7 @@ def build_retriever(
     )
     retriever.encoder = enc
     # the second stage's client, for /v1/metrics: candidates scored from its cache and by its model
-    retriever.second = (info.get("rerank") or {}).get("cross") or info.get("jev")
+    retriever.second = (info.get("rerank") or {}).get("cross")
     return retriever
 
 

@@ -412,7 +412,7 @@ def rest_routes(retriever: Retriever, usage: UsageLog, backends: Backends | None
             extra.append(("callbus_embedding_tokens_total", "counter", text, {}, enc.tokens_spent))
         second = getattr(retriever, "second", None)
         for source, n in sorted((second.scored() if hasattr(second, "scored") else {}).items()):
-            text = "Candidates the second stage scored (cross-encoder pairs, Jev options), by where the score came from."
+            text = "Candidates the second stage scored (cross-encoder pairs), by where the score came from."
             extra.append(("callbus_rerank_candidates_total", "counter", text, {"source": source}, n))
         return PlainTextResponse(usage.metrics.render(extra), media_type="text/plain; version=0.0.4")
 

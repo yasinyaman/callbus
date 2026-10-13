@@ -98,7 +98,11 @@ class LogPair:
     tenants: tuple[str, ...]
 
 
-_WRAPPERS = ("rerank[", "jev[", "hybrid[")  # names of scorers around a first stage: <kind>[...]/<first stage>
+_WRAPPERS = (
+    "rerank[",
+    "jev[",
+    "hybrid[",
+)  # jev[: a log an older version wrote  # names of scorers around a first stage: <kind>[...]/<first stage>
 
 
 def _served_by_other(e: dict[str, Any], model: str) -> bool:
@@ -153,7 +157,7 @@ def mine(
             elif model and _served_by_other(e, model):
                 counts["searches_of_other_models"] += 1
             elif not may_learn_from(e.get("scorer")):
-                counts["searches_with_jev"] += 1  # the provider's terms keep them out of training
+                counts["searches_not_for_training"] += 1  # ordered outside callbus: teaches nothing
             else:
                 searches[e["id"]] = e
         elif kind == "call":
@@ -579,7 +583,7 @@ def judge(
     Without ``tenant`` this is the shared experiment: the searches of keys that run their own (their
     heads files show in ``arm`` as ``tenant:<name>``) stay out, both arms of them. With ``tenant``
     only that key's own experiment counts. A search counts as called when a linked call ended ``ok``
-    or ``tool_error``, at the best rank among those calls. Searches a Jev second stage answered
+    or ``tool_error``, at the best rank among those calls. Searches a second stage outside callbus ordered
     decide nothing (the provider's terms); when ``counts`` is given they are tallied in it."""
     events = list(events)
     own = {
@@ -601,7 +605,7 @@ def judge(
             continue  # a key with heads of its own runs another experiment
         if not may_learn_from(e.get("scorer")):  # counted for the key being judged only
             if counts is not None:
-                counts["searches_with_jev"] += 1
+                counts["searches_not_for_training"] += 1
             continue
         arms[e["id"]] = "candidate" if arm.endswith("candidate") else "control"
         if isinstance(e.get("shown"), int) and not isinstance(e.get("shown"), bool):

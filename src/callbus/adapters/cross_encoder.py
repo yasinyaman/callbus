@@ -1,7 +1,7 @@
-"""A cross-encoder (reranker) behind vLLM's score API, in Jev's role: the local alternative.
+"""A cross-encoder (reranker) behind vLLM's score API: the second stage.
 
 A cross-encoder reads the request and one candidate together and returns a relevance score, which
-is what a bi-encoder cannot do and what Jev's gain comes from. ``CrossEncoderScorer`` scores a
+is what a bi-encoder cannot do and where a second stage's gain comes from. ``CrossEncoderScorer`` scores a
 query against candidates with ``POST {base_url}/score`` (``text_1`` the query prompt, ``text_2``
 the candidate prompts; vLLM joins each pair), so it serves ``--rerank cross`` through
 ``score_tools``; ``rank`` over a whole corpus scores every tool and is only for small sets.

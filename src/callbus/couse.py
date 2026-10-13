@@ -53,7 +53,7 @@ def co_use(
     a search without one counts alone) and its tools are those of the linked calls that ended
     ``ok``; ``since`` (an ISO date or timestamp) and ``tenant`` narrow the searches (with
     ``exact_tenant``, ``tenant=None`` means the requests without a named key, not all of them).
-    Searches a Jev second stage answered shape no table (the provider's terms); when ``counts`` is
+    Searches a second stage outside callbus ordered shape no table; when ``counts`` is
     given they are tallied in it."""
     events = list(events)
     request_of: dict[str, str] = {}
@@ -66,7 +66,7 @@ def co_use(
             continue
         if not may_learn_from(e.get("scorer")):
             if counts is not None:
-                counts["searches_with_jev"] += 1
+                counts["searches_not_for_training"] += 1
             continue
         if not isinstance(e.get("id"), str):  # a line no version of the log writes: it says nothing
             continue
@@ -167,7 +167,7 @@ class CoUseTable:
             self._counts = counts
 
     def counts(self) -> Counter[str]:
-        """What the latest build passed over (e.g. ``searches_with_jev``)."""
+        """What the latest build passed over (e.g. ``searches_not_for_training``)."""
         with self._lock:
             return Counter(self._counts)
 

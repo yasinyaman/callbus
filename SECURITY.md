@@ -26,9 +26,9 @@ callbus is not yet at 1.0: fixes go into the latest release only.
   `https://api.openai.com`, and no key is carried onto a redirect.
 - The usage log keeps requests and arguments as keyed digests, not text, unless `--log-text`; tool
   names, scores and the server's own instruction are text.
-- `--rerank jev` sends each request and its top tools' text to TypeSafe AI (or to the `--jev-url`
-  you name), outside the usage log's digests; the server says so when it starts. The other second
-  stage, `--rerank cross`, runs on your own reranker endpoint.
+- The second stage, `--rerank cross`, runs on your own reranker endpoint: each request and its top
+  tools' text go to the `--rerank-emb-url` you name, and nowhere else. No part of CallBus sends
+  request text to a hosted service you did not configure.
 - Packaged heads load with `allow_pickle=False`, and downloads are checked against a sha256.
 - A tool's output goes to the agent's model. Treat tools like any other input that can steer a
   model, and keep write access for tools you trust.

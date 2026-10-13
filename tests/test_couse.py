@@ -77,7 +77,7 @@ def test_partners_follow_the_shown_tools_best_share_first():
     assert expand(["q"], table, 3) == ["q"] and partners([], table, 3) == []
 
 
-def test_searches_a_jev_second_stage_answered_shape_no_table():
+def test_searches_a_second_stage_outside_callbus_ordered_shape_no_table():
     from collections import Counter
 
     jev = "jev[jev-1.13.0@api.typesafe.ai,d20,name_desc]/dense/emb/x"
@@ -91,7 +91,7 @@ def test_searches_a_jev_second_stage_answered_shape_no_table():
     ]
     counts: Counter[str] = Counter()
     assert co_use(events, min_count=1, counts=counts) == {}  # the provider's terms: no evidence
-    assert counts["searches_with_jev"] == 2
+    assert counts["searches_not_for_training"] == 2
     events.append(_search("s3", "C"))
     events += [_call("list", "s3"), _call("comment", "s3")]
     counts = Counter()
@@ -99,7 +99,7 @@ def test_searches_a_jev_second_stage_answered_shape_no_table():
         "list": [("comment", 1.0, 1)],
         "comment": [("list", 1.0, 1)],
     }
-    assert counts["searches_with_jev"] == 2
+    assert counts["searches_not_for_training"] == 2
 
 
 def test_the_servers_table_is_rebuilt_from_its_log_in_the_background(tmp_path):

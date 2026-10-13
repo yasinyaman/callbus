@@ -85,10 +85,11 @@ def read_events(directory: str | Path, *, newest: int | None = None) -> list[dic
 
 
 def may_learn_from(scorer: Any) -> bool:
-    """Whether what a search showed may feed training, judging or co-use. A search served with a
-    Jev second stage takes its order from TypeSafe's model, and the MCA (2.3(b)) keeps that order
-    and the negatives it implies out of anything that trains or promotes callbus's own heads;
-    a search logged before the ``scorer`` field (or by a build without one) carries no mark."""
+    """Whether what a search showed may feed training, judging or co-use. A search whose order
+    came from a model outside callbus teaches nothing about callbus's own ranking, so it is left
+    out; such searches can only come from a log an older version wrote (the hosted second stage
+    that produced them has since been removed). A search logged before the ``scorer`` field (or by a
+    build without one) carries no mark."""
     return scorer is None or "jev[" not in str(scorer)
 
 

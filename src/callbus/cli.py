@@ -84,13 +84,13 @@ def cmd_eval(a: argparse.Namespace) -> int:
             "k": a.k,
             "tasks": tasks,
             "limit": a.limit,
-            "emb_model": getattr(a, "emb_model", None) if a.scorer not in ("bm25", "jev") else None,
-            "emb_url": a.emb_url if a.scorer not in ("bm25", "jev") else None,
-            "truncate": a.truncate if a.scorer not in ("bm25", "jev") else None,
+            "emb_model": getattr(a, "emb_model", None) if a.scorer != "bm25" else None,
+            "emb_url": a.emb_url if a.scorer != "bm25" else None,
+            "truncate": a.truncate if a.scorer != "bm25" else None,
             "batch": a.batch,
             "clm_ckpt": str(a.clm_ckpt) if a.scorer == "clm" else None,
             "heads_sha256": file_sha256(str(heads)) if heads else None,
-            "index": a.index if a.scorer not in ("bm25", "jev") else None,
+            "index": a.index if a.scorer != "bm25" else None,
             "cut": rule.describe() if rule is not None else None,
             "server_weight": a.server_weight or None,
             "hybrid": (
@@ -101,20 +101,6 @@ def cmd_eval(a: argparse.Namespace) -> int:
                     "lexical": getattr(scorer, "base", scorer).lexical.name,
                 }
                 if a.hybrid
-                else None
-            ),
-            "jev": (
-                {
-                    "rerank_depth": a.rerank_depth if a.rerank else None,
-                    "tool_format": (a.jev_tool_format or "name_desc")
-                    if a.rerank
-                    else (a.tool_format or "name_desc"),
-                    "max_chars": a.jev_max_chars,
-                    "chunk": a.jev_chunk if a.scorer == "jev" else None,
-                    "per_chunk": a.jev_per_chunk if a.scorer == "jev" else None,
-                    "workers": a.jev_workers,
-                }
-                if "jev" in info
                 else None
             ),
             "rerank": (
@@ -137,9 +123,6 @@ def cmd_eval(a: argparse.Namespace) -> int:
     encoder = getattr(scorer, "encoder", None)
     if encoder is not None:  # tokens sent to the endpoint, i.e. cache misses only
         report.config["encoder_tokens"] = encoder.tokens_spent
-    jev = info.get("jev")
-    if jev is not None:  # calls that reached TypeSafe (the rest came from the cache), tokens billed
-        report.config["jev"].update(jev.stats())
     cross = info.get("cross") or (info.get("rerank") or {}).get("cross")
     if cross is not None:  # pairs that reached the score endpoint, the rest from the cache
         report.config["cross"] = cross.stats()
@@ -149,12 +132,6 @@ def cmd_eval(a: argparse.Namespace) -> int:
         f"\nlatency/query: p50 {report.latency_ms['per_query_p50']} ms, p95 {report.latency_ms['per_query_p95']} ms"
         f" (batch {a.batch}); index {report.latency_ms['index_s']} s; tools {report.n_tools}; queries {report.n_queries}"
         + (f"; encoder tokens {report.config['encoder_tokens']}" if encoder is not None else "")
-        + (
-            f"; jev calls {jev.calls} (+{jev.cached} cached), tokens {jev.tokens_spent},"
-            f" p50 {report.config['jev']['call_ms_p50']} ms"
-            if jev is not None
-            else ""
-        )
     )
     if a.out:
         p = save_report(report, a.out)
@@ -663,12 +640,6 @@ def cmd_serve(a: argparse.Namespace) -> int:
     )
     _check_rerank(a)
     _check_confidence(a)
-    if a.rerank == "jev":
-        from callbus.adapters.jev import is_typesafe
-
-        label = "Jev (TypeSafe AI)" if is_typesafe(a.jev_url) else "a System One endpoint"
-        log(f"second stage: {label} - each request's text and its top tools' text are sent to " + a.jev_url)
-        log("searches served with Jev feed neither learn, ab nor co-use (the provider's terms)")
     try:
         retriever = build_retriever(a, background=True, serving_limits=True, notify=log)
     except ValueError as e:
@@ -890,10 +861,10 @@ def cmd_ab(a: argparse.Namespace) -> int:
     stats = judge(read_events(data / "usage"), since=since, tenant=a.tenant, counts=counts)
     decision = a.force or decide(stats, min_searches=a.min_searches, margin=a.margin)
     print(f"since {since}" + (f", tenant {a.tenant}" if a.tenant else ""))
-    if counts["searches_with_jev"]:
+    if counts["searches_not_for_training"]:
         print(
-            f"{counts['searches_with_jev']} Jev-served searches decide nothing "
-            "(the provider's terms keep them out)"
+            f"{counts['searches_not_for_training']} searches a second stage outside callbus ordered "
+            "decide nothing (an older log may hold them)"
         )
     print("| arm | searches | called | top-1 | mrr ± se | K |\n| --- | ---: | ---: | ---: | ---: | ---: |")
     for name in ("control", "candidate"):
@@ -971,17 +942,15 @@ def _add_confidence_args(p: argparse.ArgumentParser) -> None:
     )
 
 
-def _add_jev_args(p: argparse.ArgumentParser) -> None:
-    g = p.add_argument_group(
-        "Jev (TypeSafe AI; key in $TYPESAFE_API_KEY): --rerank jev over any scorer, or --scorer jev alone"
-    )
+def _add_rerank_args(p: argparse.ArgumentParser) -> None:
+    g = p.add_argument_group("second stage: --rerank over any scorer (--rerank-* flags)")
     g.add_argument(
         "--rerank",
-        choices=["jev", "dense", "clm", "cross"],
+        choices=["dense", "clm", "cross"],
         default=None,
-        help="reorder the top --rerank-depth: with Jev, or with a second dense / clm / cross-encoder scorer (--rerank-* flags)",
+        help="reorder the top --rerank-depth with a second dense / clm / cross-encoder scorer",
     )
-    g.add_argument("--rerank-depth", type=int, default=100, help="tools per query reranked (Jev: max 255)")
+    g.add_argument("--rerank-depth", type=int, default=100, help="tools per query reranked")
     g.add_argument("--rerank-emb-url", default=None, help="the second scorer's endpoint (default: --emb-url)")
     g.add_argument("--rerank-emb-model", default=None, help="(default: --emb-model)")
     g.add_argument("--rerank-truncate", type=int, default=None, help="(default: --truncate)")
@@ -993,28 +962,7 @@ def _add_jev_args(p: argparse.ArgumentParser) -> None:
         "--rerank-query-format", choices=list(QUERY_FORMATS), default=None, help="(default: --query-format)"
     )
     g.add_argument(
-        "--jev-model", default="jev-1.13.0", help="a versioned id: aliases such as jev-latest move"
-    )
-    g.add_argument("--jev-url", default="https://api.typesafe.ai/v1")
-    g.add_argument(
-        "--jev-tool-format",
-        choices=list(TOOL_FORMATS),
-        default=None,
-        help="text per option (default: name_desc)",
-    )
-    g.add_argument("--jev-max-chars", type=int, default=1000, help="characters kept per option")
-    g.add_argument(
-        "--jev-chunk", type=int, default=200, help="--scorer jev: tools per Choice question (max 255)"
-    )
-    g.add_argument(
-        "--jev-per-chunk", type=int, default=20, help="--scorer jev: chunk winners into the final round"
-    )
-    g.add_argument("--jev-workers", type=int, default=8, help="concurrent requests (TypeSafe: 40/s)")
-    g.add_argument(
-        "--rerank-max-chars",
-        type=int,
-        default=None,
-        help="cut each candidate's text, like --jev-max-chars does for Jev",
+        "--rerank-max-chars", type=int, default=None, help="cut each candidate's text to this many characters"
     )
     g.add_argument(
         "--rerank-template",
@@ -1050,10 +998,9 @@ def _add_serve_rerank_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("second stage (off by default): rerank the top tools with the request")
     g.add_argument(
         "--rerank",
-        choices=["cross", "jev"],
+        choices=["cross"],
         default=None,
-        help="cross: a local cross-encoder behind vLLM's score API (Qwen3-Reranker-8B); "
-        "jev: TypeSafe AI's hosted Jev (key in $TYPESAFE_API_KEY; the request text leaves the machine)",
+        help="cross: a local cross-encoder behind vLLM's score API (Qwen3-Reranker-8B)",
     )
     g.add_argument("--rerank-depth", type=int, default=20, help="tools reranked per request")
     g.add_argument("--rerank-emb-url", default=None, help="cross: the reranker's /v1 endpoint")
@@ -1080,40 +1027,28 @@ def _add_serve_rerank_args(p: argparse.ArgumentParser) -> None:
         default=10.0,
         help="seconds per attempt (two attempts, a turn in the queue included); then the first stage's order answers",
     )
-    g.add_argument("--jev-model", default="jev-1.13.0", help="jev: a versioned id (aliases move)")
-    g.add_argument("--jev-url", default="https://api.typesafe.ai/v1")
-    g.add_argument("--jev-workers", type=int, default=8, help="jev: calls in flight at once")
     # the eval-only knobs the shared factory reads, at their "same as the first stage" values
     p.set_defaults(
         rerank_truncate=None,
         rerank_clm_ckpt=None,
         rerank_query_format=None,
-        jev_tool_format=None,
-        jev_max_chars=None,
         cross_template=None,
         cross_query_chars=None,
     )
 
 
 def _check_rerank(a: argparse.Namespace) -> None:
-    """The second stage's flags, checked before anything is built; Jev reads the tool format and
-    the cut of the cross-encoder's flags, so both rerankers see the same text."""
+    """The second stage's flags, checked before anything is built."""
     if a.rerank is None:
         return
     if a.rerank == "cross" and not a.rerank_emb_url:
         sys.exit(
             "--rerank cross needs --rerank-emb-url: the reranker's /v1 endpoint (vLLM serving Qwen3-Reranker-8B)"
         )
-    if a.rerank == "jev":
-        from callbus.adapters.jev import is_typesafe
-
-        if is_typesafe(a.jev_url) and not os.environ.get("TYPESAFE_API_KEY"):
-            sys.exit("--rerank jev needs TYPESAFE_API_KEY for TypeSafe (a local --jev-url needs none)")
-        a.jev_tool_format, a.jev_max_chars = a.rerank_tool_format, a.rerank_max_chars
     if not 2 <= a.rerank_depth <= 255:
         sys.exit("--rerank-depth: from 2 to 255")
-    if not a.rerank_timeout > 0 or a.rerank_workers < 1 or a.jev_workers < 1:
-        sys.exit("--rerank-timeout must be positive, --rerank-workers and --jev-workers at least 1")
+    if not a.rerank_timeout > 0 or a.rerank_workers < 1:
+        sys.exit("--rerank-timeout must be positive and --rerank-workers at least 1")
 
 
 def _cut_rule(a: argparse.Namespace):
@@ -1341,7 +1276,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     e = sub.add_parser("eval", help="index a tool set and score a query set")
     e.add_argument("--data", required=True, help="directory with tools.jsonl and queries.jsonl")
-    e.add_argument("--scorer", choices=["bm25", "dense", "clm", "jev", "cross"], default="bm25")
+    e.add_argument("--scorer", choices=["bm25", "dense", "clm", "cross"], default="bm25")
     e.add_argument("--tool-format", choices=list(TOOL_FORMATS), default=None)
     e.add_argument("--query-format", choices=list(QUERY_FORMATS), default=None)
     e.add_argument(
@@ -1375,7 +1310,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="dense, clm: tool score + this much of the request's cosine with the tool's server (its category)",
     )
     _add_cut_args(e)
-    _add_jev_args(e)
+    _add_rerank_args(e)
     e.add_argument("--device", default=None, help="torch device for the CLM heads")
     e.add_argument("--out", default=None, help="results JSON path")
     e.add_argument(

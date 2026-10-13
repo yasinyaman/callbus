@@ -10,7 +10,7 @@ index a tool set and score a query set
 | Argument | Default | Description |
 | --- | --- | --- |
 | `--data DATA` | required | directory with tools.jsonl and queries.jsonl |
-| `--scorer {bm25,dense,clm,jev,cross}` | `bm25` |  |
+| `--scorer {bm25,dense,clm,cross}` | `bm25` |  |
 | `--tool-format {documentation,name_desc,schema,example_call}` |  |  |
 | `--query-format {plain,concat,instruct_query,clm}` |  |  |
 | `--with-inst` |  | keep the task instruction (ToolRet 'w/ inst.' setting) |
@@ -40,22 +40,15 @@ index a tool set and score a query set
 | `--cut-threshold CUT_THRESHOLD` |  | keep tools at or above this cosine |
 | `--cut-max CUT_MAX` | `10` |  |
 | `--cut-min CUT_MIN` | `1` |  |
-| `--rerank {jev,dense,clm,cross}` |  | reorder the top --rerank-depth: with Jev, or with a second dense / clm / cross-encoder scorer (--rerank-* flags) |
-| `--rerank-depth RERANK_DEPTH` | `100` | tools per query reranked (Jev: max 255) |
+| `--rerank {dense,clm,cross}` |  | reorder the top --rerank-depth with a second dense / clm / cross-encoder scorer |
+| `--rerank-depth RERANK_DEPTH` | `100` | tools per query reranked |
 | `--rerank-emb-url RERANK_EMB_URL` |  | the second scorer's endpoint (default: --emb-url) |
 | `--rerank-emb-model RERANK_EMB_MODEL` |  | (default: --emb-model) |
 | `--rerank-truncate RERANK_TRUNCATE` |  | (default: --truncate) |
 | `--rerank-clm-ckpt RERANK_CLM_CKPT` |  | --rerank clm: its heads (default: --clm-ckpt) |
 | `--rerank-tool-format {documentation,name_desc,schema,example_call}` |  | (default: --tool-format) |
 | `--rerank-query-format {plain,concat,instruct_query,clm}` |  | (default: --query-format) |
-| `--jev-model JEV_MODEL` | `jev-1.13.0` | a versioned id: aliases such as jev-latest move |
-| `--jev-url JEV_URL` | `https://api.typesafe.ai/v1` |  |
-| `--jev-tool-format {documentation,name_desc,schema,example_call}` |  | text per option (default: name_desc) |
-| `--jev-max-chars JEV_MAX_CHARS` | `1000` | characters kept per option |
-| `--jev-chunk JEV_CHUNK` | `200` | --scorer jev: tools per Choice question (max 255) |
-| `--jev-per-chunk JEV_PER_CHUNK` | `20` | --scorer jev: chunk winners into the final round |
-| `--jev-workers JEV_WORKERS` | `8` | concurrent requests (TypeSafe: 40/s) |
-| `--rerank-max-chars RERANK_MAX_CHARS` |  | cut each candidate's text, like --jev-max-chars does for Jev |
+| `--rerank-max-chars RERANK_MAX_CHARS` |  | cut each candidate's text to this many characters |
 | `--rerank-template {qwen3,bge}` |  | --rerank cross: the reranker's prompt format |
 | `--cross-template {qwen3,bge}` |  | --scorer cross: the prompt format (default qwen3) |
 | `--rerank-query-chars RERANK_QUERY_CHARS` |  | --rerank cross: characters of the request kept (6000) |
@@ -226,7 +219,7 @@ Rank the tools of an ingest dir for one request. Defaults: the callbus backbone 
 | `--cut-max CUT_MAX` | `10` |  |
 | `--cut-min CUT_MIN` | `1` |  |
 | `--min-confidence Q` |  | turn away a request less sure than this share of answerable ones (an empty list and a note; e.g. 0.05); needs DATA/calibration.json (callbus calibrate) |
-| `--rerank {cross,jev}` |  | cross: a local cross-encoder behind vLLM's score API (Qwen3-Reranker-8B); jev: TypeSafe AI's hosted Jev (key in $TYPESAFE_API_KEY; the request text leaves the machine) |
+| `--rerank {cross}` |  | cross: a local cross-encoder behind vLLM's score API (Qwen3-Reranker-8B) |
 | `--rerank-depth RERANK_DEPTH` | `20` | tools reranked per request |
 | `--rerank-emb-url RERANK_EMB_URL` |  | cross: the reranker's /v1 endpoint |
 | `--rerank-emb-model RERANK_EMB_MODEL` | `qwen3-reranker` | cross: its served name |
@@ -236,9 +229,6 @@ Rank the tools of an ingest dir for one request. Defaults: the callbus backbone 
 | `--rerank-query-chars RERANK_QUERY_CHARS` |  | cross: characters of the request (6000) |
 | `--rerank-workers RERANK_WORKERS` | `1` | cross: scoring calls in flight at once, all requests together |
 | `--rerank-timeout RERANK_TIMEOUT` | `10.0` | seconds per attempt (two attempts, a turn in the queue included); then the first stage's order answers |
-| `--jev-model JEV_MODEL` | `jev-1.13.0` | jev: a versioned id (aliases move) |
-| `--jev-url JEV_URL` | `https://api.typesafe.ai/v1` |  |
-| `--jev-workers JEV_WORKERS` | `8` | jev: calls in flight at once |
 | `--emb-url EMB_URL` |  | OpenAI-compatible base URL |
 | `--emb-model EMB_MODEL` |  |  |
 | `--emb-batch EMB_BATCH` | `32` |  |
@@ -280,7 +270,7 @@ Rank requests written for the catalogue's own tools (callbus data gen-queries --
 | `--cut-max CUT_MAX` | `10` |  |
 | `--cut-min CUT_MIN` | `1` |  |
 | `--min-confidence Q` |  | turn away a request less sure than this share of answerable ones (an empty list and a note; e.g. 0.05); needs DATA/calibration.json (callbus calibrate) |
-| `--rerank {cross,jev}` |  | cross: a local cross-encoder behind vLLM's score API (Qwen3-Reranker-8B); jev: TypeSafe AI's hosted Jev (key in $TYPESAFE_API_KEY; the request text leaves the machine) |
+| `--rerank {cross}` |  | cross: a local cross-encoder behind vLLM's score API (Qwen3-Reranker-8B) |
 | `--rerank-depth RERANK_DEPTH` | `20` | tools reranked per request |
 | `--rerank-emb-url RERANK_EMB_URL` |  | cross: the reranker's /v1 endpoint |
 | `--rerank-emb-model RERANK_EMB_MODEL` | `qwen3-reranker` | cross: its served name |
@@ -290,9 +280,6 @@ Rank requests written for the catalogue's own tools (callbus data gen-queries --
 | `--rerank-query-chars RERANK_QUERY_CHARS` |  | cross: characters of the request (6000) |
 | `--rerank-workers RERANK_WORKERS` | `1` | cross: scoring calls in flight at once, all requests together |
 | `--rerank-timeout RERANK_TIMEOUT` | `10.0` | seconds per attempt (two attempts, a turn in the queue included); then the first stage's order answers |
-| `--jev-model JEV_MODEL` | `jev-1.13.0` | jev: a versioned id (aliases move) |
-| `--jev-url JEV_URL` | `https://api.typesafe.ai/v1` |  |
-| `--jev-workers JEV_WORKERS` | `8` | jev: calls in flight at once |
 | `--emb-url EMB_URL` |  | OpenAI-compatible base URL |
 | `--emb-model EMB_MODEL` |  |  |
 | `--emb-batch EMB_BATCH` | `32` |  |
@@ -329,7 +316,7 @@ One MCP server with two tools, search_tools and call_tool, in front of every too
 | `--cut-max CUT_MAX` | `10` |  |
 | `--cut-min CUT_MIN` | `1` |  |
 | `--min-confidence Q` |  | turn away a request less sure than this share of answerable ones (an empty list and a note; e.g. 0.05); needs DATA/calibration.json (callbus calibrate) |
-| `--rerank {cross,jev}` |  | cross: a local cross-encoder behind vLLM's score API (Qwen3-Reranker-8B); jev: TypeSafe AI's hosted Jev (key in $TYPESAFE_API_KEY; the request text leaves the machine) |
+| `--rerank {cross}` |  | cross: a local cross-encoder behind vLLM's score API (Qwen3-Reranker-8B) |
 | `--rerank-depth RERANK_DEPTH` | `20` | tools reranked per request |
 | `--rerank-emb-url RERANK_EMB_URL` |  | cross: the reranker's /v1 endpoint |
 | `--rerank-emb-model RERANK_EMB_MODEL` | `qwen3-reranker` | cross: its served name |
@@ -339,9 +326,6 @@ One MCP server with two tools, search_tools and call_tool, in front of every too
 | `--rerank-query-chars RERANK_QUERY_CHARS` |  | cross: characters of the request (6000) |
 | `--rerank-workers RERANK_WORKERS` | `1` | cross: scoring calls in flight at once, all requests together |
 | `--rerank-timeout RERANK_TIMEOUT` | `10.0` | seconds per attempt (two attempts, a turn in the queue included); then the first stage's order answers |
-| `--jev-model JEV_MODEL` | `jev-1.13.0` | jev: a versioned id (aliases move) |
-| `--jev-url JEV_URL` | `https://api.typesafe.ai/v1` |  |
-| `--jev-workers JEV_WORKERS` | `8` | jev: calls in flight at once |
 | `--emb-url EMB_URL` |  | OpenAI-compatible base URL |
 | `--emb-model EMB_MODEL` |  |  |
 | `--emb-batch EMB_BATCH` | `32` |  |

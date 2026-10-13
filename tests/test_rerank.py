@@ -189,7 +189,7 @@ def test_eval_cli_reranks_bm25_with_a_dense_scorer_and_records_it(tmp_path, monk
     assert rep["config"]["rerank"] == {
         "scorer": "dense/emb/m/name_desc/plain", "depth": 10, "emb_url": "http://unused/v1", "heads_sha256": None
     }  # fmt: skip
-    assert rep["config"]["jev"] is None and "K@cut" in rep["overall"]  # cosine scores: the cut applies
+    assert "jev" not in rep["config"] and "K@cut" in rep["overall"]  # cosine scores: the cut applies
     assert main(args + ["--rerank-max-chars", "40"]) == 0
     assert json.loads(out.read_text())["scorer"].startswith("rerank[dense/emb/m/name_desc[:40]/plain,d10]/")
     with pytest.raises(SystemExit, match="at least 2"):
@@ -229,16 +229,16 @@ def test_a_served_search_cuts_on_first_stage_cosines_and_shows_the_reranked_orde
     assert res.scorer.startswith("rerank[")
 
 
-def test_search_and_serve_check_the_second_stage_flags(tmp_path, monkeypatch):
+def test_search_and_serve_check_the_second_stage_flags(tmp_path, monkeypatch, capsys):
     from callbus.datasets.jsonl import write_tools
 
     write_tools(tmp_path / "d" / "tools.jsonl", _tools())
     base = ["search", "email", "--data", str(tmp_path / "d"), "--cache-dir", str(tmp_path / "c")]
     with pytest.raises(SystemExit, match="--rerank-emb-url"):
         main([*base, "--rerank", "cross"])
-    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
-    with pytest.raises(SystemExit, match="TYPESAFE_API_KEY"):
+    with pytest.raises(SystemExit):  # the hosted second stage was removed
         main([*base, "--rerank", "jev"])
+    assert "invalid choice: 'jev'" in capsys.readouterr().err
     with pytest.raises(SystemExit, match="from 2 to 255"):
         main([*base, "--rerank", "cross", "--rerank-emb-url", "http://r/v1", "--rerank-depth", "1"])
     with pytest.raises(SystemExit, match="--rerank-timeout must be positive"):
@@ -248,11 +248,9 @@ def test_search_and_serve_check_the_second_stage_flags(tmp_path, monkeypatch):
 def test_search_and_serve_keep_the_second_stage_on_a_short_leash():
     from callbus.build import second_limits
 
-    a = argparse.Namespace(rerank="cross", rerank_timeout=10.0, rerank_workers=2, jev_workers=8)
+    a = argparse.Namespace(rerank="cross", rerank_timeout=10.0, rerank_workers=2)
     assert second_limits(a) == {"timeout": 10.0, "max_retries": 2, "slots": 2}
     assert second_limits(rerank_args(argparse.Namespace(**vars(a), hybrid=False))) == second_limits(a)
-    a.rerank = "jev"
-    assert second_limits(a) == {"timeout": 10.0, "max_retries": 2, "slots": 8}
     assert second_limits(argparse.Namespace(rerank="cross", rerank_workers=4)) == {}  # eval: patient defaults
 
 
@@ -315,42 +313,3 @@ def test_search_reranks_with_a_cross_encoder_end_to_end(tmp_path, monkeypatch, c
         2,
         1,
     )
-
-
-def test_search_reranks_with_jev_end_to_end(tmp_path, monkeypatch, capsys):
-    import hashlib
-
-    from callbus.adapters.embeddings_api import OpenAIEmbeddings
-    from callbus.adapters.jev import JevClient
-    from callbus.datasets.jsonl import write_tools
-    from test_jev import _overlap_post as jev_post
-
-    def fake_post(self, texts, **kw):
-        rows = [
-            np.random.default_rng(int(hashlib.sha256(t.encode()).hexdigest()[:8], 16)).standard_normal(16)
-            for t in texts
-        ]
-        return [r.astype(np.float32) for r in rows], len(texts)
-
-    monkeypatch.setattr(OpenAIEmbeddings, "_post", fake_post)
-    monkeypatch.setattr(JevClient, "_post", jev_post)
-    monkeypatch.setattr(JevClient, "posted", [], raising=False)
-    monkeypatch.setattr(JevClient, "answered", [], raising=False)
-    monkeypatch.setenv("TYPESAFE_API_KEY", "test-key")
-    monkeypatch.delenv("CALLBUS_HEADS", raising=False)
-    monkeypatch.setenv("CALLBUS_CACHE", str(tmp_path / "no-heads"))
-    write_tools(tmp_path / "d" / "tools.jsonl", _tools())
-    args = [
-        "search",
-        "send an email message",
-        "--data",
-        str(tmp_path / "d"),
-        "--cache-dir",
-        str(tmp_path / "c"),
-    ]
-    assert main([*args, "--k", "4", "--json", "--rerank", "jev"]) == 0
-    out = json.loads(capsys.readouterr().out)
-    assert out["tools"][0]["id"] == "m" and out["scorer"].startswith(
-        "jev[jev-1.13.0@api.typesafe.ai,d20,documentation"
-    )
-    assert JevClient.posted  # the request went to the (faked) hosted model

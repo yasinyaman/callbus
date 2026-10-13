@@ -1,4 +1,4 @@
-"""A second scorer over a first scorer's shortlist: the local counterpart of ``JevReranker``.
+"""A second scorer over a first scorer's shortlist.
 
 ``ScorerReranker`` ranks with ``base`` to ``depth`` and reorders that head by ``second.score_tools``
 (a ``DenseScorer`` or ``CLMScorer``: cosine between the query and each candidate, encoded with the
@@ -29,8 +29,8 @@ __all__ = ["ScorerReranker", "Slots", "cut_formatter"]
 
 
 def cut_formatter(f: NamedFormatter, max_chars: int) -> NamedFormatter:
-    """``f``'s text cut to ``max_chars`` characters, named ``<f>[:<n>]``: the text a Jev option gets
-    (``--jev-max-chars``), so a second scorer can read exactly what Jev read."""
+    """``f``'s text cut to ``max_chars`` characters, named ``<f>[:<n>]``: a second stage reads a
+    bounded amount of each candidate, so a long tool cannot crowd out the rest."""
     return NamedFormatter(f"{f.name}[:{max_chars}]", lambda t: f(t)[:max_chars])
 
 
@@ -146,6 +146,6 @@ class ScorerReranker:
         return out
 
     def score_tools(self, query: Query, tools: Sequence[Tool]) -> list[float]:
-        """The first stage's cosines, as ``JevReranker``'s: what ``/v1/rank`` promises and an
+        """The first stage's cosines: what ``/v1/rank`` promises and an
         adaptive cut's margin is chosen for."""
         return self.base.score_tools(query, tools)

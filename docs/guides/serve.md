@@ -148,7 +148,7 @@ the ranked list longer buys a seventh of that per tool. The table is rebuilt fro
 log files every five minutes, counts all API keys together, and is not applied to a request that
 names its own `k`.
 
-**`--rerank cross` or `--rerank jev`: a second stage.** The first stage scores the request and each
+**`--rerank cross`: a second stage.** The first stage scores the request and each
 tool apart; a second stage reads the request together with each of the top 20 tools' full
 documentation (cut to 3,000 characters) and reorders them. How many tools a search returns still
 comes from the first stage's cosines (adaptive K); the order comes from the second stage. It is
@@ -161,17 +161,13 @@ ToolRet 54.0 → 58.1 ([the comparison](https://github.com/yasinyaman/callbus/bl
   (about 16 GB more GPU memory). One search is one call of 20 pairs: 1.7–2.5 s at p50 on a GB10
   shared with three other vLLM servers (0.3–0.6 s a query at 8 requests in flight; not measured on
   an idle GPU). `deploy/spark/compose.yaml`'s `rerank` profile shows the vLLM flags.
-- `--rerank jev`: TypeSafe AI's hosted Jev, with `TYPESAFE_API_KEY` set, or
-  another `/systemone` endpoint named with `--jev-url` (asked without the key).
-  **The request text and the top tools' text are sent to TypeSafe**; the server says so when it
-  starts. Answers are cached in `DATA/cache`.
 
 `--rerank-depth`, `--rerank-tool-format` and `--rerank-max-chars` change the setting; the defaults are
 the one that measured best. Requests that name their own `k` are reranked too.
 
 A reranker that is down, slow or busy does not cost a search its answer. Each call gets
-`--rerank-timeout` seconds (10) and one retry, and at most `--rerank-workers` calls (Jev:
-`--jev-workers`) are in flight at once from all requests together. That limit is for a local server
+`--rerank-timeout` seconds (10) and one retry, and at most `--rerank-workers` calls are in
+flight at once from all requests together. That limit is for a local server
 with one worker; raise it for a vLLM reranker that serves several clients. Waiting for a free slot
 counts against the timeout. When the second stage fails, the search returns the first stage's order
 with a note saying so. The reason goes to the server's log, and

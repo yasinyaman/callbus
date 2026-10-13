@@ -4,6 +4,22 @@ Notable changes, newest first. The format follows [Keep a Changelog](https://kee
 and versions follow [semantic versioning](https://semver.org/); before 1.0, a minor version may
 change behaviour.
 
+## [Unreleased]
+
+### Removed
+
+- **The hosted second stage is gone.** `--rerank jev`, `--scorer jev`, every `--jev-*` flag, the
+  `jev` adapter and `scripts/jev_compare.sh` are removed, with no replacement and no deprecation
+  period: the provider's terms allowed neither publishing its numbers nor learning from its output,
+  so it could never be more than an evaluation curiosity, and keeping the seat warm cost a flag on
+  every command, a key path through the retriever and a privacy notice at start-up. The second stage
+  that stays is `--rerank cross` — your own reranker endpoint — which measured better anyway
+  (`docs/reports/faz2-rerank.md`). A report's `config` no longer carries a `jev` block, and
+  `--rerank-workers` is the only slot limit.
+- Searches that an older version's log says the hosted stage answered are still kept out of `learn`,
+  `ab` and the co-use table; the counter they are reported under is now
+  `searches_not_for_training` (was `searches_with_jev`).
+
 ## [0.3.1] - 2026-10-13
 
 ### Changed

@@ -631,7 +631,7 @@ def test_mine_and_judge_skip_a_search_without_an_id():
     assert judge(events)["control"]["searches"] == 1
 
 
-def test_judge_counts_the_jev_searches_of_the_key_it_judges_only():
+def test_judge_counts_the_untrainable_searches_of_the_key_it_judges_only():
     from collections import Counter
 
     jev = "jev[jev-1.13.0@api.typesafe.ai,d20,documentation]/dense/emb/qwen3-emb/documentation/x"
@@ -642,7 +642,7 @@ def test_judge_counts_the_jev_searches_of_the_key_it_judges_only():
     ]
     counts: Counter[str] = Counter()
     judge(events, tenant="acme", counts=counts)
-    assert counts["searches_with_jev"] == 1  # acme's own; not the other key's
+    assert counts["searches_not_for_training"] == 1  # acme's own; not the other key's
 
 
 def test_the_shared_experiment_leaves_out_keys_that_run_their_own():
@@ -697,7 +697,7 @@ def test_mine_and_judge_skip_searches_a_jev_second_stage_answered():
         _call("t2", "s2"),
     ]
     pairs, counts = mine(events)
-    assert [p.state for p in pairs] == ["B"] and counts["searches_with_jev"] == 1
+    assert [p.state for p in pairs] == ["B"] and counts["searches_not_for_training"] == 1
     seen: Counter[str] = Counter()
     stats = judge(
         [
@@ -708,7 +708,7 @@ def test_mine_and_judge_skip_searches_a_jev_second_stage_answered():
         ],
         counts=seen,
     )
-    assert stats["candidate"]["searches"] == 1 and seen["searches_with_jev"] == 1
+    assert stats["candidate"]["searches"] == 1 and seen["searches_not_for_training"] == 1
 
 
 def test_learn_uses_only_the_served_models_requests(tmp_path, capsys):
