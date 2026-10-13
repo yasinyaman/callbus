@@ -15,8 +15,7 @@ cevap verdi, gerçek MCP çağrıları çalıştı, 120 isteklik gerçek trafik 
 öğrenilecek bir şey olmadığını görüp hiçbir şey yayımlamadı, `calibrate --from-log` bandı gerçek trafikten kurdu
 ve sonraki aramalar `confidence` taşıdı, dört çerçeve ve iki platform kancası doğru tool'u buldu, yayımlanan
 imaj sekiz kontrolden geçti, ve canlı Claude koşusunda `inline` beta'sı ilk kez denenip klasik yola göre bir tur
-ve 3,7 MB katalog tasarruf ettiği ölçüldü. Tek açık: Helm chart'ının gerçek kurulumu (Mac'te Docker kapalı) ve
-OpenAI tarafının canlı koşusu.
+ve 3,7 MB katalog tasarruf ettiği ölçüldü. Helm chart'ı da gerçek kümede 10/10 geçti. Tek açık: OpenAI tarafının canlı koşusu.
 
 ## 1. `toolrank serve`, uçtan uca (`scripts/serve_e2e.py`)
 
@@ -150,11 +149,27 @@ güncel ağaçtan yeniden kuruldu ve duman testine girdi (GB10/arm64, GPU'suz):
 Yirmi kontrolün hepsi geçti, sıfır hata. Bu, sürüm öncesi paketin asıl keşfiydi: imajların yeniden kurulması
 gerektiği ancak bu kontrolle görüldü.
 
+## 9. Helm chart'ı, gerçek kümede (13 Eki akşamı)
+
+`kind` kümesi (Docker Desktop, Mac), chart `embedding.mode=external` ile sahte embedding sunucusuna karşı ve
+**0.3.0'ın göndereceği imajla** (yayımlanan 0.2.0 değil: o, uv bump'ını ve PEP 735 grubunu taşımıyor):
+
+**10/10 geçti** — kurulum (ingest + indeks hazır pod), time sunucusunun tool'larıyla arama, pod içindeki stdio
+MCP sunucusuna giden çağrı, yanlış token reddi, metriklerin aramayı sayması, `helm upgrade`'de yeni sunucunun
+katalogda görünmesi, tek kaynağa kısıtlı anahtarın yalnız onu görmesi / başka kaynağın tool'unu çağıramaması /
+sunucu geneli metrikleri okuyamaması, ve `helm uninstall`'dan sonra veri volume'ünün yerinde kalması.
+
+**Sapma — ve bedeli:** ilk deneme `OSError: [Errno 28] No space left on device` ile düştü; sebep ürün değil
+Mac'in diskiydi (kökte 1,8 GB boş, Docker VM'i kind düğümüyle %100 doldu). Build önbelleğini temizleyip (4,6 GB,
+salt önbellek) test tekrarlandı ve geçti. **Ama bu arada Docker Desktop'ın VM'i tazelendi: kullanıcının başka
+projelerine ait 15 imaj, 6 kapsayıcı ve 6 volume kayboldu** (`.raw` yedeği ya da Time Machine kopyası yok).
+Volume'lere dokunan bir komut koşulmadı (`builder prune` yalnız önbellek), yani tetikleyen şey dolu disk imajının
+Docker Desktop tarafından kurtarılması; ama tetikleyen testti. Bundan sonraki kural: küme testleri ya yerinde
+disk olan makinede koşar ya da öncesinde `df -h /` ile bakılıp kullanıcıya söylenir.
+
 ## Açık kalanlar
 
-- **Helm chart'ının gerçek kurulumu** (`scripts/helm_smoke.py`, kind): Mac'te Docker kapalı, GB10'da k3s sudo
-  parolası istiyor. 0.2.0'da 10/10 geçmişti ve chart'ta o günden beri yalnız sürüm alanları değişecek; yine de
-  sürümden önce bir kez koşulmalı. Docker'ı açman yeterli.
+- ~~Helm chart'ının gerçek kurulumu~~: 9. bölümde koşuldu, 10/10.
 - **OpenAI tarafının canlı koşusu:** `platforms_e2e --live` ve `examples/openai_client_tool_search.py`
   (Faz 1 Hafta 4'te iade görevi TPM sınırına takılmıştı; D2.4'ün kısaltılmış şemalarıyla yeniden koşulacak).
   Claude tarafı 6. bölümde koşuldu; OpenAI anahtarı ve onayı duruyor.
