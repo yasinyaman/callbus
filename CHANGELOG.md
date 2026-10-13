@@ -6,9 +6,11 @@ change behaviour.
 
 ## [0.3.0] - 2026-10-13
 
-A beta: the GitHub release is marked pre-release. Everything below has been measured on the stack
-this version ships (`docs/reports/` has the runs), but the learning loop and the confidence band
-have only been exercised on simulated and scripted traffic, not in a pilot.
+Everything below has been measured on the stack this version ships: the default backbone served the
+way the images serve it, both end to end and on the benchmarks (`docs/reports/` has the runs). Two
+parts have seen only simulated and scripted traffic and no pilot yet — the learning loop
+(`toolrank learn` / `ab`) and the confidence band (`toolrank calibrate`) — so their numbers say what
+the mechanism does, not what your traffic will do.
 
 ### Added
 
