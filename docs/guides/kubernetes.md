@@ -73,5 +73,12 @@ uv run python scripts/helm_smoke.py --image toolrank:dev --tenants
 kind delete cluster --name toolrank
 ```
 
+Check the disk before you start: the kind node image is 1.3 GB, the loaded toolrank image another
+0.5–0.7 GB, and the pod writes its catalogue and index on top. A Docker install with no room left
+fails in a way that looks like a chart bug — the ingest init container dies with
+`OSError: [Errno 28] No space left on device` — and on Docker Desktop a disk image that fills up can
+take the rest of your images and volumes with it when the VM recovers. `df -h /` and
+`docker system df` first.
+
 The GPU modes have been checked by rendering and by the API server's validation, not yet on a GPU
 cluster.
