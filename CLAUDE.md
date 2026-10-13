@@ -486,7 +486,9 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   `pause_turn` resent; `builtin="bm25"` uses the API's own search. `Toolbox(inline=True)` (beta
   `inline-tools-2026-09-15`): no catalogue, `tools` = `search_tools`; found tools by value in a `role: "system"`
   message of `tool_addition` blocks after the tool results (`additions()`), `prefetch` searches the task first
-  (`opening()`); untested live. `integrations/openai.py`:
+  (`opening()`); measured live on 13 Oct 2026 with `claude-opus-5-5` (`docs/reports/surum-oncesi-0.3.0.md`): a
+  one-tool task in 2 turns and 2,331 input tokens against the deferred path's 3 turns and 3,140 with 3.7 MB of
+  definitions on the wire, a two-tool task right in 3 turns. `integrations/openai.py`:
   only `tool_search` (`execution: "client"`) declared, each `tool_search_call` answered with the new
   tools' full `function` definitions, stateless (`store=False` + encrypted reasoning, all items
   resent; a search's first 3 schemas in full, the rest shrunk to 1,500 characters unless `shrink=False`); `Toolbox(namespaces=True)`: one `namespace` per server, tools under `own_name` (a call names

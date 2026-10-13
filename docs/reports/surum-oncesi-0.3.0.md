@@ -2,20 +2,21 @@
 
 Sürümden önce sorulan şey: **kullanıcının kuracağı yığın, bizim ölçtüğümüz yığın gibi çalışıyor mu?** Bugüne
 kadarki uçtan uca koşular v0.1 head'leriyle ve temel modelle yapılmıştı; 0.3.0'ın varsayılanı head'siz
-`toolrank-emb-v0.2`. Beş test o yığınla koşuldu: sunucu (MCP + REST + günlük + soğuk başlangıç), gerçek HTTP
-trafiğiyle öğrenme döngüsü, çerçeve entegrasyonları, platform kancaları ve **yayımlanmış** imaj.
+`toolrank-emb-v0.2`. Altı test o yığınla koşuldu: sunucu (MCP + REST + günlük + soğuk başlangıç), gerçek HTTP
+trafiğiyle öğrenme döngüsü, çerçeve entegrasyonları, platform kancaları, **yayımlanmış** imaj ve canlı Claude.
 
 Ortam: Mac'te `toolrank serve` ve istemciler, embedding'ler GB10'un 8097'sinden (`v0.2` bf16, head'siz),
 katalog `data/w3` (1.862 tool, 5 kaynak: time, everything, swagger-petstore, stripe, github).
 
 ## Sonuç (tek cümle)
 
-Beş testin beşi de geçti: sunucu soğuk başlangıçta 134 sn'de hazır oldu ve o süre boyunca anahtar kelimeyle
+Altı testin altısı da geçti: sunucu soğuk başlangıçta 134 sn'de hazır oldu ve o süre boyunca anahtar kelimeyle
 cevap verdi, gerçek MCP çağrıları çalıştı, 120 isteklik gerçek trafik günlükten 124 çift verdi, `learn`'ün kapısı
 öğrenilecek bir şey olmadığını görüp hiçbir şey yayımlamadı, `calibrate --from-log` bandı gerçek trafikten kurdu
 ve sonraki aramalar `confidence` taşıdı, dört çerçeve ve iki platform kancası doğru tool'u buldu, yayımlanan
-imaj sekiz kontrolden geçti. Tek açık: Helm chart'ının gerçek kurulumu (Mac'te Docker kapalı) ve ücretli canlı
-API koşuları.
+imaj sekiz kontrolden geçti, ve canlı Claude koşusunda `inline` beta'sı ilk kez denenip klasik yola göre bir tur
+ve 3,7 MB katalog tasarruf ettiği ölçüldü. Tek açık: Helm chart'ının gerçek kurulumu (Mac'te Docker kapalı) ve
+OpenAI tarafının canlı koşusu.
 
 ## 1. `toolrank serve`, uçtan uca (`scripts/serve_e2e.py`)
 
@@ -82,13 +83,39 @@ petstore çağrısı yerel vekilden `ok`, Stripe'ın POST'u `refused`.
 sürüm `toolrank 0.2.0`, ingest + ısıtma, `/healthz`, localhost'ta arama, yabancı Host 421, MCP `initialize` 200,
 `node/npx/uvx` yerinde, scorer hazır. Sekiz kontrolün hepsi `ok`.
 
+## 6. Canlı Claude koşusu (13 Eki, kullanıcının anahtarıyla)
+
+`claude-opus-5-5`, `data/w3` (1.862 tool) servis edilirken, `examples/anthropic_tool_reference.py`. Aynı görev
+iki yolla: katalogu `defer_loading` ile gönderen klasik yol ve **ilk kez canlı denenen** `inline` beta'sı
+(`Toolbox(inline=True)`, katalog hiç gönderilmiyor, bulunan tool'lar değerle ekleniyor; `--prefetch` görevi ilk
+turdan önce arıyor).
+
+| yol | tur | istek başına katalog | girdi token | çıktı token | cevap |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `inline` + `prefetch` | 2 | 0,0 MB | 2.331 | 132 | doğru |
+| klasik (1.862 tool deferred) | 3 | 3,7 MB | 3.140 | 207 | doğru |
+| `inline` + `prefetch`, iki tool'lu görev | 3 | 0,0 MB | 2.732 | 239 | doğru |
+
+- **İnline yol bir turu ve kablodaki 3,7 MB'ı birden kaldırıyor.** `prefetch` görevi önceden aradığı için modelin
+  kendi `search_tools` turu kalkıyor; girdi token'ı da %26 düşüyor. Faz 1 Hafta 4'ün "istemci tarafı arama bir
+  fazladan tur" notu bu yolla kapanıyor.
+- **Çağrılar gerçek:** `time/get_current_time` 918 ms (ilk çağrı MCP sunucusunu başlatıyor), ikinci görevde 8,9
+  ms ve `everything/echo` 1.570 ms; cevaplar doğru (Tokyo'da 14 Eki 01:42–01:43, JST).
+- **İki tool'lu görevde konuşma ortasında tool ekleme (`additions()`) çalıştı:** arama ikisini birden döndürdü,
+  model sırayla çağırdı.
+- İlk denemede çağrı `refused` döndü, çünkü sunucuyu `--config` olmadan başlatmıştım (MCP sunucularını
+  başlatacak yapılandırma yok): ürün hatası değil, kurulum hatası — ama `--config`'siz bir sunucunun yalnız
+  arama yapabildiğini canlı olarak da gösteriyor.
+- Maliyet: üç koşu toplamda 8.203 girdi + 578 çıktı token'ı.
+
 ## Açık kalanlar
 
 - **Helm chart'ının gerçek kurulumu** (`scripts/helm_smoke.py`, kind): Mac'te Docker kapalı, GB10'da k3s sudo
   parolası istiyor. 0.2.0'da 10/10 geçmişti ve chart'ta o günden beri yalnız sürüm alanları değişecek; yine de
   sürümden önce bir kez koşulmalı. Docker'ı açman yeterli.
-- **Ücretli canlı koşular:** `platforms_e2e --live` (Claude + OpenAI, 3 görev), `examples/*.py` ve Claude'un
-  `inline-tools` beta'sı (`Toolbox(inline=True)`, hiç canlı denenmedi). Anahtar ve onay senin.
+- **OpenAI tarafının canlı koşusu:** `platforms_e2e --live` ve `examples/openai_client_tool_search.py`
+  (Faz 1 Hafta 4'te iade görevi TPM sınırına takılmıştı; D2.4'ün kısaltılmış şemalarıyla yeniden koşulacak).
+  Claude tarafı 6. bölümde koşuldu; OpenAI anahtarı ve onayı duruyor.
 - Bu testler v0.2'yi **bf16** olarak GB10'dan kullandı; imajların varsayılanı FP8. FP8'in kalite denkliği
   ayrıca ölçülmüştü (Faz 2 Hafta 7 ve 11 Eki'nin v0.30.0 koşusu), burada tekrar edilmedi.
 
@@ -107,4 +134,11 @@ uv run python scripts/frameworks_e2e.py --data data/w3 --emb-url http://$GB10:80
 uv run python scripts/platforms_e2e.py --data data/w3 --emb-url http://$GB10:8097/v1 \
   --emb-model qwen3-emb-lora --heads none --out results/platforms_e2e_release.json
 ssh gb10 'cd ~/toolrank && uv run python scripts/container_smoke.py ghcr.io/yasinyaman/toolrank:0.2.0 --version 0.2.0'
+
+# the live Claude runs: serve with a config that can start the MCP servers, then the example
+printf '{"mcpServers":{"time":{"command":"uvx","args":["mcp-server-time"]},"everything":{"command":"npx","args":["-y","@modelcontextprotocol/server-everything"]}}}' > /tmp/w3_config.json
+TOOLRANK_API_KEY=$(python3 -c 'import secrets;print(secrets.token_urlsafe(16))') toolrank serve --data data/w3 \
+  --config /tmp/w3_config.json --emb-url http://$GB10:8097/v1 --emb-model qwen3-emb-lora --clm-ckpt none --port 8765
+uv run --extra anthropic python examples/anthropic_tool_reference.py "What time is it in Tokyo right now?" \
+  --inline --prefetch --yes          # the beta; drop --inline --prefetch for the deferred path
 ```
