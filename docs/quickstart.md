@@ -66,15 +66,15 @@ On another machine, point callbus at it with `--emb-url http://HOST:8091/v1` or
 `OPENAI_API_KEY` only to `api.openai.com`). Then index your tools and search them:
 
 ```bash
-CallBus ingest mcp --server time="uvx mcp-server-time" --out tools/
-CallBus ingest openapi https://petstore3.swagger.io/api/v3/openapi.json --name petstore --out tools/
-CallBus search --data tools/ "list the pets tagged dog"
+callbus ingest mcp --server time="uvx mcp-server-time" --out tools/
+callbus ingest openapi https://petstore3.swagger.io/api/v3/openapi.json --name petstore --out tools/
+callbus search --data tools/ "list the pets tagged dog"
 ```
 
 And serve them to agents:
 
 ```bash
-CallBus serve --data tools/ --config callbus.json     # MCP at http://127.0.0.1:8765/mcp
+callbus serve --data tools/ --config callbus.json     # MCP at http://127.0.0.1:8765/mcp
 ```
 
 `--config` tells `serve` how to reach the MCP servers when an agent calls one of their tools; the

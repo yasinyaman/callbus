@@ -19,8 +19,8 @@ retrieval) and hands only those to the agent.
 
 ```bash
 pip install "callbus[mcp]"
-CallBus ingest mcp --server time="uvx mcp-server-time" --out tools/
-CallBus serve --data tools/        # MCP at http://127.0.0.1:8765/mcp, REST at /v1
+callbus ingest mcp --server time="uvx mcp-server-time" --out tools/
+callbus serve --data tools/        # MCP at http://127.0.0.1:8765/mcp, REST at /v1
 ```
 
 The [quick start](quickstart.md) walks through it, with the embedding model running in Docker.

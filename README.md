@@ -19,8 +19,8 @@ and `call_tool`:
 
 ```bash
 pip install "callbus[mcp]"
-CallBus ingest mcp --server time="uvx mcp-server-time" --out tools/
-CallBus serve --data tools/                          # MCP at http://127.0.0.1:8765/mcp, REST at /v1
+callbus ingest mcp --server time="uvx mcp-server-time" --out tools/
+callbus serve --data tools/                          # MCP at http://127.0.0.1:8765/mcp, REST at /v1
 ```
 
 CallBus ranks with its backbone, Qwen3-Embedding-8B trained further on tool retrieval
