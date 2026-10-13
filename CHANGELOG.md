@@ -4,7 +4,11 @@ Notable changes, newest first. The format follows [Keep a Changelog](https://kee
 and versions follow [semantic versioning](https://semver.org/); before 1.0, a minor version may
 change behaviour.
 
-## [Unreleased]
+## [0.3.0] - 2026-10-13
+
+A beta: the GitHub release is marked pre-release. Everything below has been measured on the stack
+this version ships (`docs/reports/` has the runs), but the learning loop and the confidence band
+have only been exercised on simulated and scripted traffic, not in a pilot.
 
 ### Added
 
