@@ -178,6 +178,27 @@ one tool per operation of an OpenAPI 3.x spec (path or URL)
 | `--truncate TRUNCATE` |  | vLLM truncate_prompt_tokens (CLM reference: 2048) |
 | `--cache-dir CACHE_DIR` |  | embedding cache directory (default: DIR/cache, next to tools.jsonl; '' = none) |
 
+## `callbus ingest hub`
+
+the tools a hub (hub.fx42.ai) has listed for the servers of a toolset.yaml, with their pins
+
+| Argument | Default | Description |
+| --- | --- | --- |
+| `url` | required | the hub, e.g. https://hub.fx42.ai |
+| `--toolset TOOLSET` | required | toolset.yaml: the servers to take (the hub's format) |
+| `--timeout TIMEOUT` | `120.0` | seconds for the hub's answer |
+| `--pins-out PINS_OUT` |  | where the pins go (default: OUT/pins.json; other sources' pins stay) |
+| `--out OUT` | required | ingest directory (tools.jsonl + sources.json) |
+| `--dry-run` |  | print the diff, write nothing |
+| `--replace` |  | let a source replace one of another kind |
+| `--allow-empty` |  | accept a listing of 0 tools |
+| `--tool-format {documentation,name_desc,schema,example_call}` | `documentation` | text to embed |
+| `--emb-url EMB_URL` |  | OpenAI-compatible base URL |
+| `--emb-model EMB_MODEL` |  |  |
+| `--emb-batch EMB_BATCH` | `32` |  |
+| `--truncate TRUNCATE` |  | vLLM truncate_prompt_tokens (CLM reference: 2048) |
+| `--cache-dir CACHE_DIR` |  | embedding cache directory (default: DIR/cache, next to tools.jsonl; '' = none) |
+
 ## `callbus ingest drop`
 
 remove whole sources
@@ -340,7 +361,7 @@ One MCP server with two tools, search_tools and call_tool, in front of every too
 | `--api-keys FILE` |  | JSON {name: key}, one bearer token per client or team; the name is logged as the tenant |
 | `--allowed-host ALLOWED_HOST` |  | extra Host header value to accept, e.g. the name a proxy or container network uses (also $CALLBUS_ALLOWED_HOSTS, comma-separated) (repeatable) |
 | `--allow-write` |  | let call_tool send non-GET OpenAPI requests |
-| `--pins FILE` |  | pins.json (from the hub): refuse a call to a tool whose description or input schema changed since then (pin_mismatch), and to a pinned source's unpinned tools |
+| `--pins FILE` |  | pins.json (from the hub, or callbus ingest hub): refuse a call to a tool whose description or input schema changed since then (pin_mismatch), and to a pinned source's unpinned tools |
 | `--timeout TIMEOUT` | `60.0` | seconds per backend call and connection |
 | `--usage-log USAGE_LOG` |  | usage log directory (default: DATA/usage) |
 | `--no-usage-log` |  |  |

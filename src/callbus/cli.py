@@ -9,6 +9,7 @@ callbus eval --data data/toolret --scorer clm --emb-model qwen3-8b --clm-ckpt ~/
 callbus compare results/*.json                       # one markdown table across runs
 callbus ingest mcp --config ~/mcp.json --out data/mytools     # index your own MCP servers
 callbus ingest openapi spec.json --name billing --out data/mytools
+callbus ingest hub https://hub.fx42.ai --toolset toolset.yaml --out data/mytools   # the hub's listing
 """
 
 from __future__ import annotations
@@ -1180,6 +1181,10 @@ def _warm_cache(a: argparse.Namespace, tools: list) -> None:
 
 
 def _apply(a: argparse.Namespace, listings: list) -> int:
+    return _apply_diffs(a, listings)[0]
+
+
+def _apply_diffs(a: argparse.Namespace, listings: list) -> tuple[int, list]:
     from callbus.ingest.sync import load_dir, sync, write_dir
 
     tools, manifest = load_dir(a.out)
@@ -1195,13 +1200,13 @@ def _apply(a: argparse.Namespace, listings: list) -> int:
         )
     if a.dry_run:
         print(f"dry run: {a.out} not written ({len(tools)} tools after this sync)")
-        return int(any(d.error for d in diffs))
+        return int(any(d.error for d in diffs)), diffs
     write_dir(a.out, tools, manifest)
     print(f"wrote {len(tools)} tools from {len(manifest)} sources to {a.out}")
     a.emb_url = a.emb_url or os.environ.get("CALLBUS_EMB_URL")
     if a.emb_url:
         _warm_cache(a, tools)
-    return int(any(d.error for d in diffs))
+    return int(any(d.error for d in diffs)), diffs
 
 
 def cmd_ingest_mcp(a: argparse.Namespace) -> int:
@@ -1255,6 +1260,41 @@ def cmd_ingest_openapi(a: argparse.Namespace) -> int:
     )
     info = {"origin": src.origin, "base_url": src.base_url}
     return _apply(a, [Listing(src.name, "openapi", tools, info=info)])
+
+
+def cmd_ingest_hub(a: argparse.Namespace) -> int:
+    """The tools the hub has listed for a toolset's servers, and their pins (``DIR/pins.json``)."""
+    from callbus.ingest import hub
+    from callbus.pins import Pins
+
+    try:
+        toolset = Path(a.toolset).read_bytes()
+    except OSError as e:
+        sys.exit(f"--toolset: {e}")
+    try:
+        listings, pins = hub.listings(hub.fetch(a.url, toolset, timeout=a.timeout))
+    except ValueError as e:
+        sys.exit(str(e))
+    code, diffs = _apply_diffs(a, listings)
+    if a.dry_run:
+        return code
+    path = Path(a.pins_out) if a.pins_out else Path(a.out) / "pins.json"
+    try:
+        kept = Pins.load(path) if path.exists() else Pins()
+    except ValueError as e:
+        sys.exit(f"{e} (move it aside or pass --pins-out)")
+    synced = {d.name for d in diffs if not d.error}  # a source that kept its old tools keeps its old pins
+    merged = {**kept.servers, **{s: t for s, t in pins.servers.items() if s in synced}}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(Pins(merged, pins.snapshot or kept.snapshot).to_dict(), indent=2) + "\n")
+    unlisted = [d.name for d in diffs if not d.error and d.total == 0]
+    print(f"pins of {sum(len(pins.servers[s]) for s in synced)} tools in {path}: serve --pins {path}")
+    if unlisted:
+        print(
+            f"the hub has not listed {', '.join(unlisted)} yet: callbus ingest mcp --config FILE fills them"
+        )
+    print("calls need these servers in serve --config (the hub's deploy page writes callbus.json)")
+    return code
 
 
 def cmd_ingest_drop(a: argparse.Namespace) -> int:
@@ -1471,6 +1511,20 @@ def build_parser() -> argparse.ArgumentParser:
     io.add_argument("--max-chars", type=int, default=MAX_CHARS, help="text budget per tool")
     _add_ingest_args(io)
     io.set_defaults(fn=cmd_ingest_openapi)
+    ih = ings.add_parser(
+        "hub",
+        help="the tools a hub (hub.fx42.ai) has listed for the servers of a toolset.yaml, with their pins",
+    )
+    ih.add_argument("url", help="the hub, e.g. https://hub.fx42.ai")
+    ih.add_argument("--toolset", required=True, help="toolset.yaml: the servers to take (the hub's format)")
+    ih.add_argument("--timeout", type=float, default=120.0, help="seconds for the hub's answer")
+    ih.add_argument(
+        "--pins-out",
+        default=None,
+        help="where the pins go (default: OUT/pins.json; other sources' pins stay)",
+    )
+    _add_ingest_args(ih)
+    ih.set_defaults(fn=cmd_ingest_hub)
     idr = ings.add_parser("drop", help="remove whole sources")
     idr.add_argument("names", nargs="+")
     idr.add_argument("--out", required=True)
@@ -1548,7 +1602,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--pins",
         default=None,
         metavar="FILE",
-        help="pins.json (from the hub): refuse a call to a tool whose description or "
+        help="pins.json (from the hub, or callbus ingest hub): refuse a call to a tool whose description or "
         "input schema changed since then (pin_mismatch), and to a pinned source's unpinned tools",
     )
     sv.add_argument("--timeout", type=float, default=60.0, help="seconds per backend call and connection")

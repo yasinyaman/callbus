@@ -36,7 +36,7 @@ callbus serve --data tools/ --config callbus.json --pins pins.json
 ```
 
 A server can change what a tool says it does after you chose it. With `--pins` (the `pins.json` the
-hub writes into a deployment), every call is checked before
+hub writes into a deployment, or the one `callbus ingest hub` writes), every call is checked before
 it is sent: the tool as the catalogue holds it, which is what `search_tools` showed, and the tool as
 the MCP server listed it when callbus connected must both still hash to their pin (name,
 description and input schema). A source the file pins accepts only its pinned tools. A refused call

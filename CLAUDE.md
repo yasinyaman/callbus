@@ -328,6 +328,9 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   re-embedded because the embedding cache is keyed by text; `ingest --emb-url` embeds only cache
   misses, into `DIR/cache` with search's and serve's model and truncation (callbus-emb-v0.2, 8192), so
   their first index is all cache hits (1,862 tools: 154 s cold over Tailscale otherwise).
+  `ingest/hub.py` (`callbus ingest hub`) posts a toolset.yaml to a hub's `/api/v1/deploy/ingest` (stdlib,
+  no redirects, 64 MiB cap) and turns its `tools.jsonl` + `sources.json` into listings, the text re-made
+  with `tool_text`, plus their pins into `DIR/pins.json` (only for sources the sync took).
 - **Pins** (`pins.py`, pure): `tool_pin` = sha256 of `[name, description, inputSchema]` as compact
   sorted JSON, the hub's formula (a test holds two of its values; never change it alone). `serve --pins`
   hands `Pins` to `Backends`: before any call the catalogue's doc must match the pin, and an MCP tool
@@ -613,7 +616,7 @@ src/callbus/client.py            CallBusClient, AsyncCallBusClient (to_thread), 
 src/callbus/integrations/        anthropic.py, openai.py (Toolbox, run), _common.py (read_only, get);
                                   langgraph.py (Toolbox), langchain.py (CallBusToolSelector, Selector),
                                   llamaindex.py (CallBusToolRetriever), litellm.py (tool_filter)
-src/callbus/ingest/              text.py (the indexed text), mcp.py (server configs, MCP tool → Tool), openapi.py, sync.py,
+src/callbus/ingest/              text.py (the indexed text), mcp.py (server configs, MCP tool → Tool), openapi.py, sync.py, hub.py,
                                   schema.py (input schemas an agent API would refuse: doc["schema_problems"])
 src/callbus/datasets/jsonl.py    the on-disk format (+ pairs.jsonl); toolret.py (pull + task→category map); toolret_train.py;
                                   livemcpbench.py; mcp_zero.py (download + LLM-written queries); synthetic.py;

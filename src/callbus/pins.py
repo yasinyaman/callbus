@@ -6,7 +6,7 @@ A deployment the hub renders carries ``pins.json``::
 
     {"hub_snapshot": "...", "servers": {SOURCE: {"hub": NAME, "version": V, "tools": {TOOL: PIN}}}}
 
-and ``callbus serve
+and ``callbus ingest hub`` writes the same shape next to the tools it fetched. ``callbus serve
 --pins FILE`` then checks every call before it is sent (``backends.Backends``): the tool as the
 catalogue holds it (what ``search_tools`` showed) must match its pin, and so must the tool as an MCP
 server listed it when the proxy connected. A source the file pins accepts only its pinned tools; a

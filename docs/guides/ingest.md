@@ -29,6 +29,24 @@ tool: its parameters and request-body properties form one flat input schema, loc
 inlined, and the HTTP routing is kept aside for `serve`. The tool text is shrunk schema-first to
 6,000 characters, so a huge operation never loses its name or description.
 
+## From a hub
+
+```bash
+callbus ingest hub https://hub.fx42.ai --toolset toolset.yaml --out tools/
+```
+
+A hub (the catalogue at [hub.fx42.ai](https://hub.fx42.ai)) has already listed the tools of tens of
+thousands of MCP servers and REST APIs. Name the ones you want in a `toolset.yaml`, the hub's own
+format, and this takes the hub's listing of each instead of starting the servers yourself: one
+source per server, an API with its spec and base URL. A server the hub has not listed yet arrives
+as a source with 0 tools; `callbus ingest mcp` fills it later. The hub sends no credentials, and
+calls still go to the servers you configure for `serve`; the hub's deploy page writes a
+`callbus.json` for the same toolset.
+
+It also writes `tools/pins.json`: a hash of every tool's name, description and input schema as the
+hub saw them (`--pins-out` puts it elsewhere; other sources' pins stay). `callbus serve --pins` then
+refuses a call to a tool that changed since (see [serving](serve.md#pinned-tools)).
+
 ## Schemas an agent API would refuse
 
 Ingest checks each tool's input schema against JSON Schema 2020-12. Without the `[mcp]` extra (which
