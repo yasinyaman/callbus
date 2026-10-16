@@ -340,6 +340,7 @@ One MCP server with two tools, search_tools and call_tool, in front of every too
 | `--api-keys FILE` |  | JSON {name: key}, one bearer token per client or team; the name is logged as the tenant |
 | `--allowed-host ALLOWED_HOST` |  | extra Host header value to accept, e.g. the name a proxy or container network uses (also $CALLBUS_ALLOWED_HOSTS, comma-separated) (repeatable) |
 | `--allow-write` |  | let call_tool send non-GET OpenAPI requests |
+| `--pins FILE` |  | pins.json (from the hub): refuse a call to a tool whose description or input schema changed since then (pin_mismatch), and to a pinned source's unpinned tools |
 | `--timeout TIMEOUT` | `60.0` | seconds per backend call and connection |
 | `--usage-log USAGE_LOG` |  | usage log directory (default: DATA/usage) |
 | `--no-usage-log` |  |  |

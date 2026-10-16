@@ -622,6 +622,19 @@ def cmd_serve(a: argparse.Namespace) -> int:
     except ValueError as e:
         sys.exit(str(e))
     a.allowed = {name: t.sources for name, t in tenants.items() if t.sources is not None}
+    pins = None
+    if a.pins:
+        from callbus.pins import Pins
+
+        try:
+            pins = Pins.load(a.pins)
+        except ValueError as e:
+            sys.exit(str(e))
+        unknown = sorted(set(pins.servers) - set(catalogue))
+        if unknown:
+            log(
+                f"pins: {len(unknown)} pinned sources are not in {data / 'sources.json'}: {', '.join(unknown[:5])}"
+            )
     usage = UsageLog(
         None if a.no_usage_log else (a.usage_log or data / "usage"), log_text=a.log_text, mask_pii=a.mask_pii
     )
@@ -632,10 +645,13 @@ def cmd_serve(a: argparse.Namespace) -> int:
         call_timeout=a.timeout,
         connect_timeout=a.timeout,
         tenants=tenants,
+        pins=pins,
     )
     log(
         f"callbus serve: {data} ({len(servers)} MCP servers, {len(openapi)} OpenAPI configs"
-        f"{', writes allowed' if a.allow_write else ''}); usage log "
+        f"{', writes allowed' if a.allow_write else ''}"
+        + (f", {pins.tools} tools of {len(pins.servers)} sources pinned" if pins is not None else "")
+        + "); usage log "
         + ("off" if usage.dir is None else str(usage.dir))
     )
     _check_rerank(a)
@@ -1528,6 +1544,13 @@ def build_parser() -> argparse.ArgumentParser:
         "(also $CALLBUS_ALLOWED_HOSTS, comma-separated)",
     )
     sv.add_argument("--allow-write", action="store_true", help="let call_tool send non-GET OpenAPI requests")
+    sv.add_argument(
+        "--pins",
+        default=None,
+        metavar="FILE",
+        help="pins.json (from the hub): refuse a call to a tool whose description or "
+        "input schema changed since then (pin_mismatch), and to a pinned source's unpinned tools",
+    )
     sv.add_argument("--timeout", type=float, default=60.0, help="seconds per backend call and connection")
     sv.add_argument("--usage-log", default=None, help="usage log directory (default: DATA/usage)")
     sv.add_argument("--no-usage-log", action="store_true")

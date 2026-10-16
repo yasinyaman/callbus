@@ -17,6 +17,10 @@ configured base URL (a path that does not start with ``/`` is refused: appended 
 could name another host; and the composed URL must have the base URL's origin); redirects are not followed; responses are cut at ``max_chars``. Multipart,
 header and cookie parameters are refused for now.
 
+Pins (``pins.Pins``, ``serve --pins``): before a call is sent, the tool as the catalogue holds it
+must match its pin, and an MCP tool also as its server listed it when the backend connected (the
+listing every connection starts with); a mismatch is a ``refused`` result saying ``pin_mismatch``.
+
 Tenants (``tenants.Tenant``, ``serve --api-keys``): a call made with a named key gets that key's
 headers for the source on top of the config's (OpenAPI: only towards the configured ``base_url``),
 and an MCP server for which the key has headers or env is reached over a connection of the key's
@@ -31,13 +35,14 @@ import math
 import re
 import tempfile
 import urllib.parse
-from collections.abc import AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
 
 from callbus.domain import Tool
 from callbus.ingest.mcp import OpenAPIBackend, ServerConfig
+from callbus.pins import Pins, doc_pin
 
 SAFE_METHODS = ("GET", "HEAD")
 MAX_RESPONSE_CHARS = 25_000
@@ -90,11 +95,14 @@ class MCPBackend:
     """One MCP server behind the proxy. State changes happen under ``_cond``: callers raise
     ``_want`` and wait until a connection exists or an attempt that started after them failed; the
     worker connects when wanted. A caller that sees the transport break sets that connection's own
-    ``broken`` event, so a late failure never tears down a newer connection."""
+    ``broken`` event, so a late failure never tears down a newer connection. A connection keeps the
+    pins of the tools it listed when it opened (``serve --pins`` checks calls against them)."""
 
     def __init__(self, cfg: ServerConfig, *, connect_timeout: float = 60.0):
         self.cfg, self.connect_timeout = cfg, connect_timeout
-        self._session: tuple[Any, Any] | None = None  # (client, its broken event)
+        self._session: tuple[Any, Any, dict[str, str]] | None = (
+            None  # (client, its broken event, listed pins)
+        )
         self._error: str | None = None
         self._delay = 0.0
         self._want = False
@@ -150,10 +158,10 @@ class MCPBackend:
                             client = await stack.enter_async_context(
                                 Client(_transport(self.cfg, errlog, http), cache=None)
                             )
-                            await list_all(client)
+                            listed = {str(r.get("name")): doc_pin(r) for r in await list_all(client)}
                             scope.deadline = math.inf
                             async with self._cond:
-                                self._session, self._error, self._delay = (client, broken), None, 0.0
+                                self._session, self._error, self._delay = (client, broken, listed), None, 0.0
                                 self._cond.notify_all()
                             await broken.wait()
                     if scope.cancelled_caught:
@@ -171,7 +179,7 @@ class MCPBackend:
                     self._delay = min(max(self._delay * 2, 1.0), 30.0)
                 self._cond.notify_all()
 
-    async def _connection(self) -> tuple[Any, Any] | None:
+    async def _connection(self) -> tuple[Any, Any, dict[str, str]] | None:
         import anyio
 
         session = self._session
@@ -186,7 +194,16 @@ class MCPBackend:
                     await self._cond.wait()
             return self._session
 
-    async def call(self, tg: Any, name: str, arguments: dict[str, Any], *, timeout: float) -> CallOutcome:
+    async def call(
+        self,
+        tg: Any,
+        name: str,
+        arguments: dict[str, Any],
+        *,
+        timeout: float,
+        check: Callable[[Mapping[str, str]], str | None] | None = None,
+    ) -> CallOutcome:
+        """``check`` gets the connection's listed pins and returns why the call must not go, or None."""
         from mcp.shared.exceptions import MCPError
         from mcp_types import CONNECTION_CLOSED, REQUEST_TIMEOUT
 
@@ -195,7 +212,10 @@ class MCPBackend:
         session = await self._connection()
         if session is None:
             return CallOutcome(error_result(self._error or f"{server}: not connected yet"), "protocol_error")
-        client, broken = session
+        client, _, listed = session
+        refused = check(listed) if check is not None else None
+        if refused:
+            return CallOutcome(error_result(refused), "refused")
         try:
             result = await client.call_tool(name, arguments, read_timeout_seconds=timeout)
         except MCPError as e:
@@ -219,7 +239,7 @@ class MCPBackend:
             )
         return CallOutcome(_strip_server_info(result), "tool_error" if result.is_error else "ok")
 
-    def _drop(self, session: tuple[Any, Any]) -> None:
+    def _drop(self, session: tuple[Any, Any, dict[str, str]]) -> None:
         """Retire ``session`` (only if it is still current); the next caller reconnects."""
         if self._session is session:
             self._session = None
@@ -454,8 +474,10 @@ class Backends:
         connect_timeout: float = 60.0,
         transport: Any = None,
         tenants: Mapping[str, Any] | None = None,
+        pins: Pins | None = None,
     ):
         self.mcp = {c.name: MCPBackend(c, connect_timeout=connect_timeout) for c in servers}
+        self.pins = pins
         self.tenants = dict(tenants or {})  # name -> tenants.Tenant
         self.connect_timeout = connect_timeout
         self._own: dict[tuple[str, str], MCPBackend] = {}  # (server, tenant) -> its own connection
@@ -501,6 +523,12 @@ class Backends:
     async def call(
         self, tool: Tool, arguments: dict[str, Any] | None, tenant: str | None = None
     ) -> CallOutcome:
+        name = str(tool.doc.get("name") or tool.id)
+        pins = self.pins
+        if pins is not None:
+            refused = pins.check(tool.category, name, tool.doc)
+            if refused:
+                return CallOutcome(error_result(refused), "refused")
         if "http" in tool.doc:
             t = self.tenants.get(tenant) if tenant else None
             extra = t.credentials(tool.category)[0] if t is not None else None
@@ -515,5 +543,13 @@ class Backends:
             )
         if self._tg is None:
             raise RuntimeError("Backends.call() outside Backends.running()")
-        name = str(tool.doc.get("name") or tool.id)
-        return await backend.call(self._tg, name, dict(arguments or {}), timeout=self.call_timeout)
+        check = None
+        if pins is not None:
+            source = tool.category
+
+            def check(listed: Mapping[str, str]) -> str | None:
+                return pins.check_live(source, name, listed)
+
+        return await backend.call(
+            self._tg, name, dict(arguments or {}), timeout=self.call_timeout, check=check
+        )

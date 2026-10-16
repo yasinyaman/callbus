@@ -6,6 +6,13 @@ change behaviour.
 
 ## [Unreleased]
 
+### Added
+
+- **`callbus serve --pins pins.json`**: a call to a tool whose name, description or input schema no
+  longer hashes to its pin is refused (`pin_mismatch`): the tool as the catalogue holds it, and an MCP
+  tool also as its server listed it when callbus connected. A pinned source accepts only its pinned
+  tools. The hash is the hub's (`pins.tool_pin`), so the `pins.json` of a hub deployment works as is.
+
 ### Removed
 
 - **The hosted second stage is gone.** `--rerank jev`, `--scorer jev`, every `--jev-*` flag, the

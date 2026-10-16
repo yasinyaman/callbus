@@ -328,6 +328,11 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   re-embedded because the embedding cache is keyed by text; `ingest --emb-url` embeds only cache
   misses, into `DIR/cache` with search's and serve's model and truncation (callbus-emb-v0.2, 8192), so
   their first index is all cache hits (1,862 tools: 154 s cold over Tailscale otherwise).
+- **Pins** (`pins.py`, pure): `tool_pin` = sha256 of `[name, description, inputSchema]` as compact
+  sorted JSON, the hub's formula (a test holds two of its values; never change it alone). `serve --pins`
+  hands `Pins` to `Backends`: before any call the catalogue's doc must match the pin, and an MCP tool
+  also the pin of the listing its connection made at connect (`MCPBackend`'s session carries it); a
+  pinned source refuses unpinned tools; refusals are `refused` with text `pin_mismatch: …`.
 - **Vector indexes** (Faz 1 week 2): `DenseScorer` keeps tool vectors in a `VectorIndex`
   (`ports.py`; `hashes`, one atomic `apply`, `search`): `NumpyIndex` (default; exact `topk_dot`, rows
   in insertion order, optional single-`.npz` snapshot under `flock`), `FaissIndex` (HNSW rebuilt on
@@ -603,6 +608,7 @@ src/callbus/couse.py             co_use (log -> tool partners), partners / expan
 src/callbus/tenants.py           Tenant, load_tenants / parse_tenants (--api-keys: sources, headers, env), check_sources
 src/callbus/metrics.py           Metrics (Prometheus counters and histograms of searches and calls, the token estimate), tool_tokens
 src/callbus/names.py             api_name (tool ids as agent-API tool names)
+src/callbus/pins.py              tool_pin (the hub's formula), Pins (pins.json; check, check_live)
 src/callbus/client.py            CallBusClient, AsyncCallBusClient (to_thread), CallBusError (REST, stdlib)
 src/callbus/integrations/        anthropic.py, openai.py (Toolbox, run), _common.py (read_only, get);
                                   langgraph.py (Toolbox), langchain.py (CallBusToolSelector, Selector),

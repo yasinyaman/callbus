@@ -29,6 +29,21 @@ read from the environment.
 An API's headers go only to its configured `base_url`, and redirects are not followed. OpenAPI
 calls are GET and HEAD only unless you pass `--allow-write`.
 
+## Pinned tools
+
+```bash
+callbus serve --data tools/ --config callbus.json --pins pins.json
+```
+
+A server can change what a tool says it does after you chose it. With `--pins` (the `pins.json` the
+hub writes into a deployment), every call is checked before
+it is sent: the tool as the catalogue holds it, which is what `search_tools` showed, and the tool as
+the MCP server listed it when callbus connected must both still hash to their pin (name,
+description and input schema). A source the file pins accepts only its pinned tools. A refused call
+is an error result starting `pin_mismatch` and a `refused` call in the usage log. Sources the file
+does not name are called as before. A server is listed once per connection, so a change it makes
+while connected is caught at the next connection.
+
 ## Keys and hosts
 
 On `127.0.0.1` (the default) no key is needed. Any other address needs one:
