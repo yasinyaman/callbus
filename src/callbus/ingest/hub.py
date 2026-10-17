@@ -9,8 +9,10 @@ came back, which ``callbus serve --pins`` then holds the servers to.
 
 Each tool's indexed text is recomputed with ``ingest.text.tool_text``, so a tool reads the same
 whether it came from the hub or from ``callbus ingest mcp`` (and hits the same cache entries).
-The hub sends no credentials and none are sent to it: calls still need the servers in
-``serve --config`` (the hub's deploy page writes a ``callbus.json`` for the same toolset).
+The hub sends no credentials, and the only one sent to it is its own: the hub's API answers a
+token its operators give out (``CALLBUS_HUB_TOKEN``, sent as ``Authorization: Bearer``; over https
+only, or to a hub on this machine). Calls still need the servers in ``serve --config`` (the hub's
+deploy page writes a ``callbus.json`` for the same toolset).
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from __future__ import annotations
 import json
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections import defaultdict
 from typing import Any
@@ -31,6 +34,8 @@ from callbus.pins import Pins, doc_pin
 ENDPOINT = "/api/v1/deploy/ingest"
 MAX_BYTES = 64 * 1024 * 1024
 KINDS = ("mcp", "openapi")
+TOKEN_ENV = "CALLBUS_HUB_TOKEN"
+_LOOPBACK = ("localhost", "127.0.0.1", "::1")
 _MANIFEST_ONLY = ("kind", "tools", "synced_at")  # sync writes these itself
 
 
@@ -47,21 +52,23 @@ def endpoint(hub: str) -> str:
     return hub if hub.endswith(ENDPOINT) else hub + ENDPOINT
 
 
-def fetch(hub: str, toolset: bytes, *, timeout: float = 120.0) -> dict[str, str]:
-    """The hub's ingest files for ``toolset`` (the YAML as written); ``ValueError`` names what failed."""
+def fetch(hub: str, toolset: bytes, *, timeout: float = 120.0, token: str = "") -> dict[str, str]:
+    """The hub's ingest files for ``toolset`` (the YAML as written); ``ValueError`` names what failed.
+    ``token`` is the hub's API token: sent over https only, or to a hub on this machine."""
     from callbus import __version__
 
-    url = endpoint(hub)
-    req = urllib.request.Request(
-        url,
-        data=toolset,
-        method="POST",
-        headers={
-            "Content-Type": "application/yaml",
-            "Accept": "application/json",
-            "User-Agent": f"callbus/{__version__}",
-        },
-    )
+    url, token = endpoint(hub), token.strip()
+    headers = {
+        "Content-Type": "application/yaml",
+        "Accept": "application/json",
+        "User-Agent": f"callbus/{__version__}",
+    }
+    if token:
+        parts = urllib.parse.urlsplit(url)
+        if parts.scheme != "https" and parts.hostname not in _LOOPBACK:
+            raise ValueError(f"{url}: the hub's token goes over https only")
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(url, data=toolset, method="POST", headers=headers)
     try:
         with urllib.request.build_opener(_NoRedirect).open(req, timeout=timeout) as r:
             status, body = r.status, r.read(MAX_BYTES + 1)
@@ -77,7 +84,14 @@ def fetch(hub: str, toolset: bytes, *, timeout: float = 120.0) -> dict[str, str]
             detail = json.loads(body).get("detail")
         except (ValueError, AttributeError):
             detail = None
-        raise ValueError(f"{url}: HTTP {status}" + (f": {detail}" if detail else ""))
+        hint = ""
+        if status == 401:  # the hub's API is closed without a token
+            hint = (
+                f" (the hub refused {TOKEN_ENV})"
+                if token
+                else f" (set {TOKEN_ENV} to one from its operators)"
+            )
+        raise ValueError(f"{url}: HTTP {status}" + (f": {detail}" if detail else "") + hint)
     try:
         files = json.loads(body)
     except ValueError as e:

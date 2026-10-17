@@ -63,12 +63,13 @@ def _files(time_doc=TIME):
 
 @pytest.fixture
 def fake_hub():
-    state = {"answer": (200, _files()), "seen": []}
+    state = {"answer": (200, _files()), "seen": [], "auth": []}
 
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):  # noqa: N802 - http.server's name
             body = self.rfile.read(int(self.headers["Content-Length"]))
             state["seen"].append((self.path, self.headers["Content-Type"], body))
+            state["auth"].append(self.headers.get("Authorization"))
             status, payload = state["answer"]
             raw = json.dumps(payload).encode()
             self.send_response(status)
@@ -154,3 +155,30 @@ def test_the_hubs_errors_come_back_readable(fake_hub, tmp_path):
     stray = {"tools.jsonl": json.dumps(_record("ghost", TIME)) + "\n", "sources.json": "{}"}
     with pytest.raises(ValueError, match="does not name"):
         hub.listings(stray)
+
+
+def test_the_hubs_token_comes_from_the_environment(fake_hub, tmp_path, monkeypatch):
+    toolset = tmp_path / "toolset.yaml"
+    toolset.write_text("servers: [io.github.x/time]\n")
+    args = ["ingest", "hub", fake_hub["url"], "--toolset", str(toolset), "--out", str(tmp_path / "o")]
+    monkeypatch.delenv(hub.TOKEN_ENV, raising=False)
+    assert main(args) == 0 and fake_hub["auth"] == [None]  # none set, none sent
+    monkeypatch.setenv(hub.TOKEN_ENV, "cbh_secret\n")
+    assert main(args) == 0 and fake_hub["auth"][-1] == "Bearer cbh_secret"
+    # the hub's API is closed without a token: the error says where one goes
+    fake_hub["answer"] = (401, {"detail": "a token is required"})
+    monkeypatch.delenv(hub.TOKEN_ENV)
+    with pytest.raises(SystemExit, match=f"HTTP 401: a token is required \\(set {hub.TOKEN_ENV}"):
+        main(args)
+    monkeypatch.setenv(hub.TOKEN_ENV, "cbh_withdrawn")
+    with pytest.raises(SystemExit, match=f"\\(the hub refused {hub.TOKEN_ENV}\\)"):
+        main(args)
+    monkeypatch.setenv(hub.TOKEN_ENV, "  ")  # blank is none
+    with pytest.raises(SystemExit, match="set"):
+        main(args)
+    assert fake_hub["auth"][-1] is None
+
+
+def test_the_token_goes_over_https_or_to_this_machine_only():
+    with pytest.raises(ValueError, match="https only"):
+        hub.fetch("http://hub.example.org", b"servers: []\n", token="cbh_secret")

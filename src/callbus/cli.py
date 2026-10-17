@@ -9,7 +9,7 @@ callbus eval --data data/toolret --scorer clm --emb-model qwen3-8b --clm-ckpt ~/
 callbus compare results/*.json                       # one markdown table across runs
 callbus ingest mcp --config ~/mcp.json --out data/mytools     # index your own MCP servers
 callbus ingest openapi spec.json --name billing --out data/mytools
-callbus ingest hub https://hub.fx42.ai --toolset toolset.yaml --out data/mytools   # the hub's listing
+callbus ingest hub https://hub.fx42.ai --toolset toolset.yaml --out data/mytools   # the hub's listing (CALLBUS_HUB_TOKEN)
 """
 
 from __future__ import annotations
@@ -1272,7 +1272,8 @@ def cmd_ingest_hub(a: argparse.Namespace) -> int:
     except OSError as e:
         sys.exit(f"--toolset: {e}")
     try:
-        listings, pins = hub.listings(hub.fetch(a.url, toolset, timeout=a.timeout))
+        token = os.environ.get(hub.TOKEN_ENV, "")
+        listings, pins = hub.listings(hub.fetch(a.url, toolset, timeout=a.timeout, token=token))
     except ValueError as e:
         sys.exit(str(e))
     code, diffs = _apply_diffs(a, listings)
@@ -1513,7 +1514,8 @@ def build_parser() -> argparse.ArgumentParser:
     io.set_defaults(fn=cmd_ingest_openapi)
     ih = ings.add_parser(
         "hub",
-        help="the tools a hub (hub.fx42.ai) has listed for the servers of a toolset.yaml, with their pins",
+        help="the tools a hub (hub.fx42.ai) has listed for the servers of a toolset.yaml, with their pins; "
+        "the hub's API token comes from CALLBUS_HUB_TOKEN",
     )
     ih.add_argument("url", help="the hub, e.g. https://hub.fx42.ai")
     ih.add_argument("--toolset", required=True, help="toolset.yaml: the servers to take (the hub's format)")

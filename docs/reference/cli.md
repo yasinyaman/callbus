@@ -180,7 +180,7 @@ one tool per operation of an OpenAPI 3.x spec (path or URL)
 
 ## `callbus ingest hub`
 
-the tools a hub (hub.fx42.ai) has listed for the servers of a toolset.yaml, with their pins
+the tools a hub (hub.fx42.ai) has listed for the servers of a toolset.yaml, with their pins; the hub's API token comes from CALLBUS_HUB_TOKEN
 
 | Argument | Default | Description |
 | --- | --- | --- |

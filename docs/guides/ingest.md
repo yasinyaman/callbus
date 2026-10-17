@@ -32,6 +32,7 @@ inlined, and the HTTP routing is kept aside for `serve`. The tool text is shrunk
 ## From a hub
 
 ```bash
+export CALLBUS_HUB_TOKEN=cbh_...   # the hub's API token, from its operators
 callbus ingest hub https://hub.fx42.ai --toolset toolset.yaml --out tools/
 ```
 
@@ -39,9 +40,11 @@ A hub (the catalogue at [hub.fx42.ai](https://hub.fx42.ai)) has already listed t
 thousands of MCP servers and REST APIs. Name the ones you want in a `toolset.yaml`, the hub's own
 format, and this takes the hub's listing of each instead of starting the servers yourself: one
 source per server, an API with its spec and base URL. A server the hub has not listed yet arrives
-as a source with 0 tools; `callbus ingest mcp` fills it later. The hub sends no credentials, and
-calls still go to the servers you configure for `serve`; the hub's deploy page writes a
-`callbus.json` for the same toolset.
+as a source with 0 tools; `callbus ingest mcp` fills it later. The hub's API answers a token
+its operators give out: callbus reads it from `CALLBUS_HUB_TOKEN` and sends it to the hub only,
+over https (or to a hub on this machine). The hub sends no credentials back, and calls still go
+to the servers you configure for `serve`; the hub's deploy page writes a `callbus.json` for the
+same toolset.
 
 It also writes `tools/pins.json`: a hash of every tool's name, description and input schema as the
 hub saw them (`--pins-out` puts it elsewhere; other sources' pins stay). `callbus serve --pins` then

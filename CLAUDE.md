@@ -329,7 +329,8 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   misses, into `DIR/cache` with search's and serve's model and truncation (callbus-emb-v0.2, 8192), so
   their first index is all cache hits (1,862 tools: 154 s cold over Tailscale otherwise).
   `ingest/hub.py` (`callbus ingest hub`) posts a toolset.yaml to a hub's `/api/v1/deploy/ingest` (stdlib,
-  no redirects, 64 MiB cap) and turns its `tools.jsonl` + `sources.json` into listings, the text re-made
+  no redirects, 64 MiB cap; the hub's API token from `CALLBUS_HUB_TOKEN` as a bearer, over https or to
+  loopback only, since the hub answers 401 without one) and turns its `tools.jsonl` + `sources.json` into listings, the text re-made
   with `tool_text`, plus their pins into `DIR/pins.json` (only for sources the sync took).
 - **Pins** (`pins.py`, pure): `tool_pin` = sha256 of `[name, description, inputSchema]` as compact
   sorted JSON, the hub's formula (a test holds two of its values; never change it alone). `serve --pins`
