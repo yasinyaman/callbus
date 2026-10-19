@@ -31,6 +31,11 @@ change behaviour.
   `ab` and the co-use table; the counter they are reported under is now
   `searches_not_for_training` (was `searches_with_jev`).
 
+### Fixed
+
+- `ingest openapi` with a spec URL sends `User-Agent: callbus/<version>`. Behind Cloudflare a spec
+  answered 403 (error 1010) to urllib's own `Python-urllib/*`, as hub.fx42.ai's `/api/v1/specs/…` did.
+
 ## [0.3.1] - 2026-10-13
 
 ### Changed

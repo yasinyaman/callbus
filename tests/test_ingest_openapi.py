@@ -197,6 +197,23 @@ def test_load_spec_json_yaml_and_refusals(tmp_path):
     assert tool.doc["inputSchema"]["properties"]["api-version"]["enum"] == ["2022-11-28"]  # not a date
 
 
+def test_load_spec_url_sends_callbus_user_agent(monkeypatch):
+    import io
+
+    from callbus import __version__
+
+    sent = []
+
+    def fake_urlopen(req, timeout):
+        sent.append(req)
+        return io.BytesIO(json.dumps(SPEC).encode())
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    assert load_spec("https://hub.example/api/v1/specs/x")["info"]["title"] == "Pet Store API"
+    assert sent[0].full_url == "https://hub.example/api/v1/specs/x"
+    assert sent[0].get_header("User-agent") == f"callbus/{__version__}"
+
+
 def _spec(paths, schemas=None):
     return {
         "openapi": "3.0.3",

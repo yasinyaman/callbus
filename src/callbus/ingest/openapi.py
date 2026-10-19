@@ -69,7 +69,11 @@ def _yaml(raw: str) -> Any:
 def load_spec(source: str) -> dict[str, Any]:
     """An OpenAPI 3.x document from a path or an http(s) URL, JSON or YAML."""
     if re.match(r"https?://", source):
-        with urllib.request.urlopen(source, timeout=120) as r:
+        from callbus import __version__
+
+        # a CDN in front of a spec may refuse urllib's own User-Agent (Cloudflare's 1010)
+        req = urllib.request.Request(source, headers={"User-Agent": f"callbus/{__version__}"})
+        with urllib.request.urlopen(req, timeout=120) as r:
             raw = r.read().decode("utf-8")
     else:
         raw = Path(source).read_text(encoding="utf-8")
