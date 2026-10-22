@@ -534,6 +534,20 @@ _SCHEMAS: dict[str, Any] = {
                 "description": "Set on a tool that was not ranked into the list: the returned tool that "
                 "agents call it together with (`serve --co-use`).",
             },
+            "notes": {
+                "type": "array",
+                "description": "Notes a hub's operators wrote on this tool and its server (`callbus "
+                "ingest hub`): when one applies (`cue`), what to do (`lesson`) and how sure they are.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "cue": {"type": "string"},
+                        "lesson": {"type": "string"},
+                        "confidence": {"enum": ["low", "medium", "high"]},
+                    },
+                    "required": ["cue", "lesson", "confidence"],
+                },
+            },
         },
         "required": ["name", "api_name", "server", "kind", "score", "description", "inputSchema"],
     },

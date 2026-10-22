@@ -26,7 +26,8 @@ first index builds), `took_ms`, `rule` and `tools`. Each tool has `name` (its id
 `server`, `kind` (`mcp` or `openapi`), `score`, `description` and `inputSchema`, with
 `inputSchemaShrunk` when the schema was shortened; `annotations` when the tool has some, `method`
 for OpenAPI operations; a tool appended by `serve --co-use` also has `used_with`, the returned tool
-it is called together with. A `note` for the agent is added when the tools are keyword matches,
+it is called together with; `notes` when a hub's operators wrote some on the tool or its server
+(`callbus ingest hub`), each with `cue`, `lesson` and `confidence`. A `note` for the agent is added when the tools are keyword matches,
 when none is close enough, or when the reranker did not answer and the tools are in the first
 stage's order. With a calibration (`callbus calibrate`) the answer also has `confidence`, the
 share of answerable requests whose best score was at or below this one's.

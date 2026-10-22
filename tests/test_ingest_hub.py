@@ -182,3 +182,55 @@ def test_the_hubs_token_comes_from_the_environment(fake_hub, tmp_path, monkeypat
 def test_the_token_goes_over_https_or_to_this_machine_only():
     with pytest.raises(ValueError, match="https only"):
         hub.fetch("http://hub.example.org", b"servers: []\n", token="cbh_secret")
+
+
+def _guidance(*notes):
+    base = {"evidence": "run:7", "confidence": "high", "created_at": "2026-10-22T09:00:00+00:00"}
+    return "".join(json.dumps({**base, **n}) + "\n" for n in notes)
+
+
+def test_the_hubs_notes_land_in_guidance_jsonl_and_follow_each_sync(fake_hub, tmp_path, capsys):
+    toolset = tmp_path / "toolset.yaml"
+    toolset.write_text("servers: [io.github.x/time]\n")
+    out = tmp_path / "tools"
+    args = ["ingest", "hub", fake_hub["url"], "--toolset", str(toolset), "--out", str(out)]
+    assert main(args) == 0 and not (out / "guidance.jsonl").exists()  # an older hub sends no notes
+    capsys.readouterr()
+
+    files = _files()
+    files["guidance.jsonl"] = _guidance(
+        {"source": "time", "tool": "", "cue": "for any time", "lesson": "name the timezone"},
+        {"source": "time", "tool": "get_time", "cue": "for a city", "lesson": "use its IANA zone"},
+        {"source": "time", "tool": "not_listed", "cue": "never", "lesson": "never"},
+        {"source": "pets", "tool": "", "cue": "for pets", "lesson": "page with limit", "confidence": "low"},
+    )
+    fake_hub["answer"] = (200, files)
+    assert main(args) == 0
+    lines = [json.loads(x) for x in (out / "guidance.jsonl").read_text().splitlines()]
+    assert [(n["source"], n["tool"]) for n in lines] == [("time", ""), ("time", "get_time"), ("pets", "")]
+    assert (
+        lines[1]["pin"] == doc_pin(TIME) and "pin" not in lines[0]
+    )  # a tool's note holds while its pin does
+    assert lines[1]["evidence"] == "run:7" and lines[2]["confidence"] == "low"
+    assert "3 notes from the hub in" in capsys.readouterr().out
+
+    # the hub dropped time's notes: they go, as the tools of a source go when the hub drops them
+    files["guidance.jsonl"] = _guidance(
+        {"source": "pets", "tool": "", "cue": "for pets", "lesson": "page with limit", "confidence": "low"}
+    )
+    assert main(args) == 0
+    assert [json.loads(x)["source"] for x in (out / "guidance.jsonl").read_text().splitlines()] == ["pets"]
+    assert main(["ingest", "drop", "pets", "--out", str(out)]) == 0
+    assert not (out / "guidance.jsonl").exists()
+
+    files["guidance.jsonl"] = _guidance({"source": "ghost", "tool": "", "cue": "c", "lesson": "l"})
+    with pytest.raises(SystemExit, match="notes on sources sources.json does not name"):
+        main(args)
+    files["guidance.jsonl"] = _guidance(
+        {"source": "time", "tool": "", "cue": "c", "lesson": "l", "confidence": "?"}
+    )
+    with pytest.raises(SystemExit, match="guidance.jsonl line 1: confidence"):
+        main(args)
+    fake_hub["answer"] = (200, {**_files(), "guidance.jsonl": 3})
+    with pytest.raises(SystemExit, match="guidance.jsonl is not text"):
+        main(args)

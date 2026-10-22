@@ -5,7 +5,9 @@
 has listed, and per source its kind (``mcp`` or ``openapi``), its transport or, for an API, the spec
 and base URL. ``listings`` turns that into one ``sync.Listing`` per source (a server the hub has not
 listed yet is a source with 0 tools, which a later ``callbus ingest mcp`` fills) and the pins of what
-came back, which ``callbus serve --pins`` then holds the servers to.
+came back, which ``callbus serve --pins`` then holds the servers to. A newer hub may add
+``guidance.jsonl``, the notes its operators wrote on the toolset's servers and tools (``notes``;
+``callbus.guidance``); an older one, or a toolset with none, sends no such key.
 
 Each tool's indexed text is recomputed with ``ingest.text.tool_text``, so a tool reads the same
 whether it came from the hub or from ``callbus ingest mcp`` (and hits the same cache entries).
@@ -25,6 +27,7 @@ import urllib.request
 from collections import defaultdict
 from typing import Any
 
+from callbus import guidance
 from callbus.datasets.jsonl import tools_from_lines
 from callbus.domain import Tool
 from callbus.ingest.sync import Listing
@@ -100,6 +103,8 @@ def fetch(hub: str, toolset: bytes, *, timeout: float = 120.0, token: str = "") 
         isinstance(files.get(k), str) for k in ("tools.jsonl", "sources.json")
     ):
         raise ValueError(f'{url}: expected {{"tools.jsonl": ..., "sources.json": ...}}')
+    if not isinstance(files.get(guidance.FILE, ""), str):
+        raise ValueError(f"{url}: {guidance.FILE} is not text")
     return files
 
 
@@ -140,3 +145,17 @@ def listings(files: dict[str, str]) -> tuple[list[Listing], Pins]:
         pins[name] = {str(t.doc["name"]): doc_pin(t.doc) for t in own}
         snapshot = snapshot or str(entry.get("synced_at") or "")
     return out, Pins(pins, snapshot)
+
+
+def notes(files: dict[str, str], listings: list[Listing]) -> list[dict[str, str]]:
+    """The hub's notes on the sources of ``listings``, each tool's with the pin of the tool as the
+    hub listed it (a note on a tool the listing lacks is left out); none without ``guidance.jsonl``."""
+    try:
+        found = guidance.parse(files.get(guidance.FILE, ""))
+    except ValueError as e:
+        raise ValueError(f"hub: {e}") from e
+    names = {listing.name for listing in listings}
+    strays = sorted({n["source"] for n in found} - names)
+    if strays:
+        raise ValueError(f"hub: notes on sources sources.json does not name: {strays[:3]}")
+    return guidance.pinned(found, (t for listing in listings for t in listing.tools or []))

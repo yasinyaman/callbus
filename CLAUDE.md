@@ -331,7 +331,14 @@ gh workflow run release.yml -R OWNER/REPO                               # a rehe
   `ingest/hub.py` (`callbus ingest hub`) posts a toolset.yaml to a hub's `/api/v1/deploy/ingest` (stdlib,
   no redirects, 64 MiB cap; the hub's API token from `CALLBUS_HUB_TOKEN` as a bearer, over https or to
   loopback only, since the hub answers 401 without one) and turns its `tools.jsonl` + `sources.json` into listings, the text re-made
-  with `tool_text`, plus their pins into `DIR/pins.json` (only for sources the sync took).
+  with `tool_text`, plus their pins into `DIR/pins.json` (only for sources the sync took). A hub's
+  optional `guidance.jsonl` (its operators' notes, hub H38: `source`, `tool` or `""`, `cue`, `lesson`,
+  `evidence`, `confidence`, `created_at`) goes to `DIR/guidance.jsonl` (`guidance.py`, pure): the synced
+  sources' notes replaced, a tool's note given `pin` = the listed tool's `doc_pin` (a note on an unlisted
+  tool is dropped), no notes no file, `ingest drop` drops a source's. `Retriever.guidance` re-reads it on
+  change and `Hit.notes` = the tool's (while its doc still has that pin) then its source's, `SHOWN` (5)
+  each, `cue`/`lesson`/`confidence` only; `hit_json` adds `notes` when there are some (MCP and REST),
+  never the tool definitions or `INSTRUCTIONS`: guidance costs tokens only with the hits.
 - **Pins** (`pins.py`, pure): `tool_pin` = sha256 of `[name, description, inputSchema]` as compact
   sorted JSON, the hub's formula (a test holds two of its values; never change it alone). `serve --pins`
   hands `Pins` to `Backends`: before any call the catalogue's doc must match the pin, and an MCP tool
@@ -613,6 +620,7 @@ src/callbus/tenants.py           Tenant, load_tenants / parse_tenants (--api-key
 src/callbus/metrics.py           Metrics (Prometheus counters and histograms of searches and calls, the token estimate), tool_tokens
 src/callbus/names.py             api_name (tool ids as agent-API tool names)
 src/callbus/pins.py              tool_pin (the hub's formula), Pins (pins.json; check, check_live)
+src/callbus/guidance.py          DIR/guidance.jsonl: a hub's notes (parse, pinned, merge, write; Guidance for hits)
 src/callbus/client.py            CallBusClient, AsyncCallBusClient (to_thread), CallBusError (REST, stdlib)
 src/callbus/integrations/        anthropic.py, openai.py (Toolbox, run), _common.py (read_only, get);
                                   langgraph.py (Toolbox), langchain.py (CallBusToolSelector, Selector),

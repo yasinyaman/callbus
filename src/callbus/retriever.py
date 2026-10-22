@@ -30,6 +30,10 @@ A second stage (``--rerank``) that fails during a search gives way to the first 
 With a calibration (``DATA/calibration.json``, ``callbus.calibration``) that matches the answering
 first stage, heads and instruction, every search carries a ``confidence``, and ``min_confidence``
 turns away a request whose confidence is lower (an empty list) unless it named its own ``k``.
+
+Each hit carries the notes a hub's operators wrote on its tool and its source
+(``DATA/guidance.jsonl``, ``callbus.guidance``; read again when it changes), so guidance reaches an
+agent with the tools a search finds and never otherwise.
 """
 
 from __future__ import annotations
@@ -51,6 +55,8 @@ from callbus.couse import partners
 from callbus.cut import AdaptiveK
 from callbus.datasets.jsonl import tools_from_lines
 from callbus.domain import Query, RankedList, Tool
+from callbus.guidance import FILE as GUIDANCE_FILE
+from callbus.guidance import Guidance
 from callbus.ports import cache_scope, rerank_failures, supplied, visible_ids
 
 LOG_TOP = 20  # ranked tools kept for the usage log, whatever the cut returns
@@ -77,6 +83,7 @@ class Hit:
     tool: Tool
     score: float
     used_with: str | None = None  # not ranked into the list: agents call it together with this hit
+    notes: tuple[dict[str, str], ...] = ()  # a hub's notes on the tool and its source (cue, lesson, ...)
 
     @property
     def id(self) -> str:
@@ -232,6 +239,7 @@ class Retriever:
         # DATA/calibration.json: what a best score means on this catalogue (``callbus calibrate``)
         self.calibrations = Calibrations(calibration) if calibration else None
         self.min_confidence = min_confidence
+        self.guidance = Guidance(self.data_dir / GUIDANCE_FILE)  # DATA/guidance.jsonl: a hub's notes
         self._state: _State | None = None
         self._fallback: _State | None = None  # only until the first semantic state exists
         self._error: BaseException | None = None
@@ -614,7 +622,11 @@ class Retriever:
         emb_key = None
         if self.cache_key is not None and fmt is not None and not st.lexical:
             emb_key = self.cache_key(fmt(q))
-        hits = [Hit(st.by_id[t], s) for t, s in zip(shown.tool_ids, shown.scores, strict=True)]
+        notes = self.guidance.notes
+        hits = [
+            Hit(st.by_id[t], s, notes=notes(st.by_id[t]))
+            for t, s in zip(shown.tool_ids, shown.scores, strict=True)
+        ]
         added = 0
         # not when the request names its own k: it asked for that many tools
         if self.co_use is not None and self.co_use_extra > 0 and k is None and hits and not st.lexical:
@@ -622,7 +634,8 @@ class Retriever:
             table = self.co_use.table(tenant)
             reach = st.by_id if visible is None else visible
             for tool, owner in partners(shown.tool_ids, table, self.co_use_extra, reach):
-                hits.append(Hit(st.by_id[tool], known.get(tool, 0.0), used_with=owner))
+                hit = Hit(st.by_id[tool], known.get(tool, 0.0), used_with=owner, notes=notes(st.by_id[tool]))
+                hits.append(hit)
                 added += 1
         encoder = getattr(innermost(st.scorer), "encoder", None)  # under a hybrid or a second stage too
         return SearchResult(

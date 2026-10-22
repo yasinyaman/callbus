@@ -177,6 +177,38 @@ def test_a_search_that_no_tool_passes_says_so(tmp_path):
     assert event["shown"] == 0 and len(event["results"]) == 3  # what it would have shown stays in the log
 
 
+def test_search_tools_hands_the_hubs_notes_over_with_the_hits_only(tmp_path):
+    from mcp import Client
+
+    from callbus import guidance
+
+    base = {
+        "evidence": "https://hub.fx42.ai/x",
+        "confidence": "high",
+        "created_at": "2026-10-22T09:00:00+00:00",
+    }
+    guidance.write(
+        _catalogue(tmp_path) / guidance.FILE,
+        [{**base, "source": "fx", "tool": "", "cue": "when adding big sums", "lesson": "split them first"}],
+    )
+    retriever = Retriever(tmp_path, lambda: DenseScorer(_HashEncoder(), "name_desc"), fixed_k=3)
+    server = build_proxy(retriever, Backends([]), UsageLog(tmp_path / "usage"))
+
+    async def main():
+        async with Client(server) as client:
+            listed = await client.list_tools()
+            assert "split them first" not in json.dumps(
+                [t.model_dump() for t in listed.tools]
+            )  # never always-on
+            found = json.loads(_text(await client.call_tool("search_tools", {"query": "add two integers"})))
+            by_name = {t["name"]: t for t in found["tools"]}
+            note = {"cue": "when adding big sums", "lesson": "split them first", "confidence": "high"}
+            assert by_name["fx/add"]["notes"] == [note] and by_name["fx/search_issues"]["notes"] == [note]
+            assert "notes" not in by_name["api/getThing"]  # none on its server: no field
+
+    anyio.run(main)
+
+
 def test_later_hits_get_shrunk_schemas():
     big = {
         "type": "object",

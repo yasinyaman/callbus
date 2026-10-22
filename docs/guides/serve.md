@@ -8,7 +8,8 @@ callbus serve --data tools/ --config callbus.json --stdio    # for desktop clien
 Needs the `[mcp]` extra. The agent sees two tools instead of hundreds:
 
 - `search_tools(query, k?)` returns the matching tools with their input schemas (complete for the
-  first three, shortened for the rest) and a `search_id`;
+  first three, shortened for the rest) and a `search_id`; a tool also carries `notes` when a hub's
+  operators wrote some on it or its server ([ingest](ingest.md#from-a-hub));
 - `call_tool(name, arguments, search_id?)` forwards the call to the tool's MCP server or OpenAPI
   operation. A call that fails validation returns the tool's full schema, so the agent can retry.
 

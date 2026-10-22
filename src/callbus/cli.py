@@ -411,6 +411,7 @@ def cmd_search(a: argparse.Namespace) -> int:
                 "name": h.tool.name,
                 "description": h.tool.description,
                 **({"used_with": h.used_with} if h.used_with else {}),
+                **({"notes": list(h.notes)} if h.notes else {}),
             }
             for h in res.hits
         ]
@@ -1263,7 +1264,9 @@ def cmd_ingest_openapi(a: argparse.Namespace) -> int:
 
 
 def cmd_ingest_hub(a: argparse.Namespace) -> int:
-    """The tools the hub has listed for a toolset's servers, and their pins (``DIR/pins.json``)."""
+    """The tools the hub has listed for a toolset's servers, their pins (``DIR/pins.json``) and the
+    hub's notes on them (``DIR/guidance.jsonl``)."""
+    from callbus import guidance
     from callbus.ingest import hub
     from callbus.pins import Pins
 
@@ -1273,9 +1276,16 @@ def cmd_ingest_hub(a: argparse.Namespace) -> int:
         sys.exit(f"--toolset: {e}")
     try:
         token = os.environ.get(hub.TOKEN_ENV, "")
-        listings, pins = hub.listings(hub.fetch(a.url, toolset, timeout=a.timeout, token=token))
+        files = hub.fetch(a.url, toolset, timeout=a.timeout, token=token)
+        listings, pins = hub.listings(files)
+        notes = hub.notes(files, listings)
     except ValueError as e:
         sys.exit(str(e))
+    notes_path = Path(a.out) / guidance.FILE
+    try:
+        kept_notes = guidance.load(notes_path)
+    except ValueError as e:
+        sys.exit(f"{notes_path}: {e} (move it aside)")
     code, diffs = _apply_diffs(a, listings)
     if a.dry_run:
         return code
@@ -1288,8 +1298,12 @@ def cmd_ingest_hub(a: argparse.Namespace) -> int:
     merged = {**kept.servers, **{s: t for s, t in pins.servers.items() if s in synced}}
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(Pins(merged, pins.snapshot or kept.snapshot).to_dict(), indent=2) + "\n")
+    guidance.write(notes_path, guidance.merge(kept_notes, notes, synced))  # theirs replaced, or gone
     unlisted = [d.name for d in diffs if not d.error and d.total == 0]
     print(f"pins of {sum(len(pins.servers[s]) for s in synced)} tools in {path}: serve --pins {path}")
+    taken = sum(n["source"] in synced for n in notes)
+    if taken:
+        print(f"{taken} notes from the hub in {notes_path}: search_tools shows them with their tools")
     if unlisted:
         print(
             f"the hub has not listed {', '.join(unlisted)} yet: callbus ingest mcp --config FILE fills them"
@@ -1299,6 +1313,7 @@ def cmd_ingest_hub(a: argparse.Namespace) -> int:
 
 
 def cmd_ingest_drop(a: argparse.Namespace) -> int:
+    from callbus import guidance
     from callbus.ingest.sync import drop, load_dir, write_dir
 
     tools, manifest = load_dir(a.out)
@@ -1309,6 +1324,11 @@ def cmd_ingest_drop(a: argparse.Namespace) -> int:
     for d in diffs:
         print(f"{d.name}  -{d.removed}")
     write_dir(a.out, tools, manifest)
+    notes_path = Path(a.out) / guidance.FILE
+    try:
+        guidance.write(notes_path, guidance.merge(guidance.load(notes_path), [], a.names))
+    except ValueError as e:
+        print(f"{notes_path}: {e} (left as it is)", file=sys.stderr)
     print(f"wrote {len(tools)} tools from {len(manifest)} sources to {a.out}")
     return 0
 
@@ -1514,7 +1534,8 @@ def build_parser() -> argparse.ArgumentParser:
     io.set_defaults(fn=cmd_ingest_openapi)
     ih = ings.add_parser(
         "hub",
-        help="the tools a hub (hub.fx42.ai) has listed for the servers of a toolset.yaml, with their pins; "
+        help="the tools a hub (hub.fx42.ai) has listed for the servers of a toolset.yaml, with their pins "
+        "and the hub's notes on them (DIR/guidance.jsonl); "
         "the hub's API token comes from CALLBUS_HUB_TOKEN",
     )
     ih.add_argument("url", help="the hub, e.g. https://hub.fx42.ai")

@@ -628,3 +628,18 @@ def test_scopes_limit_a_key_and_feedback_logs_a_call_the_client_ran(tmp_path):
     assert (ran["outcome"], ran["ran_by"], ran["search_id"], ran["took_ms"], ran["link"]) == (
         "ok", "client", sid, 12.0, "search_id"
     )  # fmt: skip
+
+
+def test_a_search_hit_carries_the_hubs_notes_on_its_server(tmp_path):
+    from callbus import guidance
+
+    note = {"source": "api", "tool": "", "cue": "for any thing", "lesson": "ids are integers"}
+    meta = {"evidence": "run:3", "confidence": "low", "created_at": "2026-10-22T09:00:00+00:00"}
+    guidance.write(tmp_path / guidance.FILE, [{**note, **meta}])
+    app, _ = _app(tmp_path)
+    with TestClient(app, base_url=BASE) as c:
+        tools = {t["name"]: t for t in c.post("/v1/search", json={"query": "get a thing"}).json()["tools"]}
+    assert tools["api/getThing"]["notes"] == [
+        {"cue": "for any thing", "lesson": "ids are integers", "confidence": "low"}
+    ]
+    assert "notes" not in tools["fx/add"]

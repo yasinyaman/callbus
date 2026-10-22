@@ -8,7 +8,9 @@ derives input schemas from Python signatures, and a proxy passes results through
 
 Search results carry the full ``inputSchema`` for the first ``FULL_SCHEMAS`` tools and a shrunk one
 (``ingest.text.shrink_schema``) for the rest, so ten Stripe operations do not fill a context
-window; a failed call returns the tool's full schema. Searches run in worker threads under their
+window; a failed call returns the tool's full schema. A hit carries ``notes`` when a hub's operators
+wrote some on its tool or server (``callbus.guidance``): only with the hits, never in the tool
+definitions or ``INSTRUCTIONS``. Searches run in worker threads under their
 own capacity limiter (the retriever may wait on the embedding endpoint), and every search and call
 goes to the usage log under the caller's ``identity``. While the first index builds, searches get
 keyword matches with a note saying so. ``serve_stdio`` runs the server for desktop clients;
@@ -91,6 +93,8 @@ def hit_json(hit: Any, *, full: bool) -> dict[str, Any]:
     }
     if getattr(hit, "used_with", None):
         out["used_with"] = hit.used_with  # not a match by itself: agents call it along with that tool
+    if getattr(hit, "notes", None):
+        out["notes"] = list(hit.notes)  # a hub's operators on the tool and its server, not the server's text
     if shrunk:
         out["inputSchemaShrunk"] = True
     if hit.tool.doc.get("annotations"):

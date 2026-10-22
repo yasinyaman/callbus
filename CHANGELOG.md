@@ -11,7 +11,11 @@ change behaviour.
 - **`callbus ingest hub URL --toolset toolset.yaml --out DIR`**: the tools a hub
   (hub.fx42.ai) has listed for the servers of a toolset, as sources of an ingest dir, without
   starting any of them. Each tool's text is recomputed the way `ingest mcp` writes it, so the two
-  share cache entries. It also writes `DIR/pins.json`.
+  share cache entries. It also writes `DIR/pins.json`, and `DIR/guidance.jsonl` when the hub's
+  operators wrote notes on those servers or tools.
+- **Notes from the hub on search hits**: `search_tools` and `/v1/search` give each tool the hub's
+  notes on it and its server (`notes`: `cue`, `lesson`, `confidence`), only with the tools a search
+  finds. A tool's note is shown while the tool keeps the pin it was written against.
 - **`callbus serve --pins pins.json`**: a call to a tool whose name, description or input schema no
   longer hashes to its pin is refused (`pin_mismatch`): the tool as the catalogue holds it, and an MCP
   tool also as its server listed it when callbus connected. A pinned source accepts only its pinned

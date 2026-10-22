@@ -478,3 +478,32 @@ def test_a_key_without_heads_of_its_own_takes_part_in_the_shared_experiment(tmp_
     _npz_heads(heads / "tenants" / "acme" / "current.npz", seed=3)  # acme runs its own experiment
     assert _ready(r, "tenant:acme")["ready"]
     assert r.search("tool 3", arm_key=inside, tenant="acme").arm == "tenant:acme"
+
+
+def test_hits_carry_the_hubs_notes_on_their_tool_and_source(tmp_path):
+    from callbus import guidance
+    from callbus.pins import doc_pin
+
+    d = _dir(tmp_path, n=3)
+    note = {"evidence": "run:1", "confidence": "medium", "created_at": "2026-10-22T09:00:00+00:00"}
+    guidance.write(
+        d / guidance.FILE,
+        [
+            {
+                **note,
+                "source": "s",
+                "tool": "t1",
+                "cue": "c1",
+                "lesson": "l1",
+                "pin": doc_pin(_tools(3)[1].doc),
+            },
+            {**note, "source": "s", "tool": "", "cue": "all", "lesson": "every tool"},
+        ],
+    )
+    r = Retriever(d, _make, fixed_k=3)
+    by_id = {h.id: h.notes for h in r.search("tool 1").hits}
+    server = {"cue": "all", "lesson": "every tool", "confidence": "medium"}
+    assert by_id["s/t1"] == ({"cue": "c1", "lesson": "l1", "confidence": "medium"}, server)
+    assert by_id["s/t0"] == (server,)
+    (d / guidance.FILE).unlink()
+    assert all(h.notes == () for h in r.search("tool 1").hits)  # read again when it goes

@@ -50,6 +50,19 @@ It also writes `tools/pins.json`: a hash of every tool's name, description and i
 hub saw them (`--pins-out` puts it elsewhere; other sources' pins stay). `callbus serve --pins` then
 refuses a call to a tool that changed since (see [serving](serve.md#pinned-tools)).
 
+When the hub's operators have written notes on these servers or their tools (when one applies,
+what to do, how sure they are, and the run or page that showed it), it keeps them in
+`tools/guidance.jsonl`, one note a line. Each sync replaces the notes of the sources it took, so a
+note the hub withdrew goes; a hub that sends none (an older one, or no notes yet) leaves the file
+out, and `callbus ingest drop` drops a source's notes with its tools. A note on one tool holds only
+while that tool's name, description and input schema are those the hub listed: after an
+`ingest mcp` that relists the tool differently, it is no longer shown.
+
+`search_tools` (and `/v1/search`) hand the notes over with the tools a search finds, as `notes` on
+each hit: the tool's own (up to five), then its server's (up to five), each with `cue`, `lesson`
+and `confidence`. They are never in the tool definitions or any prompt the agent always carries, so
+a catalogue with notes costs no more tokens per turn than one without.
+
 ## Schemas an agent API would refuse
 
 Ingest checks each tool's input schema against JSON Schema 2020-12. Without the `[mcp]` extra (which
